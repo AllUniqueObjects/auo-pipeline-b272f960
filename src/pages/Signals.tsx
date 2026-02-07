@@ -1,55 +1,49 @@
 import { Header } from '@/components/Header';
-import { SignalCard, Signal } from '@/components/SignalCard';
+import { SignalCard } from '@/components/SignalCard';
 import { Radio } from 'lucide-react';
-
-const mockSignals: Signal[] = [
-  {
-    id: "1",
-    category: "competitive",
-    title: "Hoka Takes 12% US Running Share — Closing Gap on NB's #3",
-    summary: "Hoka's US running market share hit 12%, narrowing the gap with NB from 8pts to 3pts in 18 months.",
-    urgency: "urgent",
-    sourceCount: 4,
-    createdAt: "2026-02-07"
-  },
-  {
-    id: "2",
-    category: "policy",
-    title: "USTR Signals 5% Tariff Increase on Vietnamese Footwear",
-    summary: "Draft proposal would raise Section 301 tariffs on Vietnam-origin footwear from 20% to 25% by Q3 2026.",
-    urgency: "emerging",
-    sourceCount: 3,
-    createdAt: "2026-02-07"
-  },
-  {
-    id: "3",
-    category: "technology",
-    title: "BASF Launches Next-Gen PEBA Foam — 15% Lighter Than FuelCell",
-    summary: "New Elastopan Sport compound could reshape the super-foam race. Available for sampling Q2 2026.",
-    urgency: "emerging",
-    sourceCount: 2,
-    createdAt: "2026-02-06"
-  },
-  {
-    id: "4",
-    category: "market",
-    title: "Gen Z Trail Running Participation Up 34% YoY",
-    summary: "SFIA data shows trail running is the fastest-growing outdoor activity among 18-24 demo, outpacing hiking.",
-    urgency: "monitor",
-    sourceCount: 2,
-    createdAt: "2026-02-05"
-  }
-];
+import { useSignals } from '@/hooks/useSignals';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Signals() {
-  const signals = mockSignals;
+  const { signals, loading, error } = useSignals();
+
+  const formatSignalForCard = (signal: typeof signals[0]) => ({
+    id: signal.id,
+    category: signal.category as 'competitive' | 'market' | 'technology' | 'supply_chain' | 'policy' | 'commercial' | 'brand',
+    title: signal.title,
+    summary: signal.summary,
+    urgency: (signal.urgency || 'stable') as 'urgent' | 'emerging' | 'monitor' | 'stable',
+    sourceCount: signal.source_ids?.length || 0,
+    createdAt: signal.created_at || new Date().toISOString(),
+  });
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 py-6">
         <div className="content-wrapper">
-          {signals.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col gap-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 rounded-[10px] border border-border bg-card">
+                  <div className="flex items-start justify-between mb-3">
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                  </div>
+                  <Skeleton className="h-5 w-full mb-2" />
+                  <Skeleton className="h-4 w-3/4 mb-3" />
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="text-center py-16">
+              <p className="text-destructive text-sm">Failed to load signals. Please try again.</p>
+            </div>
+          ) : signals.length === 0 ? (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-secondary mb-4">
                 <Radio className="w-5 h-5 text-muted-foreground" />
@@ -62,7 +56,7 @@ export default function Signals() {
           ) : (
             <div className="flex flex-col gap-3">
               {signals.map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
+                <SignalCard key={signal.id} signal={formatSignalForCard(signal)} />
               ))}
             </div>
           )}
