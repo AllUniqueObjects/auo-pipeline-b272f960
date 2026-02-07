@@ -143,45 +143,60 @@ export type Database = {
       }
       signals: {
         Row: {
+          action_paths: Json | null
           body: string
           category: string
+          confidence: string | null
           connected_signals: string[] | null
           created_at: string | null
           data_points: Json | null
           embedding: string | null
           id: string
-          reasoning: string
+          opportunity: string | null
+          reasoning: string | null
+          risk: string | null
           source_ids: string[] | null
+          source_urls: string[] | null
           summary: string
           title: string
           urgency: string | null
           user_id: string
         }
         Insert: {
+          action_paths?: Json | null
           body: string
           category: string
+          confidence?: string | null
           connected_signals?: string[] | null
           created_at?: string | null
           data_points?: Json | null
           embedding?: string | null
           id?: string
-          reasoning: string
+          opportunity?: string | null
+          reasoning?: string | null
+          risk?: string | null
           source_ids?: string[] | null
+          source_urls?: string[] | null
           summary: string
           title: string
           urgency?: string | null
           user_id: string
         }
         Update: {
+          action_paths?: Json | null
           body?: string
           category?: string
+          confidence?: string | null
           connected_signals?: string[] | null
           created_at?: string | null
           data_points?: Json | null
           embedding?: string | null
           id?: string
-          reasoning?: string
+          opportunity?: string | null
+          reasoning?: string | null
+          risk?: string | null
           source_ids?: string[] | null
+          source_urls?: string[] | null
           summary?: string
           title?: string
           urgency?: string | null
