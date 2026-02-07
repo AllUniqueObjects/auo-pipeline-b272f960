@@ -185,7 +185,7 @@ export default function SignalDetail() {
               Analysis
             </h2>
             <div className="text-[14px] text-foreground leading-relaxed space-y-4">
-              {rawSignal.body.split('\n\n').map((paragraph, index) => (
+              {(rawSignal.body || '').split('\n\n').map((paragraph, index) => (
                 <p key={index}>{paragraph}</p>
               ))}
             </div>
@@ -204,7 +204,7 @@ export default function SignalDetail() {
               }}
             >
               <div className="text-[14px] text-foreground leading-relaxed space-y-4">
-                {rawSignal.reasoning.split('\n\n').map((paragraph, index) => (
+                {(rawSignal.reasoning || '').split('\n\n').map((paragraph, index) => (
                   <p key={index}>{paragraph}</p>
                 ))}
               </div>
