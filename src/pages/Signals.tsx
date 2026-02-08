@@ -130,9 +130,11 @@ export default function Signals() {
             </span>
           </div>
 
-          {/* Graph area */}
-          <div className="flex-1 p-10" style={{ minHeight: 'calc(100vh - 160px)' }}>
-            <div className="w-full h-full">
+          {/* Graph area - fills remaining viewport */}
+          <div 
+            className="flex-1 px-10 pb-10"
+            style={{ height: 'calc(100vh - 120px)' }}
+          >
               {clusters.length === 0 && standaloneSignals.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
                   <span className="text-[13px]" style={{ fontWeight: 300, color: '#44444f' }}>
@@ -147,7 +149,6 @@ export default function Signals() {
                   onSelectSignal={handleSelectSignal}
                 />
               )}
-            </div>
           </div>
         </div>
       )}
