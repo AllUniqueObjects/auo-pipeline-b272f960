@@ -74,24 +74,28 @@ export function SignalGraph({
     signal: null,
   });
 
-  // Track container dimensions
+  // Track container dimensions using getBoundingClientRect for reliability
   useEffect(() => {
     if (!containerRef.current) return;
     
     const updateDimensions = () => {
       if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current;
-        if (clientWidth > 0 && clientHeight > 0) {
-          setDimensions({ width: clientWidth, height: clientHeight });
+        const rect = containerRef.current.getBoundingClientRect();
+        // Only update if dimensions are stable and reasonable
+        if (rect.width >= 400 && rect.height >= 300) {
+          setDimensions({ width: rect.width, height: rect.height });
         }
       }
     };
 
-    // Initial measurement after a short delay
-    const timeout = setTimeout(updateDimensions, 100);
+    // Initial measurement after layout settles
+    const timeout = setTimeout(updateDimensions, 150);
     
     // ResizeObserver for responsive updates
-    const observer = new ResizeObserver(updateDimensions);
+    const observer = new ResizeObserver(() => {
+      // Debounce resize updates
+      requestAnimationFrame(updateDimensions);
+    });
     observer.observe(containerRef.current);
 
     return () => {
@@ -126,7 +130,8 @@ export function SignalGraph({
   useEffect(() => {
     if (!svgRef.current) return;
     if (clusters.length === 0 && standaloneSignals.length === 0) return;
-    if (dimensions.width < 100 || dimensions.height < 100) return;
+    // Wait for stable, reasonable dimensions
+    if (dimensions.width < 400 || dimensions.height < 300) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
@@ -202,16 +207,16 @@ export function SignalGraph({
       }
     });
 
-    // Calculate initial cluster center positions
+    // Calculate initial cluster center positions with wider spacing
     const clusterCenters = new Map<string, { x: number; y: number }>();
     const clusterCount = clusters.length;
-    const radius = Math.min(width, height) * 0.3;
+    const clusterRadius = Math.min(width, height) * 0.35; // Increased from 0.3
     
     clusters.forEach((cluster, i) => {
       const angle = (2 * Math.PI * i) / clusterCount - Math.PI / 2;
       clusterCenters.set(cluster.id, {
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
+        x: centerX + clusterRadius * Math.cos(angle),
+        y: centerY + clusterRadius * Math.sin(angle),
       });
     });
 
@@ -348,8 +353,8 @@ export function SignalGraph({
         onSelectSignal(d.signal, d.cluster);
       });
 
-    // Update positions on tick
-    simulation.on('tick', () => {
+    // Helper function to update all positions
+    const updatePositions = () => {
       linkElements
         .attr('x1', (d) => (typeof d.source === 'object' ? d.source.x : 0) || 0)
         .attr('y1', (d) => (typeof d.source === 'object' ? d.source.y : 0) || 0)
@@ -357,13 +362,19 @@ export function SignalGraph({
         .attr('y2', (d) => (typeof d.target === 'object' ? d.target.y : 0) || 0);
 
       nodeElements.attr('cx', (d) => d.x || 0).attr('cy', (d) => d.y || 0);
-    });
+    };
 
-    // Run simulation for 300 ticks then stop
+    // Register tick handler (for interactive updates if needed later)
+    simulation.on('tick', updatePositions);
+
+    // Run simulation for 300 ticks
     for (let i = 0; i < 300; i++) {
       simulation.tick();
     }
     simulation.stop();
+
+    // CRITICAL: Explicitly apply final positions after simulation completes
+    updatePositions();
 
     // Add cluster labels after simulation settles
     clusters.forEach((cluster) => {
