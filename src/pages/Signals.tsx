@@ -132,7 +132,7 @@ export default function Signals() {
 
           {/* Graph area - fills remaining viewport */}
           <div 
-            className="flex-1 px-10 pb-10"
+            className="px-10 pb-10"
             style={{ height: 'calc(100vh - 120px)' }}
           >
               {clusters.length === 0 && standaloneSignals.length === 0 ? (
