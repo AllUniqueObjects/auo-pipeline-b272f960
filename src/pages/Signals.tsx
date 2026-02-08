@@ -1,67 +1,107 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
-import { SignalCard } from '@/components/SignalCard';
-import { Radio } from 'lucide-react';
-import { useSignals } from '@/hooks/useSignals';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ClusterPane } from '@/components/signals/ClusterPane';
+import { SignalDetailPane } from '@/components/signals/SignalDetailPane';
+import { useSignalClusters } from '@/hooks/useSignalClusters';
+import { useIsMobile } from '@/hooks/use-mobile';
+import type { Signal } from '@/hooks/useSignals';
 
 export default function Signals() {
-  const { signals, loading, error } = useSignals();
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const { clusters, standaloneSignals, loading, summary } = useSignalClusters();
+  const [selectedSignal, setSelectedSignal] = useState<Signal | null>(null);
 
-  const formatSignalForCard = (signal: typeof signals[0]) => ({
-    id: signal.id,
-    category: signal.category as 'competitive' | 'market' | 'technology' | 'supply_chain' | 'policy' | 'commercial' | 'brand',
-    title: signal.title,
-    summary: signal.summary,
-    urgency: (signal.urgency || 'stable') as 'urgent' | 'emerging' | 'monitor' | 'stable',
-    confidence: signal.confidence as 'high' | 'medium' | 'low' | null,
-    sourceCount: signal.source_ids?.length || 0,
-    createdAt: signal.created_at || new Date().toISOString(),
-  });
+  // Get all signals for keyboard navigation
+  const allSignals = [
+    ...clusters.flatMap((c) => c.signals),
+    ...standaloneSignals,
+  ];
+
+  const handleSelectSignal = useCallback(
+    (signal: Signal) => {
+      if (isMobile) {
+        // On mobile, navigate to detail page
+        navigate(`/signals/${signal.id}`);
+      } else {
+        setSelectedSignal(signal);
+      }
+    },
+    [isMobile, navigate]
+  );
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (isMobile || allSignals.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const currentIndex = selectedSignal
+          ? allSignals.findIndex((s) => s.id === selectedSignal.id)
+          : -1;
+
+        let nextIndex: number;
+        if (e.key === 'ArrowDown') {
+          nextIndex = currentIndex < allSignals.length - 1 ? currentIndex + 1 : 0;
+        } else {
+          nextIndex = currentIndex > 0 ? currentIndex - 1 : allSignals.length - 1;
+        }
+
+        setSelectedSignal(allSignals[nextIndex]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobile, allSignals, selectedSignal]);
+
+  // Auto-select first urgent signal on desktop
+  useEffect(() => {
+    if (!isMobile && !selectedSignal && allSignals.length > 0) {
+      // Find first urgent signal or just first signal
+      const urgentSignal = allSignals.find((s) => s.urgency === 'urgent');
+      setSelectedSignal(urgentSignal || allSignals[0]);
+    }
+  }, [isMobile, selectedSignal, allSignals]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      <main className="flex-1 py-6">
-        <div className="content-wrapper">
-          {loading ? (
-            <div className="flex flex-col gap-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="p-4 rounded-[10px] border border-border bg-card">
-                  <div className="flex items-start justify-between mb-3">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                  </div>
-                  <Skeleton className="h-5 w-full mb-2" />
-                  <Skeleton className="h-4 w-3/4 mb-3" />
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                </div>
-              ))}
+      <main className="flex-1 flex overflow-hidden">
+        {isMobile ? (
+          // Mobile: Full-width cluster pane only
+          <div className="w-full h-full">
+            <ClusterPane
+              clusters={clusters}
+              standaloneSignals={standaloneSignals}
+              loading={loading}
+              summary={summary}
+              selectedSignalId={null}
+              onSelectSignal={handleSelectSignal}
+            />
+          </div>
+        ) : (
+          // Desktop: Split pane
+          <>
+            {/* Left pane - 40% */}
+            <div className="w-[40%] min-w-[320px] max-w-[480px] h-full border-r border-border/50">
+              <ClusterPane
+                clusters={clusters}
+                standaloneSignals={standaloneSignals}
+                loading={loading}
+                summary={summary}
+                selectedSignalId={selectedSignal?.id || null}
+                onSelectSignal={handleSelectSignal}
+              />
             </div>
-          ) : error ? (
-            <div className="text-center py-16">
-              <p className="text-destructive text-sm">Failed to load signals. Please try again.</p>
+            {/* Right pane - 60% */}
+            <div className="flex-1 h-full bg-card">
+              <SignalDetailPane signal={selectedSignal} />
             </div>
-          ) : signals.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-secondary mb-4">
-                <Radio className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <h2 className="text-lg font-medium mb-2">No signals yet</h2>
-              <p className="text-muted-foreground text-sm max-w-[280px] mx-auto">
-                Your daily intelligence briefing will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {signals.map((signal) => (
-                <SignalCard key={signal.id} signal={formatSignalForCard(signal)} />
-              ))}
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </main>
     </div>
   );
