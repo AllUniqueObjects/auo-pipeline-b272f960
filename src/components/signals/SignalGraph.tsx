@@ -248,8 +248,8 @@ export function SignalGraph({
       .data(links)
       .enter()
       .append('line')
-      .attr('stroke', (d) => `rgba(255, 255, 255, ${d.similarity * 0.15})`)
-      .attr('stroke-width', 0.5)
+      .attr('stroke', (d) => `rgba(255, 255, 255, ${Math.max(d.similarity * 0.3, 0.1)})`)
+      .attr('stroke-width', 1)
       .attr('class', 'edge-line');
 
     // Draw nodes
@@ -260,16 +260,16 @@ export function SignalGraph({
       .append('circle')
       .attr('r', (d) => d.radius)
       .attr('fill', (d) => {
-        if (!d.cluster) return 'rgba(107, 107, 123, 0.3)';
+        if (!d.cluster) return 'rgba(107, 107, 123, 0.5)';
         const color = clusterColorMap.get(d.cluster.id) || '#6b6b7b';
-        return hexToRgba(color, 0.4);
+        return hexToRgba(color, 0.7);
       })
       .attr('stroke', (d) => {
-        if (!d.cluster) return 'rgba(107, 107, 123, 0.4)';
+        if (!d.cluster) return 'rgba(107, 107, 123, 0.7)';
         const color = clusterColorMap.get(d.cluster.id) || '#6b6b7b';
-        return hexToRgba(color, 0.6);
+        return hexToRgba(color, 0.9);
       })
-      .attr('stroke-width', 1)
+      .attr('stroke-width', 2)
       .style('cursor', 'pointer')
       .style('transition', 'opacity 150ms ease')
       .classed('urgent-pulse', (d) => d.isUrgent);
