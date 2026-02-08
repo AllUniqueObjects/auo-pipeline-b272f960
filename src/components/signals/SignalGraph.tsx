@@ -81,8 +81,9 @@ export function SignalGraph({
     const updateDimensions = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        // Only update if dimensions are stable and reasonable
-        if (rect.width >= 400 && rect.height >= 300) {
+        console.log('[SignalGraph] Container rect:', rect.width, rect.height);
+        // Accept any reasonable size
+        if (rect.width > 0 && rect.height > 0) {
           setDimensions({ width: rect.width, height: rect.height });
         }
       }
@@ -93,7 +94,6 @@ export function SignalGraph({
     
     // ResizeObserver for responsive updates
     const observer = new ResizeObserver(() => {
-      // Debounce resize updates
       requestAnimationFrame(updateDimensions);
     });
     observer.observe(containerRef.current);
@@ -130,8 +130,12 @@ export function SignalGraph({
   useEffect(() => {
     if (!svgRef.current) return;
     if (clusters.length === 0 && standaloneSignals.length === 0) return;
-    // Wait for stable, reasonable dimensions
-    if (dimensions.width < 400 || dimensions.height < 300) return;
+    // Wait for valid dimensions (lowered threshold for smaller viewports)
+    if (dimensions.width < 200 || dimensions.height < 200) {
+      console.log('[SignalGraph] Waiting for dimensions:', dimensions);
+      return;
+    }
+    console.log('[SignalGraph] Rendering with dimensions:', dimensions, 'clusters:', clusters.length, 'signals:', standaloneSignals.length);
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
