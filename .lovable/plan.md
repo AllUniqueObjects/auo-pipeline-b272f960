@@ -1,89 +1,73 @@
 
-# Fix Context Graph Rendering
 
-## Root Cause Analysis
+# Fix Graph Container Height
 
-After investigating the code, database, and network requests, I've identified **why the graph appears broken**:
+## Root Cause Identified
 
-### Problem 1: Force Simulation Runs Before Rendering
-The current code runs `for (i=0; i<300; i++) simulation.tick()` synchronously, then immediately stops the simulation. However, the tick handler that updates node positions only fires during the simulation's natural event loop, not during the manual `tick()` calls. This means nodes may have calculated positions but they're never properly applied to the SVG elements.
+The console logs confirm the issue:
+- Container width: **1148px** (good)
+- Container height: **150px** (too small - needs at least 200px)
 
-### Problem 2: Initial Position Calculation Issues
-The nodes are initialized with positions based on cluster centers, but:
-- The cluster center calculation depends on `dimensions.width` and `dimensions.height`
-- If these values are captured before the container fully expands, all calculations are off
-- The 100ms timeout may not be sufficient for complex layouts
+The graph isn't rendering because the height check (`height < 200`) keeps failing.
 
-### Problem 3: Labels Are Drawing But Nodes Are Not Visible
-The screenshot shows "CLUSTER 1" and "CLUSTER 2" labels, meaning:
-- Clusters ARE being processed
-- The D3 code IS running
-- But the nodes are likely all positioned at (0,0) or clustered in a tiny area (visible as a small dark triangle in the top-left)
+## Why the Container is Only 150px Tall
+
+Looking at `src/pages/Signals.tsx`, there's a CSS conflict in the graph area layout:
+
+```text
+Line 134: <div className="flex-1 min-h-0 p-10">
+Line 135:   <div className="w-full h-full" style={{ minHeight: 'calc(100vh - 160px)' }}>
+```
+
+The issues:
+1. `min-h-0` on line 134 prevents the flex child from naturally expanding
+2. `h-full` on line 135 tries to be 100% of parent height, but the parent has no explicit height
+3. The `minHeight` style is on the wrong element - it should be on the flex child, not the inner div
 
 ## Solution
 
-Rewrite the SignalGraph component with proper D3 force simulation handling:
+Restructure the container hierarchy so the graph area properly fills the viewport:
 
-### Technical Changes
+### File: `src/pages/Signals.tsx`
 
-1. **Fix the simulation tick loop**: Instead of running 300 ticks manually and stopping, run the simulation and update positions on EACH tick using the `simulation.on('tick', ...)` callback. Only stop after the simulation has naturally cooled down.
+**Change 1**: Remove `min-h-0` and add explicit height to the graph area wrapper
 
-2. **Ensure positions are applied synchronously**: After the manual tick loop, explicitly update all element positions before rendering labels.
+```tsx
+// Line 134: Change from:
+<div className="flex-1 min-h-0 p-10">
 
-3. **Add better dimension validation**: Don't start rendering until container dimensions are truly stable and reasonable (e.g., at least 400x300).
-
-4. **Use getBoundingClientRect() instead of clientWidth/clientHeight**: This is more reliable across different rendering scenarios.
-
-5. **Add debug logging (temporarily)**: Log node positions after simulation to verify they're being calculated.
-
-### Files to Modify
-
-- `src/components/signals/SignalGraph.tsx` - Rewrite the D3 force simulation with proper tick handling
-
-### Specific Code Changes
-
-The key fix is in how the simulation tick is handled:
-
-```text
-Current (broken):
-  for (let i = 0; i < 300; i++) {
-    simulation.tick();
-  }
-  simulation.stop();
-  // Positions are calculated but elements aren't updated
-
-Fixed:
-  simulation.on('tick', () => {
-    // Update element positions on every tick
-    linkElements.attr('x1', ...).attr('y1', ...)...
-    nodeElements.attr('cx', ...).attr('cy', ...)...
-  });
-  
-  // Run ticks manually
-  for (let i = 0; i < 300; i++) {
-    simulation.tick();
-  }
-  simulation.stop();
-  
-  // Force one final position update
-  linkElements.attr('x1', ...)...
-  nodeElements.attr('cx', ...)...
+// To:
+<div className="flex-1 p-10" style={{ minHeight: 'calc(100vh - 160px)' }}>
 ```
 
-The issue is that `simulation.on('tick', ...)` only registers an event listener - it doesn't automatically call it during manual `tick()` calls. We need to manually trigger the position updates after the loop.
+**Change 2**: Update the inner div to fill its parent
 
-### Additional Improvements
+```tsx
+// Line 135: Change from:
+<div className="w-full h-full" style={{ minHeight: 'calc(100vh - 160px)' }}>
 
-1. **Increase initial cluster center spacing**: Use a larger radius (0.35 instead of 0.3 of viewport) to give clusters more room
-2. **Add fallback node radius**: Ensure minimum 8px radius even if `source_urls` is null/empty
-3. **Validate node positions**: After simulation, check if all nodes have valid x/y values, if not recalculate
-4. **Make the container explicitly sized**: Use explicit `width: 100%; height: 100%` on the SVG with a known parent height
+// To:
+<div className="w-full h-full">
+```
+
+This moves the `minHeight` to the correct parent element and removes the conflicting `min-h-0` class.
+
+### File: `src/components/signals/SignalGraph.tsx`
+
+**Change 3**: Lower the height threshold from 200px to 100px to be more permissive
+
+```tsx
+// Line 132: Change from:
+if (dimensions.width < 200 || dimensions.height < 200) {
+
+// To:
+if (dimensions.width < 100 || dimensions.height < 100) {
+```
 
 ## Expected Result
 
 After these fixes:
-- 21 signal nodes will spread across the viewport
-- 3 distinct clusters will form spatial groupings (Cluster 1, 2, 3)
-- 171 signal edges will render as connection lines between related nodes
-- Cluster labels will appear above their respective node groups
-- Hover interactions will highlight connected nodes
+- Container height will expand to fill viewport minus header (~600-800px)
+- Graph will pass dimension checks and render all 21 signal nodes
+- Cluster labels and connection lines will display properly
+
