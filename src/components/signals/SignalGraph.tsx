@@ -66,12 +66,39 @@ export function SignalGraph({
 }: SignalGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     x: 0,
     y: 0,
     signal: null,
   });
+
+  // Track container dimensions
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const { clientWidth, clientHeight } = containerRef.current;
+        if (clientWidth > 0 && clientHeight > 0) {
+          setDimensions({ width: clientWidth, height: clientHeight });
+        }
+      }
+    };
+
+    // Initial measurement after a short delay
+    const timeout = setTimeout(updateDimensions, 100);
+    
+    // ResizeObserver for responsive updates
+    const observer = new ResizeObserver(updateDimensions);
+    observer.observe(containerRef.current);
+
+    return () => {
+      clearTimeout(timeout);
+      observer.disconnect();
+    };
+  }, []);
 
   // Build adjacency map for quick lookup
   const adjacencyMap = useRef<Map<string, Set<string>>>(new Map());
@@ -97,19 +124,19 @@ export function SignalGraph({
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current || !svgRef.current) return;
+    if (!svgRef.current) return;
     if (clusters.length === 0 && standaloneSignals.length === 0) return;
+    if (dimensions.width < 100 || dimensions.height < 100) return;
 
-    const container = containerRef.current;
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = dimensions.width;
+    const height = dimensions.height;
     const centerX = width / 2;
     const centerY = height / 2;
 
-    svg.attr('width', width).attr('height', height);
+    svg.attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
 
     // Assign colors to clusters
     const clusterColorMap = new Map<string, string>();
@@ -386,7 +413,7 @@ export function SignalGraph({
     return () => {
       simulation.stop();
     };
-  }, [clusters, standaloneSignals, signalEdges, onSelectSignal, handleNodeHover]);
+  }, [clusters, standaloneSignals, signalEdges, onSelectSignal, handleNodeHover, dimensions]);
 
   const sourceCount = tooltip.signal?.source_urls?.length || 0;
 
