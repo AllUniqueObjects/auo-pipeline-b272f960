@@ -1,13 +1,32 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
-import type { ClusterWithColor, Signal } from '@/hooks/useSignalGraphData';
-import { standaloneColor } from '@/lib/clusterColors';
+import type { ClusterWithColor, Signal, SignalEdge } from '@/hooks/useSignalGraphData';
 
 interface SignalGraphProps {
   clusters: ClusterWithColor[];
   standaloneSignals: Signal[];
-  clusterEdges: { clusterA: string; clusterB: string }[];
+  signalEdges: SignalEdge[];
   onSelectSignal: (signal: Signal, cluster: ClusterWithColor | null) => void;
+}
+
+interface NodeData {
+  id: string;
+  signal: Signal;
+  cluster: ClusterWithColor | null;
+  radius: number;
+  isUrgent: boolean;
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+  fx?: number | null;
+  fy?: number | null;
+}
+
+interface LinkData {
+  source: string | NodeData;
+  target: string | NodeData;
+  similarity: number;
 }
 
 interface TooltipState {
@@ -17,10 +36,32 @@ interface TooltipState {
   signal: Signal | null;
 }
 
+const clusterPalette = [
+  { name: 'coral', color: '#f4a3a0' },
+  { name: 'lavender', color: '#b4a7d6' },
+  { name: 'sage', color: '#a8d5ba' },
+  { name: 'gold', color: '#e8d5a3' },
+  { name: 'slate', color: '#a0aabe' },
+];
+
+function getNodeRadius(signal: Signal): number {
+  const sourceCount = signal.source_urls?.length || 0;
+  if (sourceCount >= 9) return 14;
+  if (sourceCount >= 6) return 11;
+  return 8;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export function SignalGraph({
   clusters,
   standaloneSignals,
-  clusterEdges,
+  signalEdges,
   onSelectSignal,
 }: SignalGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,8 +73,32 @@ export function SignalGraph({
     signal: null,
   });
 
+  // Build adjacency map for quick lookup
+  const adjacencyMap = useRef<Map<string, Set<string>>>(new Map());
+  
   useEffect(() => {
-    if (!containerRef.current || !svgRef.current || clusters.length === 0) return;
+    const map = new Map<string, Set<string>>();
+    signalEdges.forEach((edge) => {
+      if (!map.has(edge.signal_a)) map.set(edge.signal_a, new Set());
+      if (!map.has(edge.signal_b)) map.set(edge.signal_b, new Set());
+      map.get(edge.signal_a)!.add(edge.signal_b);
+      map.get(edge.signal_b)!.add(edge.signal_a);
+    });
+    adjacencyMap.current = map;
+  }, [signalEdges]);
+
+  const handleNodeHover = useCallback((nodeId: string | null, x: number, y: number, signal: Signal | null) => {
+    setTooltip({
+      visible: !!nodeId,
+      x,
+      y,
+      signal,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current || !svgRef.current) return;
+    if (clusters.length === 0 && standaloneSignals.length === 0) return;
 
     const container = containerRef.current;
     const svg = d3.select(svgRef.current);
@@ -41,253 +106,304 @@ export function SignalGraph({
 
     const width = container.clientWidth;
     const height = container.clientHeight;
-    const padding = 40;
+    const centerX = width / 2;
+    const centerY = height / 2;
 
     svg.attr('width', width).attr('height', height);
 
-    // Calculate grid layout for clusters
-    const clusterCount = clusters.length;
-    let cols: number, rows: number;
-
-    if (clusterCount <= 3) {
-      cols = clusterCount;
-      rows = 1;
-    } else if (clusterCount <= 4) {
-      cols = 2;
-      rows = 2;
-    } else if (clusterCount <= 6) {
-      cols = 3;
-      rows = 2;
-    } else {
-      cols = 3;
-      rows = Math.ceil(clusterCount / 3);
-    }
-
-    const availableWidth = width - padding * 2;
-    const availableHeight = height - padding * 2 - (standaloneSignals.length > 0 ? 80 : 0);
-
-    const cellWidth = availableWidth / cols;
-    const cellHeight = availableHeight / rows;
-    const clusterPadding = 24;
-
-    // Position clusters
-    const clusterPositions = new Map<
-      string,
-      { x: number; y: number; width: number; height: number }
-    >();
-
-    clusters.forEach((cluster, index) => {
-      const col = index % cols;
-      const row = Math.floor(index / cols);
-
-      const x = padding + col * cellWidth + clusterPadding;
-      const y = padding + row * cellHeight + clusterPadding;
-      const w = cellWidth - clusterPadding * 2;
-      const h = cellHeight - clusterPadding * 2;
-
-      clusterPositions.set(cluster.id, { x, y, width: w, height: h });
+    // Assign colors to clusters
+    const clusterColorMap = new Map<string, string>();
+    clusters.forEach((cluster, i) => {
+      clusterColorMap.set(cluster.id, clusterPalette[i % clusterPalette.length].color);
     });
 
-    // Draw cluster edge lines
-    const clusterMap = new Map(clusters.map((c) => [c.id, c]));
+    // Build nodes
+    const nodes: NodeData[] = [];
 
-    clusterEdges.forEach((edge) => {
-      const posA = clusterPositions.get(edge.clusterA);
-      const posB = clusterPositions.get(edge.clusterB);
+    clusters.forEach((cluster) => {
+      cluster.signals.forEach((signal) => {
+        nodes.push({
+          id: signal.id,
+          signal,
+          cluster,
+          radius: getNodeRadius(signal),
+          isUrgent: signal.urgency === 'urgent',
+        });
+      });
+    });
 
-      if (posA && posB) {
-        const centerAx = posA.x + posA.width / 2;
-        const centerAy = posA.y + posA.height / 2;
-        const centerBx = posB.x + posB.width / 2;
-        const centerBy = posB.y + posB.height / 2;
+    standaloneSignals.forEach((signal) => {
+      nodes.push({
+        id: signal.id,
+        signal,
+        cluster: null,
+        radius: getNodeRadius(signal),
+        isUrgent: signal.urgency === 'urgent',
+      });
+    });
 
-        svg
-          .append('line')
-          .attr('x1', centerAx)
-          .attr('y1', centerAy)
-          .attr('x2', centerBx)
-          .attr('y2', centerBy)
-          .attr('stroke', 'rgba(140,140,160,0.15)')
-          .attr('stroke-width', 0.5);
+    // Build links from signal_edges
+    const nodeIdSet = new Set(nodes.map((n) => n.id));
+    const links: LinkData[] = signalEdges
+      .filter((edge) => nodeIdSet.has(edge.signal_a) && nodeIdSet.has(edge.signal_b))
+      .map((edge) => ({
+        source: edge.signal_a,
+        target: edge.signal_b,
+        similarity: edge.similarity,
+      }));
+
+    // Also create intra-cluster links to keep cluster nodes together
+    const clusterLinks: LinkData[] = [];
+    clusters.forEach((cluster) => {
+      const clusterSignalIds = cluster.signals.map((s) => s.id);
+      for (let i = 0; i < clusterSignalIds.length; i++) {
+        for (let j = i + 1; j < clusterSignalIds.length; j++) {
+          // Only add if not already in links
+          const exists = links.some(
+            (l) =>
+              (l.source === clusterSignalIds[i] && l.target === clusterSignalIds[j]) ||
+              (l.source === clusterSignalIds[j] && l.target === clusterSignalIds[i])
+          );
+          if (!exists) {
+            clusterLinks.push({
+              source: clusterSignalIds[i],
+              target: clusterSignalIds[j],
+              similarity: 0.3, // Low similarity for cluster cohesion links
+            });
+          }
+        }
       }
     });
 
-    // Draw clusters
+    // Calculate initial cluster center positions
+    const clusterCenters = new Map<string, { x: number; y: number }>();
+    const clusterCount = clusters.length;
+    const radius = Math.min(width, height) * 0.3;
+    
+    clusters.forEach((cluster, i) => {
+      const angle = (2 * Math.PI * i) / clusterCount - Math.PI / 2;
+      clusterCenters.set(cluster.id, {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      });
+    });
+
+    // Initialize node positions near their cluster centers
+    nodes.forEach((node) => {
+      if (node.cluster) {
+        const center = clusterCenters.get(node.cluster.id);
+        if (center) {
+          node.x = center.x + (Math.random() - 0.5) * 100;
+          node.y = center.y + (Math.random() - 0.5) * 100;
+        }
+      } else {
+        // Standalone: random position at periphery
+        const angle = Math.random() * 2 * Math.PI;
+        const r = Math.min(width, height) * 0.4;
+        node.x = centerX + r * Math.cos(angle);
+        node.y = centerY + r * Math.sin(angle);
+      }
+    });
+
+    // Custom cluster force
+    function clusterForce(alpha: number) {
+      nodes.forEach((node) => {
+        if (node.cluster) {
+          const center = clusterCenters.get(node.cluster.id);
+          if (center && node.x !== undefined && node.y !== undefined) {
+            const dx = center.x - node.x;
+            const dy = center.y - node.y;
+            node.vx = (node.vx || 0) + dx * alpha * 0.15;
+            node.vy = (node.vy || 0) + dy * alpha * 0.15;
+          }
+        }
+      });
+    }
+
+    // Create simulation
+    const simulation = d3
+      .forceSimulation(nodes)
+      .force('center', d3.forceCenter(centerX, centerY).strength(0.05))
+      .force('charge', d3.forceManyBody().strength(-150))
+      .force('collide', d3.forceCollide<NodeData>((d) => d.radius + 8))
+      .force(
+        'link',
+        d3
+          .forceLink<NodeData, LinkData>([...links, ...clusterLinks])
+          .id((d) => d.id)
+          .distance(40)
+          .strength(0.8)
+      )
+      .force('cluster', clusterForce)
+      .alphaDecay(0.02);
+
+    // Create container groups
+    const linksGroup = svg.append('g').attr('class', 'links');
+    const nodesGroup = svg.append('g').attr('class', 'nodes');
+    const labelsGroup = svg.append('g').attr('class', 'labels');
+
+    // Draw edge links (only visible edges from signal_edges, not cluster cohesion links)
+    const linkElements = linksGroup
+      .selectAll('line')
+      .data(links)
+      .enter()
+      .append('line')
+      .attr('stroke', (d) => `rgba(255, 255, 255, ${d.similarity * 0.15})`)
+      .attr('stroke-width', 0.5)
+      .attr('class', 'edge-line');
+
+    // Draw nodes
+    const nodeElements = nodesGroup
+      .selectAll('circle')
+      .data(nodes)
+      .enter()
+      .append('circle')
+      .attr('r', (d) => d.radius)
+      .attr('fill', (d) => {
+        if (!d.cluster) return 'rgba(107, 107, 123, 0.3)';
+        const color = clusterColorMap.get(d.cluster.id) || '#6b6b7b';
+        return hexToRgba(color, 0.4);
+      })
+      .attr('stroke', (d) => {
+        if (!d.cluster) return 'rgba(107, 107, 123, 0.4)';
+        const color = clusterColorMap.get(d.cluster.id) || '#6b6b7b';
+        return hexToRgba(color, 0.6);
+      })
+      .attr('stroke-width', 1)
+      .style('cursor', 'pointer')
+      .style('transition', 'opacity 150ms ease')
+      .classed('urgent-pulse', (d) => d.isUrgent);
+
+    // Add hover and click handlers
+    nodeElements
+      .on('mouseenter', function (event, d) {
+        const nodeX = d.x || 0;
+        const nodeY = d.y || 0;
+        handleNodeHover(d.id, nodeX, nodeY - 20, d.signal);
+        
+        // Scale this node
+        d3.select(this).attr('r', d.radius * 1.3);
+        
+        // Get connected nodes
+        const connected = adjacencyMap.current.get(d.id) || new Set();
+        
+        // Dim non-connected nodes, highlight connected
+        nodeElements.style('opacity', (n) => {
+          if (n.id === d.id) return d.isUrgent ? 0.7 : 1;
+          if (connected.has(n.id)) return 0.8;
+          return 0.15;
+        });
+        
+        // Highlight connected edges
+        linkElements
+          .attr('stroke', (l) => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            if (sourceId === d.id || targetId === d.id) {
+              return 'rgba(255, 255, 255, 0.4)';
+            }
+            return `rgba(255, 255, 255, ${l.similarity * 0.15})`;
+          });
+      })
+      .on('mouseleave', function (event, d) {
+        handleNodeHover(null, 0, 0, null);
+        
+        // Reset radius
+        d3.select(this).attr('r', d.radius);
+        
+        // Reset all nodes
+        nodeElements.style('opacity', (n) => n.isUrgent ? 0.7 : 1);
+        
+        // Reset edges
+        linkElements.attr('stroke', (l) => `rgba(255, 255, 255, ${l.similarity * 0.15})`);
+      })
+      .on('click', (event, d) => {
+        onSelectSignal(d.signal, d.cluster);
+      });
+
+    // Update positions on tick
+    simulation.on('tick', () => {
+      linkElements
+        .attr('x1', (d) => (typeof d.source === 'object' ? d.source.x : 0) || 0)
+        .attr('y1', (d) => (typeof d.source === 'object' ? d.source.y : 0) || 0)
+        .attr('x2', (d) => (typeof d.target === 'object' ? d.target.x : 0) || 0)
+        .attr('y2', (d) => (typeof d.target === 'object' ? d.target.y : 0) || 0);
+
+      nodeElements.attr('cx', (d) => d.x || 0).attr('cy', (d) => d.y || 0);
+    });
+
+    // Run simulation for 300 ticks then stop
+    for (let i = 0; i < 300; i++) {
+      simulation.tick();
+    }
+    simulation.stop();
+
+    // Add cluster labels after simulation settles
     clusters.forEach((cluster) => {
-      const pos = clusterPositions.get(cluster.id);
-      if (!pos) return;
+      const clusterNodes = nodes.filter((n) => n.cluster?.id === cluster.id);
+      if (clusterNodes.length === 0) return;
 
-      const g = svg.append('g');
+      // Find bounding box of cluster
+      const xs = clusterNodes.map((n) => n.x || 0);
+      const ys = clusterNodes.map((n) => n.y || 0);
+      const minY = Math.min(...ys);
+      const labelCenterX = (Math.min(...xs) + Math.max(...xs)) / 2;
 
-      // Cluster fill rectangle
-      g.append('rect')
-        .attr('x', pos.x)
-        .attr('y', pos.y)
-        .attr('width', pos.width)
-        .attr('height', pos.height)
-        .attr('rx', 16)
-        .attr('ry', 16)
-        .attr('fill', cluster.color.fill);
+      const color = clusterColorMap.get(cluster.id) || '#6b6b7b';
 
-      // Cluster name label (above rect)
-      g.append('text')
-        .attr('x', pos.x)
-        .attr('y', pos.y - 24)
-        .attr('fill', cluster.color.text)
-        .style('font-size', '11px')
+      // Cluster name
+      labelsGroup
+        .append('text')
+        .attr('x', labelCenterX)
+        .attr('y', minY - 28)
+        .attr('text-anchor', 'middle')
+        .attr('fill', hexToRgba(color, 0.7))
+        .style('font-size', '10px')
         .style('font-weight', '500')
         .style('text-transform', 'uppercase')
         .style('letter-spacing', '0.12em')
         .text(cluster.name);
 
       // Cluster description
-      g.append('text')
-        .attr('x', pos.x)
-        .attr('y', pos.y - 8)
-        .attr('fill', '#44444f')
-        .style('font-size', '11px')
-        .style('font-weight', '300')
-        .text(
-          cluster.description.length > 50
-            ? cluster.description.slice(0, 50) + '…'
-            : cluster.description
-        );
-
-      // Draw signal nodes inside cluster
-      const nodeSpacing = 20;
-      const nodeRadius = 6;
-      const nodesPerRow = Math.floor((pos.width - 24) / (nodeRadius * 2 + nodeSpacing));
-      const startX = pos.x + 16;
-      const startY = pos.y + 24;
-
-      cluster.signals.forEach((signal, sIndex) => {
-        const row = Math.floor(sIndex / nodesPerRow);
-        const col = sIndex % nodesPerRow;
-
-        const cx = startX + col * (nodeRadius * 2 + nodeSpacing) + nodeRadius;
-        const cy = startY + row * (nodeRadius * 2 + nodeSpacing) + nodeRadius;
-
-        const isUrgent = signal.urgency === 'urgent';
-        const sourceCount = signal.source_urls?.length || 0;
-        const r = sourceCount >= 7 ? 8 : nodeRadius;
-
-        const node = g
-          .append('circle')
-          .attr('cx', cx)
-          .attr('cy', cy)
-          .attr('r', r)
-          .attr('fill', isUrgent ? cluster.color.nodeUrgent : cluster.color.node)
-          .style('cursor', 'pointer')
-          .style('transition', 'transform 150ms ease');
-
-        if (isUrgent) {
-          node.classed('animate-subtle-pulse', true);
-        }
-
-        node
-          .on('mouseenter', (event) => {
-            d3.select(event.target).attr('transform', `translate(${cx}, ${cy}) scale(1.3) translate(${-cx}, ${-cy})`);
-            setTooltip({
-              visible: true,
-              x: cx,
-              y: cy - 16,
-              signal,
-            });
-          })
-          .on('mouseleave', (event) => {
-            d3.select(event.target).attr('transform', '');
-            setTooltip({ visible: false, x: 0, y: 0, signal: null });
-          })
-          .on('click', () => {
-            onSelectSignal(signal, cluster);
-          });
-      });
+      const desc =
+        cluster.description.length > 40
+          ? cluster.description.slice(0, 40) + '…'
+          : cluster.description;
+      if (desc) {
+        labelsGroup
+          .append('text')
+          .attr('x', labelCenterX)
+          .attr('y', minY - 14)
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#44444f')
+          .style('font-size', '10px')
+          .style('font-weight', '300')
+          .text(desc);
+      }
     });
 
-    // Draw standalone signals
-    if (standaloneSignals.length > 0) {
-      const standaloneY = height - 60;
-      const standaloneStartX = padding;
-
-      // Label
-      svg
-        .append('text')
-        .attr('x', standaloneStartX)
-        .attr('y', standaloneY - 16)
-        .attr('fill', '#44444f')
-        .style('font-size', '11px')
-        .style('font-weight', '500')
-        .style('text-transform', 'uppercase')
-        .style('letter-spacing', '0.12em')
-        .text('STANDALONE');
-
-      // Nodes
-      standaloneSignals.forEach((signal, index) => {
-        const cx = standaloneStartX + index * 26 + 6;
-        const cy = standaloneY + 6;
-        const isUrgent = signal.urgency === 'urgent';
-
-        const node = svg
-          .append('circle')
-          .attr('cx', cx)
-          .attr('cy', cy)
-          .attr('r', 6)
-          .attr('fill', isUrgent ? standaloneColor.nodeUrgent : standaloneColor.node)
-          .style('cursor', 'pointer');
-
-        if (isUrgent) {
-          node.classed('animate-subtle-pulse', true);
-        }
-
-        node
-          .on('mouseenter', (event) => {
-            d3.select(event.target).attr('transform', `translate(${cx}, ${cy}) scale(1.3) translate(${-cx}, ${-cy})`);
-            setTooltip({
-              visible: true,
-              x: cx,
-              y: cy - 16,
-              signal,
-            });
-          })
-          .on('mouseleave', (event) => {
-            d3.select(event.target).attr('transform', '');
-            setTooltip({ visible: false, x: 0, y: 0, signal: null });
-          })
-          .on('click', () => {
-            onSelectSignal(signal, null);
-          });
-      });
-    }
-
-    // Legend
-    const legendY = height - 20;
-    let legendX = padding;
-
-    clusters.forEach((cluster) => {
-      svg
-        .append('circle')
-        .attr('cx', legendX)
-        .attr('cy', legendY)
-        .attr('r', 4)
-        .attr('fill', cluster.color.node);
-
-      svg
-        .append('text')
-        .attr('x', legendX + 10)
-        .attr('y', legendY + 3)
-        .attr('fill', '#44444f')
-        .style('font-size', '10px')
-        .style('font-weight', '300')
-        .text(cluster.name);
-
-      legendX += cluster.name.length * 6 + 34;
-    });
-  }, [clusters, standaloneSignals, clusterEdges, onSelectSignal]);
+    // Cleanup
+    return () => {
+      simulation.stop();
+    };
+  }, [clusters, standaloneSignals, signalEdges, onSelectSignal, handleNodeHover]);
 
   const sourceCount = tooltip.signal?.source_urls?.length || 0;
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
+      <style>{`
+        .urgent-pulse {
+          animation: urgentPulse 2.5s ease-in-out infinite;
+          transform-origin: center;
+          opacity: 0.7;
+        }
+        @keyframes urgentPulse {
+          0%, 100% { r: attr(r); }
+          50% { r: calc(attr(r) * 1.08); }
+        }
+      `}</style>
+      
       <svg ref={svgRef} className="w-full h-full" />
 
       {/* Tooltip */}
@@ -301,17 +417,17 @@ export function SignalGraph({
           }}
         >
           <div
-            className="px-3 py-2 rounded-md"
+            className="px-3.5 py-2.5 rounded-lg"
             style={{
               background: '#1a1a24',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
             }}
           >
-            <div className="text-xs text-[#e8e8ed]" style={{ fontWeight: 400 }}>
+            <div className="text-xs text-[#e8e8ed] max-w-[200px]" style={{ fontWeight: 400 }}>
               {tooltip.signal.title}
             </div>
-            <div className="text-[10px] text-[#6b6b7b]" style={{ fontWeight: 300 }}>
-              {sourceCount} source{sourceCount !== 1 ? 's' : ''} · {tooltip.signal.urgency || 'stable'}
+            <div className="text-[10px] text-[#6b6b7b] mt-0.5" style={{ fontWeight: 300 }}>
+              {tooltip.signal.urgency || 'stable'} · {sourceCount} source{sourceCount !== 1 ? 's' : ''}
             </div>
           </div>
         </div>

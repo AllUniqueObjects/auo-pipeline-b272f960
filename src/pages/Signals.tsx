@@ -10,7 +10,7 @@ type ViewState = 'graph' | 'detail';
 
 export default function Signals() {
   const isMobile = useIsMobile();
-  const { clusters, standaloneSignals, clusterEdges, totalSignals, loading } =
+  const { clusters, standaloneSignals, signalEdges, totalSignals, loading } =
     useSignalGraphData();
 
   const [view, setView] = useState<ViewState>('graph');
@@ -142,7 +142,7 @@ export default function Signals() {
               <SignalGraph
                 clusters={clusters}
                 standaloneSignals={standaloneSignals}
-                clusterEdges={clusterEdges}
+                signalEdges={signalEdges}
                 onSelectSignal={handleSelectSignal}
               />
             )}
