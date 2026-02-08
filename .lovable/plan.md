@@ -1,73 +1,45 @@
 
+# Fix Graph Container to Fill Viewport
 
-# Fix Graph Container Height
+## Root Cause
 
-## Root Cause Identified
-
-The console logs confirm the issue:
-- Container width: **1148px** (good)
-- Container height: **150px** (too small - needs at least 200px)
-
-The graph isn't rendering because the height check (`height < 200`) keeps failing.
-
-## Why the Container is Only 150px Tall
-
-Looking at `src/pages/Signals.tsx`, there's a CSS conflict in the graph area layout:
+The console logs confirm the container height is still **150px** instead of filling the viewport. This is a CSS flexbox height inheritance issue:
 
 ```text
-Line 134: <div className="flex-1 min-h-0 p-10">
-Line 135:   <div className="w-full h-full" style={{ minHeight: 'calc(100vh - 160px)' }}>
+Current layout hierarchy:
+div (min-h-screen flex flex-col)
+  └── div (flex-1 + height: calc(...))  ← CONFLICT: flex-1 ignores height
+        └── SignalGraph (h-full)        ← Gets 150px from parent content height
 ```
 
-The issues:
-1. `min-h-0` on line 134 prevents the flex child from naturally expanding
-2. `h-full` on line 135 tries to be 100% of parent height, but the parent has no explicit height
-3. The `minHeight` style is on the wrong element - it should be on the flex child, not the inner div
+When using `flex-1` (which expands to fill available space) combined with an explicit `height` property, the flexbox algorithm prioritizes the flex behavior over the height. The child with `h-full` then inherits the content-based height (~150px from header + summary) rather than the viewport-filling height.
 
 ## Solution
 
-Restructure the container hierarchy so the graph area properly fills the viewport:
+Remove the `flex-1` class and use **only** the explicit height calculation. This tells the browser to use the exact calculated height instead of letting flexbox determine it:
 
 ### File: `src/pages/Signals.tsx`
 
-**Change 1**: Remove `min-h-0` and add explicit height to the graph area wrapper
+**Change**: Line 134-136
 
 ```tsx
-// Line 134: Change from:
-<div className="flex-1 min-h-0 p-10">
+// FROM:
+<div 
+  className="flex-1 px-10 pb-10"
+  style={{ height: 'calc(100vh - 120px)' }}
+>
 
-// To:
-<div className="flex-1 p-10" style={{ minHeight: 'calc(100vh - 160px)' }}>
+// TO:
+<div 
+  className="px-10 pb-10"
+  style={{ height: 'calc(100vh - 120px)' }}
+>
 ```
 
-**Change 2**: Update the inner div to fill its parent
-
-```tsx
-// Line 135: Change from:
-<div className="w-full h-full" style={{ minHeight: 'calc(100vh - 160px)' }}>
-
-// To:
-<div className="w-full h-full">
-```
-
-This moves the `minHeight` to the correct parent element and removes the conflicting `min-h-0` class.
-
-### File: `src/components/signals/SignalGraph.tsx`
-
-**Change 3**: Lower the height threshold from 200px to 100px to be more permissive
-
-```tsx
-// Line 132: Change from:
-if (dimensions.width < 200 || dimensions.height < 200) {
-
-// To:
-if (dimensions.width < 100 || dimensions.height < 100) {
-```
+By removing `flex-1`, the explicit `height: calc(100vh - 120px)` becomes the authoritative height, and the child's `h-full` will correctly inherit ~680px (on a typical viewport) instead of 150px.
 
 ## Expected Result
 
-After these fixes:
-- Container height will expand to fill viewport minus header (~600-800px)
-- Graph will pass dimension checks and render all 21 signal nodes
-- Cluster labels and connection lines will display properly
-
+- Container height: **~680px** (viewport height minus 120px for header/summary)
+- Graph will render with nodes spread across the full area
+- Clusters will be well-spaced and centered
