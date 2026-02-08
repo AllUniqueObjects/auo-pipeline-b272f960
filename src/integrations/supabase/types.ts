@@ -109,6 +109,81 @@ export type Database = {
           },
         ]
       }
+      signal_clusters: {
+        Row: {
+          avg_confidence: string | null
+          created_at: string | null
+          description: string
+          id: string
+          name: string
+          signal_count: number
+          signal_ids: string[]
+          top_urgency: string | null
+          user_id: string
+        }
+        Insert: {
+          avg_confidence?: string | null
+          created_at?: string | null
+          description: string
+          id?: string
+          name: string
+          signal_count: number
+          signal_ids: string[]
+          top_urgency?: string | null
+          user_id: string
+        }
+        Update: {
+          avg_confidence?: string | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          name?: string
+          signal_count?: number
+          signal_ids?: string[]
+          top_urgency?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      signal_edges: {
+        Row: {
+          created_at: string | null
+          id: string
+          signal_a: string
+          signal_b: string
+          similarity: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          signal_a: string
+          signal_b: string
+          similarity: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          signal_a?: string
+          signal_b?: string
+          similarity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_edges_signal_a_fkey"
+            columns: ["signal_a"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signal_edges_signal_b_fkey"
+            columns: ["signal_b"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signal_feedback: {
         Row: {
           action: string | null
@@ -147,9 +222,11 @@ export type Database = {
           body: string
           category: string
           confidence: string | null
+          confidence_reason: string | null
           connected_signals: string[] | null
           created_at: string | null
           data_points: Json | null
+          decision_question: string | null
           embedding: string | null
           id: string
           opportunity: string | null
@@ -160,6 +237,7 @@ export type Database = {
           summary: string
           title: string
           urgency: string | null
+          urgency_reason: string | null
           user_id: string
         }
         Insert: {
@@ -167,9 +245,11 @@ export type Database = {
           body: string
           category: string
           confidence?: string | null
+          confidence_reason?: string | null
           connected_signals?: string[] | null
           created_at?: string | null
           data_points?: Json | null
+          decision_question?: string | null
           embedding?: string | null
           id?: string
           opportunity?: string | null
@@ -180,6 +260,7 @@ export type Database = {
           summary: string
           title: string
           urgency?: string | null
+          urgency_reason?: string | null
           user_id: string
         }
         Update: {
@@ -187,9 +268,11 @@ export type Database = {
           body?: string
           category?: string
           confidence?: string | null
+          confidence_reason?: string | null
           connected_signals?: string[] | null
           created_at?: string | null
           data_points?: Json | null
+          decision_question?: string | null
           embedding?: string | null
           id?: string
           opportunity?: string | null
@@ -200,6 +283,7 @@ export type Database = {
           summary?: string
           title?: string
           urgency?: string | null
+          urgency_reason?: string | null
           user_id?: string
         }
         Relationships: []
