@@ -13,6 +13,7 @@ export default function Signals() {
     title: signal.title,
     summary: signal.summary,
     urgency: (signal.urgency || 'stable') as 'urgent' | 'emerging' | 'monitor' | 'stable',
+    confidence: signal.confidence as 'high' | 'medium' | 'low' | null,
     sourceCount: signal.source_ids?.length || 0,
     createdAt: signal.created_at || new Date().toISOString(),
   });
