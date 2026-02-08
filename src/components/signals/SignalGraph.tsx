@@ -131,7 +131,7 @@ export function SignalGraph({
     if (!svgRef.current) return;
     if (clusters.length === 0 && standaloneSignals.length === 0) return;
     // Wait for valid dimensions (lowered threshold for smaller viewports)
-    if (dimensions.width < 200 || dimensions.height < 200) {
+    if (dimensions.width < 100 || dimensions.height < 100) {
       console.log('[SignalGraph] Waiting for dimensions:', dimensions);
       return;
     }
