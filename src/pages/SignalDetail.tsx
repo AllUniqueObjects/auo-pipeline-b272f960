@@ -1,17 +1,20 @@
 import { useParams, Link } from 'react-router-dom';
 import { Header } from '@/components/Header';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Zap, Shield, Target, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSignal } from '@/hooks/useSignals';
 import { Skeleton } from '@/components/ui/skeleton';
 
-interface DataPoint {
-  label: string;
-  value: string;
+interface ActionPaths {
+  experiment?: string;
+  defensive?: string;
+  strategic?: string;
+  monitor?: string;
 }
 
 type SignalCategory = 'competitive' | 'market' | 'technology' | 'supply_chain' | 'policy' | 'commercial' | 'brand';
 type SignalUrgency = 'urgent' | 'emerging' | 'monitor' | 'stable';
+type SignalConfidence = 'high' | 'medium' | 'low';
 
 const categoryColors: Record<SignalCategory, string> = {
   competitive: '#f87171',
@@ -40,17 +43,29 @@ const urgencyLabels: Record<SignalUrgency, string> = {
   stable: 'Stable',
 };
 
+const confidenceStyles: Record<SignalConfidence, { bg: string; color: string }> = {
+  high: { bg: 'rgba(52, 211, 153, 0.15)', color: '#34d399' },
+  medium: { bg: 'rgba(245, 166, 35, 0.15)', color: '#f5a623' },
+  low: { bg: 'rgba(156, 163, 175, 0.15)', color: '#9ca3af' },
+};
+
 export default function SignalDetail() {
   const { id } = useParams();
   const { signal: rawSignal, loading, error } = useSignal(id);
 
-  // Parse data_points from JSONB
-  const dataPoints: DataPoint[] = rawSignal?.data_points 
-    ? (Array.isArray(rawSignal.data_points) ? rawSignal.data_points as unknown as DataPoint[] : [])
+  // Parse data_points from JSONB as string array
+  const dataPoints: string[] = rawSignal?.data_points 
+    ? (Array.isArray(rawSignal.data_points) ? rawSignal.data_points as string[] : [])
     : [];
+
+  // Parse action_paths from JSONB
+  const actionPaths: ActionPaths = rawSignal?.action_paths 
+    ? (rawSignal.action_paths as ActionPaths)
+    : {};
 
   const category = (rawSignal?.category || 'market') as SignalCategory;
   const urgency = (rawSignal?.urgency || 'stable') as SignalUrgency;
+  const confidence = rawSignal?.confidence as SignalConfidence | null;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -129,8 +144,8 @@ export default function SignalDetail() {
             </Link>
           </Button>
 
-          {/* Category + Urgency badges */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* Category + Urgency + Confidence badges */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
             <span
               className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium"
               style={{ 
@@ -167,6 +182,17 @@ export default function SignalDetail() {
                 {urgencyLabels[urgency]}
               </span>
             )}
+            {confidence && (
+              <span
+                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium capitalize"
+                style={{
+                  backgroundColor: confidenceStyles[confidence].bg,
+                  color: confidenceStyles[confidence].color
+                }}
+              >
+                {confidence} confidence
+              </span>
+            )}
           </div>
 
           {/* Title */}
@@ -191,27 +217,118 @@ export default function SignalDetail() {
             </div>
           </section>
 
-          {/* Reasoning - Highlighted box */}
-          <section className="mb-8">
-            <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
-              Why This Matters for NB
-            </h2>
-            <div 
-              className="rounded-lg p-4 border"
-              style={{
-                backgroundColor: 'rgba(74, 158, 255, 0.05)',
-                borderColor: 'rgba(74, 158, 255, 0.25)'
-              }}
-            >
-              <div className="text-[14px] text-foreground leading-relaxed space-y-4">
-                {(rawSignal.reasoning || '').split('\n\n').map((paragraph, index) => (
-                  <p key={index}>{paragraph}</p>
-                ))}
+          {/* Opportunity for NB */}
+          {rawSignal.opportunity && (
+            <section className="mb-8">
+              <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
+                Opportunity for NB
+              </h2>
+              <div 
+                className="rounded-lg p-4"
+                style={{
+                  backgroundColor: 'rgba(52, 211, 153, 0.03)',
+                  borderLeft: '3px solid #34d399'
+                }}
+              >
+                <div className="text-[14px] text-foreground leading-relaxed space-y-4">
+                  {rawSignal.opportunity.split('\n\n').map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                  ))}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
-          {/* Data Points */}
+          {/* Risk if Ignored */}
+          {rawSignal.risk && (
+            <section className="mb-8">
+              <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
+                Risk if Ignored
+              </h2>
+              <div 
+                className="rounded-lg p-4"
+                style={{
+                  backgroundColor: 'rgba(248, 113, 113, 0.03)',
+                  borderLeft: '3px solid #f87171'
+                }}
+              >
+                <div className="text-[14px] text-foreground leading-relaxed space-y-4">
+                  {rawSignal.risk.split('\n\n').map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* What To Do - Action Paths */}
+          {(actionPaths.experiment || actionPaths.defensive || actionPaths.strategic || actionPaths.monitor) && (
+            <section className="mb-8">
+              <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
+                What To Do
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {actionPaths.experiment && (
+                  <div 
+                    className="p-4 rounded-lg"
+                    style={{ backgroundColor: '#18181c', border: '1px solid #2a2a2f' }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span className="text-[13px] font-semibold text-foreground">Quick Test</span>
+                    </div>
+                    <p className="text-[13px] text-muted-foreground leading-relaxed">
+                      {actionPaths.experiment}
+                    </p>
+                  </div>
+                )}
+                {actionPaths.defensive && (
+                  <div 
+                    className="p-4 rounded-lg"
+                    style={{ backgroundColor: '#18181c', border: '1px solid #2a2a2f' }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Shield className="w-4 h-4 text-blue-400" />
+                      <span className="text-[13px] font-semibold text-foreground">Defend</span>
+                    </div>
+                    <p className="text-[13px] text-muted-foreground leading-relaxed">
+                      {actionPaths.defensive}
+                    </p>
+                  </div>
+                )}
+                {actionPaths.strategic && (
+                  <div 
+                    className="p-4 rounded-lg"
+                    style={{ backgroundColor: '#18181c', border: '1px solid #2a2a2f' }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Target className="w-4 h-4 text-purple-400" />
+                      <span className="text-[13px] font-semibold text-foreground">Strategic Bet</span>
+                    </div>
+                    <p className="text-[13px] text-muted-foreground leading-relaxed">
+                      {actionPaths.strategic}
+                    </p>
+                  </div>
+                )}
+                {actionPaths.monitor && (
+                  <div 
+                    className="p-4 rounded-lg"
+                    style={{ backgroundColor: '#18181c', border: '1px solid #2a2a2f' }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Eye className="w-4 h-4 text-gray-400" />
+                      <span className="text-[13px] font-semibold text-foreground">Monitor</span>
+                    </div>
+                    <p className="text-[13px] text-muted-foreground leading-relaxed">
+                      {actionPaths.monitor}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Key Data Points */}
           {dataPoints.length > 0 && (
             <section className="mb-8">
               <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
@@ -219,13 +336,17 @@ export default function SignalDetail() {
               </h2>
               <div className="flex flex-wrap gap-2">
                 {dataPoints.map((dp, index) => (
-                  <div
+                  <span
                     key={index}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-[13px]"
+                    className="inline-flex items-center px-3.5 py-1.5 rounded-full text-[12px] font-medium"
+                    style={{ 
+                      backgroundColor: '#18181c', 
+                      border: '1px solid #2a2a2f',
+                      color: '#22d3ee'
+                    }}
                   >
-                    <span className="text-muted-foreground">{dp.label}:</span>
-                    <span className="font-medium text-foreground">{dp.value}</span>
-                  </div>
+                    {dp}
+                  </span>
                 ))}
               </div>
             </section>
