@@ -131,21 +131,23 @@ export default function Signals() {
           </div>
 
           {/* Graph area */}
-          <div className="flex-1 p-10">
-            {clusters.length === 0 && standaloneSignals.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <span className="text-[13px]" style={{ fontWeight: 300, color: '#44444f' }}>
-                  No signals yet
-                </span>
-              </div>
-            ) : (
-              <SignalGraph
-                clusters={clusters}
-                standaloneSignals={standaloneSignals}
-                signalEdges={signalEdges}
-                onSelectSignal={handleSelectSignal}
-              />
-            )}
+          <div className="flex-1 min-h-0 p-10">
+            <div className="w-full h-full" style={{ minHeight: 'calc(100vh - 160px)' }}>
+              {clusters.length === 0 && standaloneSignals.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <span className="text-[13px]" style={{ fontWeight: 300, color: '#44444f' }}>
+                    No signals yet
+                  </span>
+                </div>
+              ) : (
+                <SignalGraph
+                  clusters={clusters}
+                  standaloneSignals={standaloneSignals}
+                  signalEdges={signalEdges}
+                  onSelectSignal={handleSelectSignal}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
