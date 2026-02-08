@@ -7,6 +7,7 @@ export interface Signal {
   title: string;
   summary: string;
   urgency: 'urgent' | 'emerging' | 'monitor' | 'stable';
+  confidence?: 'high' | 'medium' | 'low' | null;
   sourceCount: number;
   createdAt: string;
 }
@@ -64,23 +65,35 @@ export function SignalCard({ signal }: SignalCardProps) {
           {categoryLabels[signal.category]}
         </span>
 
-        {/* Urgency indicator */}
-        {signal.urgency !== 'stable' && (
-          <span className="flex-shrink-0 mt-1">
-            {signal.urgency === 'urgent' && (
+        {/* Urgency + Confidence indicators */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {signal.confidence && (
+            <span 
+              className="text-[10px] font-medium uppercase"
+              style={{
+                color: signal.confidence === 'high' ? '#34d399' : 
+                       signal.confidence === 'medium' ? '#f5a623' : '#9ca3af'
+              }}
+            >
+              {signal.confidence}
+            </span>
+          )}
+          {signal.urgency === 'urgent' && (
+            <span className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
               </span>
-            )}
-            {signal.urgency === 'emerging' && (
-              <span className="inline-flex rounded-full h-2 w-2 bg-amber-500" />
-            )}
-            {signal.urgency === 'monitor' && (
-              <span className="inline-flex rounded-full h-2 w-2 bg-muted-foreground/50" />
-            )}
-          </span>
-        )}
+              <span className="text-[10px] font-semibold text-red-500 uppercase">Urgent</span>
+            </span>
+          )}
+          {signal.urgency === 'emerging' && (
+            <span className="inline-flex rounded-full h-2 w-2 bg-amber-500" />
+          )}
+          {signal.urgency === 'monitor' && (
+            <span className="inline-flex rounded-full h-2 w-2 bg-muted-foreground/50" />
+          )}
+        </div>
       </div>
 
       {/* Title */}
