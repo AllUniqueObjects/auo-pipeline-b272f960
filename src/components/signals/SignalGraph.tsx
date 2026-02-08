@@ -46,9 +46,10 @@ const clusterPalette = [
 
 function getNodeRadius(signal: Signal): number {
   const sourceCount = signal.source_urls?.length || 0;
-  if (sourceCount >= 9) return 14;
-  if (sourceCount >= 6) return 11;
-  return 8;
+  if (sourceCount >= 9) return 18;
+  if (sourceCount >= 6) return 14;
+  if (sourceCount >= 3) return 10;
+  return 7;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -214,7 +215,7 @@ export function SignalGraph({
     // Calculate initial cluster center positions with wider spacing
     const clusterCenters = new Map<string, { x: number; y: number }>();
     const clusterCount = clusters.length;
-    const clusterRadius = Math.min(width, height) * 0.35; // Increased from 0.3
+    const clusterRadius = Math.min(width, height) * 0.38;
     
     clusters.forEach((cluster, i) => {
       const angle = (2 * Math.PI * i) / clusterCount - Math.PI / 2;
@@ -256,21 +257,77 @@ export function SignalGraph({
       });
     }
 
+    // Cluster repulsion force - pushes different clusters apart
+    function clusterRepulsion(alpha: number) {
+      const strength = 0.4;
+      clusters.forEach((clusterA, i) => {
+        clusters.forEach((clusterB, j) => {
+          if (i >= j) return;
+          
+          const nodesA = nodes.filter(n => n.cluster?.id === clusterA.id);
+          const nodesB = nodes.filter(n => n.cluster?.id === clusterB.id);
+          
+          // Calculate cluster centroids
+          const avgA = { x: 0, y: 0, count: 0 };
+          const avgB = { x: 0, y: 0, count: 0 };
+          
+          nodesA.forEach(n => { 
+            avgA.x += n.x || 0; 
+            avgA.y += n.y || 0; 
+            avgA.count++; 
+          });
+          nodesB.forEach(n => { 
+            avgB.x += n.x || 0; 
+            avgB.y += n.y || 0; 
+            avgB.count++; 
+          });
+          
+          if (avgA.count && avgB.count) {
+            avgA.x /= avgA.count;
+            avgA.y /= avgA.count;
+            avgB.x /= avgB.count;
+            avgB.y /= avgB.count;
+            
+            const dx = avgB.x - avgA.x;
+            const dy = avgB.y - avgA.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const minDist = 180;
+            
+            if (dist < minDist) {
+              const push = (minDist - dist) * alpha * strength;
+              const pushX = (dx / dist) * push;
+              const pushY = (dy / dist) * push;
+              
+              nodesA.forEach(n => {
+                n.vx = (n.vx || 0) - pushX / 2;
+                n.vy = (n.vy || 0) - pushY / 2;
+              });
+              nodesB.forEach(n => {
+                n.vx = (n.vx || 0) + pushX / 2;
+                n.vy = (n.vy || 0) + pushY / 2;
+              });
+            }
+          }
+        });
+      });
+    }
+
     // Create simulation
     const simulation = d3
       .forceSimulation(nodes)
-      .force('center', d3.forceCenter(centerX, centerY).strength(0.05))
-      .force('charge', d3.forceManyBody().strength(-150))
-      .force('collide', d3.forceCollide<NodeData>((d) => d.radius + 8))
+      .force('center', d3.forceCenter(centerX, centerY).strength(0.01))
+      .force('charge', d3.forceManyBody().strength(-180))
+      .force('collide', d3.forceCollide<NodeData>((d) => d.radius + 12))
       .force(
         'link',
         d3
           .forceLink<NodeData, LinkData>([...links, ...clusterLinks])
           .id((d) => d.id)
-          .distance(40)
-          .strength(0.8)
+          .distance(60)
+          .strength(0.6)
       )
       .force('cluster', clusterForce)
+      .force('clusterRepulsion', clusterRepulsion)
       .alphaDecay(0.02);
 
     // Create container groups
@@ -380,48 +437,47 @@ export function SignalGraph({
     // CRITICAL: Explicitly apply final positions after simulation completes
     updatePositions();
 
-    // Add cluster labels after simulation settles
+    // Add cluster labels after simulation settles with collision avoidance
+    const labelPositions: Array<{id: string; x: number; y: number}> = [];
+
     clusters.forEach((cluster) => {
       const clusterNodes = nodes.filter((n) => n.cluster?.id === cluster.id);
       if (clusterNodes.length === 0) return;
 
-      // Find bounding box of cluster
       const xs = clusterNodes.map((n) => n.x || 0);
       const ys = clusterNodes.map((n) => n.y || 0);
+      const clusterCenterX = (Math.min(...xs) + Math.max(...xs)) / 2;
       const minY = Math.min(...ys);
-      const labelCenterX = (Math.min(...xs) + Math.max(...xs)) / 2;
+      
+      // Calculate label position above the cluster
+      let labelY = minY - 35;
+      let labelX = clusterCenterX;
+      
+      // Simple collision check with existing labels
+      labelPositions.forEach(pos => {
+        const dx = Math.abs(pos.x - labelX);
+        const dy = Math.abs(pos.y - labelY);
+        if (dx < 80 && dy < 30) {
+          labelY -= 25; // Push this label up if too close
+        }
+      });
+      
+      labelPositions.push({ id: cluster.id, x: labelX, y: labelY });
 
       const color = clusterColorMap.get(cluster.id) || '#6b6b7b';
 
-      // Cluster name
+      // Cluster name with better visibility
       labelsGroup
         .append('text')
-        .attr('x', labelCenterX)
-        .attr('y', minY - 28)
+        .attr('x', labelX)
+        .attr('y', labelY)
         .attr('text-anchor', 'middle')
-        .attr('fill', hexToRgba(color, 0.7))
-        .style('font-size', '10px')
+        .attr('fill', hexToRgba(color, 0.85))
+        .style('font-size', '11px')
         .style('font-weight', '500')
         .style('text-transform', 'uppercase')
         .style('letter-spacing', '0.12em')
         .text(cluster.name);
-
-      // Cluster description
-      const desc =
-        cluster.description.length > 40
-          ? cluster.description.slice(0, 40) + '…'
-          : cluster.description;
-      if (desc) {
-        labelsGroup
-          .append('text')
-          .attr('x', labelCenterX)
-          .attr('y', minY - 14)
-          .attr('text-anchor', 'middle')
-          .attr('fill', '#44444f')
-          .style('font-size', '10px')
-          .style('font-weight', '300')
-          .text(desc);
-      }
     });
 
     // Cleanup
