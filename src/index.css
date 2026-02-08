@@ -4,43 +4,49 @@
 
 @layer base {
   :root {
-    --background: 240 6% 4%;
-    --foreground: 240 6% 92%;
+    /* AUO Swiss Design Color System */
+    --background: 235 21% 10%;
+    --foreground: 240 10% 92%;
 
-    --card: 240 5% 7%;
-    --card-foreground: 240 6% 92%;
+    --card: 235 18% 12%;
+    --card-foreground: 240 10% 92%;
 
-    --popover: 240 5% 7%;
-    --popover-foreground: 240 6% 92%;
+    --popover: 235 18% 12%;
+    --popover-foreground: 240 10% 92%;
 
     --primary: 240 5% 84%;
-    --primary-foreground: 240 6% 4%;
+    --primary-foreground: 235 21% 10%;
 
-    --secondary: 240 4% 14%;
-    --secondary-foreground: 240 6% 92%;
+    --secondary: 235 15% 14%;
+    --secondary-foreground: 240 10% 92%;
 
-    --muted: 240 4% 14%;
-    --muted-foreground: 240 5% 55%;
+    --muted: 235 15% 14%;
+    --muted-foreground: 240 8% 45%;
 
-    --accent: 240 4% 18%;
-    --accent-foreground: 240 6% 92%;
+    --accent: 235 15% 18%;
+    --accent-foreground: 240 10% 92%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
+    --border: 235 15% 18%;
+    --input: 235 15% 18%;
     --ring: 240 5% 55%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 240 5% 7%;
-    --sidebar-foreground: 240 6% 92%;
+    /* AUO specific tokens */
+    --text-primary: 240 10% 92%;
+    --text-secondary: 240 8% 45%;
+    --text-tertiary: 240 8% 29%;
+
+    --sidebar-background: 235 18% 12%;
+    --sidebar-foreground: 240 10% 92%;
     --sidebar-primary: 240 5% 84%;
-    --sidebar-primary-foreground: 240 6% 4%;
-    --sidebar-accent: 240 4% 14%;
-    --sidebar-accent-foreground: 240 6% 92%;
-    --sidebar-border: 240 4% 16%;
+    --sidebar-primary-foreground: 235 21% 10%;
+    --sidebar-accent: 235 15% 14%;
+    --sidebar-accent-foreground: 240 10% 92%;
+    --sidebar-border: 235 15% 18%;
     --sidebar-ring: 240 5% 55%;
   }
 }
@@ -52,7 +58,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 }
 
@@ -60,4 +66,45 @@
   .content-wrapper {
     @apply max-w-[720px] mx-auto px-4 sm:px-6;
   }
+}
+
+/* AUO Swiss Design Animations */
+@keyframes subtle-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.animate-subtle-pulse {
+  animation: subtle-pulse 2s ease-in-out infinite;
+}
+
+/* Smooth transitions for view changes */
+.view-enter {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.view-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.view-exit {
+  opacity: 1;
+}
+
+.view-exit-active {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+/* Collapsible section animation */
+.collapsible-content {
+  overflow: hidden;
+  transition: max-height 200ms ease;
 }
