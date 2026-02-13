@@ -100,7 +100,7 @@ export function InsightGraphView({
     const collideExtra = Math.max(20, 50 - n * 3);
 
     const savedPos = positionsRef.current;
-    const sourceCount = (s: Signal) => s.sources || 0;
+    const sourceCount = (s: Signal) => s.source_urls?.length || 0;
 
     const simNodes: NodeData[] = insight.signals.map((s, i) => {
       const saved = savedPos?.[s.id];
@@ -275,7 +275,7 @@ export function InsightGraphView({
                   className="text-[10px] uppercase tracking-[0.04em]"
                   style={{ fontWeight: 400, color: '#6b6b7b' }}
                 >
-                  {s.urgency || 'stable'} · {s.sources || 0} src
+                  {s.urgency || 'stable'} · {s.source_urls?.length || 0} src
                 </span>
               </div>
 
@@ -503,7 +503,7 @@ export function InsightGraphView({
               className="text-[10px] mt-1.5"
               style={{ fontWeight: 300, color: '#7a7a90' }}
             >
-              {tooltipNode.signal.urgency || 'stable'} · {tooltipNode.signal.sources || 0} sources
+              {tooltipNode.signal.urgency || 'stable'} · {tooltipNode.signal.source_urls?.length || 0} sources
             </div>
           </div>
         )}

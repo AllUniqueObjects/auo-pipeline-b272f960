@@ -53,21 +53,19 @@ export default function SignalDetail() {
   const { id } = useParams();
   const { signal: rawSignal, loading, error } = useSignal(id);
 
-  const s = rawSignal as any;
-
   // Parse data_points from JSONB as string array
-  const dataPoints: string[] = s?.data_points 
-    ? (Array.isArray(s.data_points) ? s.data_points as string[] : [])
+  const dataPoints: string[] = rawSignal?.data_points 
+    ? (Array.isArray(rawSignal.data_points) ? rawSignal.data_points as string[] : [])
     : [];
 
   // Parse action_paths from JSONB
-  const actionPaths: ActionPaths = s?.action_paths 
-    ? (s.action_paths as ActionPaths)
+  const actionPaths: ActionPaths = rawSignal?.action_paths 
+    ? (rawSignal.action_paths as ActionPaths)
     : {};
 
-  const category = (s?.category || s?.nb_relevance || 'market') as SignalCategory;
+  const category = (rawSignal?.category || 'market') as SignalCategory;
   const urgency = (rawSignal?.urgency || 'stable') as SignalUrgency;
-  const credibility = rawSignal?.credibility;
+  const confidence = rawSignal?.confidence as SignalConfidence | null;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -184,15 +182,15 @@ export default function SignalDetail() {
                 {urgencyLabels[urgency]}
               </span>
             )}
-            {credibility != null && (
+            {confidence && (
               <span
                 className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium capitalize"
                 style={{
-                  backgroundColor: credibility >= 0.7 ? 'rgba(52, 211, 153, 0.15)' : credibility >= 0.4 ? 'rgba(245, 166, 35, 0.15)' : 'rgba(156, 163, 175, 0.15)',
-                  color: credibility >= 0.7 ? '#34d399' : credibility >= 0.4 ? '#f5a623' : '#9ca3af',
+                  backgroundColor: confidenceStyles[confidence].bg,
+                  color: confidenceStyles[confidence].color
                 }}
               >
-                {credibility >= 0.7 ? 'high' : credibility >= 0.4 ? 'medium' : 'low'} confidence
+                {confidence} confidence
               </span>
             )}
           </div>
@@ -213,14 +211,14 @@ export default function SignalDetail() {
               Analysis
             </h2>
             <div className="text-[14px] text-foreground leading-relaxed space-y-4">
-              {(rawSignal.analysis_context || rawSignal.summary || '').split('\n\n').map((paragraph, index) => (
+              {(rawSignal.body || '').split('\n\n').map((paragraph, index) => (
                 <p key={index}>{paragraph}</p>
               ))}
             </div>
           </section>
 
           {/* Opportunity for NB */}
-          {s.opportunity && (
+          {rawSignal.opportunity && (
             <section className="mb-8">
               <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
                 Opportunity for NB
@@ -233,7 +231,7 @@ export default function SignalDetail() {
                 }}
               >
                 <div className="text-[14px] text-foreground leading-relaxed space-y-4">
-                  {s.opportunity.split('\n\n').map((paragraph: string, index: number) => (
+                  {rawSignal.opportunity.split('\n\n').map((paragraph, index) => (
                     <p key={index}>{paragraph}</p>
                   ))}
                 </div>
@@ -242,7 +240,7 @@ export default function SignalDetail() {
           )}
 
           {/* Risk if Ignored */}
-          {s.risk && (
+          {rawSignal.risk && (
             <section className="mb-8">
               <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
                 Risk if Ignored
@@ -255,7 +253,7 @@ export default function SignalDetail() {
                 }}
               >
                 <div className="text-[14px] text-foreground leading-relaxed space-y-4">
-                  {s.risk.split('\n\n').map((paragraph: string, index: number) => (
+                  {rawSignal.risk.split('\n\n').map((paragraph, index) => (
                     <p key={index}>{paragraph}</p>
                   ))}
                 </div>

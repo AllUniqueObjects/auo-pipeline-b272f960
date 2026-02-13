@@ -45,7 +45,7 @@ const clusterPalette = [
 ];
 
 function getNodeRadius(signal: Signal): number {
-  const sourceCount = signal.sources || 0;
+  const sourceCount = signal.source_urls?.length || 0;
   if (sourceCount >= 9) return 18;
   if (sourceCount >= 6) return 14;
   if (sourceCount >= 3) return 10;
@@ -486,7 +486,7 @@ export function SignalGraph({
     };
   }, [clusters, standaloneSignals, signalEdges, onSelectSignal, handleNodeHover, dimensions]);
 
-  const sourceCount = tooltip.signal?.sources || 0;
+  const sourceCount = tooltip.signal?.source_urls?.length || 0;
 
   return (
     <div ref={containerRef} className="w-full h-full relative">

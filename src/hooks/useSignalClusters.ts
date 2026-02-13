@@ -45,6 +45,7 @@ export function useSignalClusters() {
         const { data: signalsData, error: signalsError } = await supabase
           .from('signals')
           .select('*')
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
         if (signalsError) throw signalsError;
@@ -99,7 +100,7 @@ export function useSignalClusters() {
           event: '*',
           schema: 'public',
           table: 'signals',
-          filter: `id=neq.placeholder`,
+          filter: `user_id=eq.${user.id}`,
         },
         () => {
           // Refetch on any signal change

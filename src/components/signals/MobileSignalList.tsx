@@ -70,7 +70,7 @@ export function MobileSignalList({
                     {signal.title}
                   </p>
                   <p className="text-[10px] mt-1" style={{ fontWeight: 300, color: '#44444f' }}>
-                    {signal.sources || 0} sources · {signal.urgency || 'stable'}
+                    {signal.source_urls?.length || 0} sources · {signal.urgency || 'stable'}
                   </p>
                 </button>
               ))}
@@ -98,7 +98,7 @@ export function MobileSignalList({
                     {signal.title}
                   </p>
                   <p className="text-[10px] mt-1" style={{ fontWeight: 300, color: '#44444f' }}>
-                    {signal.sources || 0} sources · {signal.urgency || 'stable'}
+                    {signal.source_urls?.length || 0} sources · {signal.urgency || 'stable'}
                   </p>
                 </button>
               ))}

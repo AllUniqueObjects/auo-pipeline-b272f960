@@ -1,5 +1,5 @@
 import { Zap, Shield, Target, Eye } from 'lucide-react';
-import type { Signal } from '@/hooks/useSignalGraphData';
+import type { Signal } from '@/hooks/useSignals';
 
 interface ActionPaths {
   experiment?: string;
@@ -10,6 +10,7 @@ interface ActionPaths {
 
 type SignalCategory = 'competitive' | 'market' | 'technology' | 'supply_chain' | 'policy' | 'commercial' | 'brand';
 type SignalUrgency = 'urgent' | 'emerging' | 'monitor' | 'stable';
+type SignalConfidence = 'high' | 'medium' | 'low';
 
 const categoryColors: Record<SignalCategory, string> = {
   competitive: '#f87171',
@@ -38,6 +39,12 @@ const urgencyLabels: Record<SignalUrgency, string> = {
   stable: 'Stable',
 };
 
+const confidenceStyles: Record<SignalConfidence, { bg: string; color: string }> = {
+  high: { bg: 'rgba(52, 211, 153, 0.15)', color: '#34d399' },
+  medium: { bg: 'rgba(245, 166, 35, 0.15)', color: '#f5a623' },
+  low: { bg: 'rgba(156, 163, 175, 0.15)', color: '#9ca3af' },
+};
+
 interface SignalDetailPaneProps {
   signal: Signal | null;
 }
@@ -51,33 +58,32 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
     );
   }
 
-  const s = signal as any;
-  const category = (s.category || s.nb_relevance || 'market') as SignalCategory;
+  const category = (signal.category || 'market') as SignalCategory;
   const urgency = (signal.urgency || 'stable') as SignalUrgency;
-  const credibility = signal.credibility;
+  const confidence = signal.confidence as SignalConfidence | null;
 
-  const dataPoints: string[] = s.data_points
-    ? (Array.isArray(s.data_points) ? s.data_points as string[] : [])
+  const dataPoints: string[] = signal.data_points
+    ? (Array.isArray(signal.data_points) ? signal.data_points as string[] : [])
     : [];
 
-  const actionPaths: ActionPaths = s.action_paths
-    ? (s.action_paths as ActionPaths)
+  const actionPaths: ActionPaths = signal.action_paths
+    ? (signal.action_paths as ActionPaths)
     : {};
 
-  const sourceUrls: string[] = s.source_urls || [];
+  const sourceUrls = signal.source_urls || [];
 
   return (
     <div className="h-full overflow-y-auto p-6">
-      {/* Category + Urgency pills */}
+      {/* Category + Urgency + Confidence pills */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span
           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium"
           style={{
-            backgroundColor: `${categoryColors[category] || '#9ca3af'}20`,
-            color: categoryColors[category] || '#9ca3af',
+            backgroundColor: `${categoryColors[category]}20`,
+            color: categoryColors[category],
           }}
         >
-          {categoryLabels[category] || category}
+          {categoryLabels[category]}
         </span>
         {urgency !== 'stable' && (
           <span
@@ -108,16 +114,26 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
             {urgencyLabels[urgency]}
           </span>
         )}
-        {credibility != null && (
+        {confidence && (
           <span
             className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium capitalize"
             style={{
-              backgroundColor: credibility >= 0.7 ? 'rgba(52, 211, 153, 0.15)' : credibility >= 0.4 ? 'rgba(245, 166, 35, 0.15)' : 'rgba(156, 163, 175, 0.15)',
-              color: credibility >= 0.7 ? '#34d399' : credibility >= 0.4 ? '#f5a623' : '#9ca3af',
+              backgroundColor: confidenceStyles[confidence].bg,
+              color: confidenceStyles[confidence].color,
             }}
           >
-            {credibility >= 0.7 ? 'high' : credibility >= 0.4 ? 'medium' : 'low'}
+            {confidence}
           </span>
+        )}
+      </div>
+
+      {/* Urgency & Confidence reasons */}
+      <div className="mb-4 space-y-0.5">
+        {signal.urgency_reason && (
+          <p className="text-[12px] italic text-muted-foreground/60">{signal.urgency_reason}</p>
+        )}
+        {signal.confidence_reason && (
+          <p className="text-[12px] italic text-muted-foreground/60">{signal.confidence_reason}</p>
         )}
       </div>
 
@@ -128,17 +144,53 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
       <p className="text-[14px] text-muted-foreground mb-6 leading-relaxed">{signal.summary}</p>
 
       {/* Analysis */}
-      {signal.analysis_context && (
-        <section className="mb-6">
-          <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-2">
-            Analysis
-          </h2>
-          <div className="text-[14px] text-foreground leading-relaxed space-y-3">
-            {signal.analysis_context.split('\n\n').map((paragraph, index) => (
-              <p key={index}>{paragraph}</p>
-            ))}
-          </div>
-        </section>
+      <section className="mb-6">
+        <h2 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-2">
+          Analysis
+        </h2>
+        <div className="text-[14px] text-foreground leading-relaxed space-y-3">
+          {(signal.body || '').split('\n\n').map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))}
+        </div>
+      </section>
+
+      {/* Opportunity + Risk side by side */}
+      {(signal.opportunity || signal.risk) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          {signal.opportunity && (
+            <div
+              className="rounded-lg p-4"
+              style={{
+                backgroundColor: 'rgba(52, 211, 153, 0.03)',
+                borderLeft: '3px solid #34d399',
+              }}
+            >
+              <h3 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-2">
+                Opportunity for NB
+              </h3>
+              <p className="text-[13px] text-foreground leading-relaxed line-clamp-4">
+                {signal.opportunity}
+              </p>
+            </div>
+          )}
+          {signal.risk && (
+            <div
+              className="rounded-lg p-4"
+              style={{
+                backgroundColor: 'rgba(248, 113, 113, 0.03)',
+                borderLeft: '3px solid #f87171',
+              }}
+            >
+              <h3 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-2">
+                Risk if Ignored
+              </h3>
+              <p className="text-[13px] text-foreground leading-relaxed line-clamp-4">
+                {signal.risk}
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
       {/* What To Do - 2x2 grid */}
@@ -149,7 +201,7 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {actionPaths.experiment && (
-              <div className="p-4 rounded-lg bg-card border border-border">
+              <div className="p-4 rounded-lg bg-[#18181c] border border-[#2a2a2f]">
                 <div className="flex items-center gap-2 mb-1">
                   <Zap className="w-4 h-4 text-amber-400" />
                   <span className="text-[12px] font-semibold text-foreground">Quick Test</span>
@@ -160,7 +212,7 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
               </div>
             )}
             {actionPaths.defensive && (
-              <div className="p-4 rounded-lg bg-card border border-border">
+              <div className="p-4 rounded-lg bg-[#18181c] border border-[#2a2a2f]">
                 <div className="flex items-center gap-2 mb-1">
                   <Shield className="w-4 h-4 text-blue-400" />
                   <span className="text-[12px] font-semibold text-foreground">Defend</span>
@@ -171,7 +223,7 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
               </div>
             )}
             {actionPaths.strategic && (
-              <div className="p-4 rounded-lg bg-card border border-border">
+              <div className="p-4 rounded-lg bg-[#18181c] border border-[#2a2a2f]">
                 <div className="flex items-center gap-2 mb-1">
                   <Target className="w-4 h-4 text-purple-400" />
                   <span className="text-[12px] font-semibold text-foreground">Strategic Bet</span>
@@ -182,7 +234,7 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
               </div>
             )}
             {actionPaths.monitor && (
-              <div className="p-4 rounded-lg bg-card border border-border">
+              <div className="p-4 rounded-lg bg-[#18181c] border border-[#2a2a2f]">
                 <div className="flex items-center gap-2 mb-1">
                   <Eye className="w-4 h-4 text-gray-400" />
                   <span className="text-[12px] font-semibold text-foreground">Monitor</span>
@@ -206,7 +258,7 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
             {dataPoints.map((dp, index) => (
               <span
                 key={index}
-                className="inline-flex items-center px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-card border border-border text-foreground"
+                className="inline-flex items-center px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-[#18181c] border border-[#2a2a2f] text-[#22d3ee]"
               >
                 {dp}
               </span>
@@ -222,7 +274,7 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
             Sources
           </h2>
           <div className="flex flex-wrap gap-2">
-            {sourceUrls.map((url: string, index: number) => {
+            {sourceUrls.map((url, index) => {
               let domain = url;
               try {
                 domain = new URL(url).hostname.replace('www.', '');
@@ -235,7 +287,7 @@ export function SignalDetailPane({ signal }: SignalDetailPaneProps) {
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[12px] text-blue-500 hover:underline"
+                  className="text-[12px] text-[#4a9eff] hover:underline"
                 >
                   {domain}
                 </a>
