@@ -1,215 +1,116 @@
 
-# Redesign Signal Graph: Professional Cluster Separation
+
+# Rebuild Briefing Screen -- Light Theme with Filters
 
 ## Overview
 
-Transform the cramped, overlapping graph into an elegantly spaced visualization where each cluster occupies its own visual territory, labels are clearly readable, and the canvas is properly utilized.
-
-## Design Goals
-
-1. Clear visual separation between clusters (minimum 150px gap)
-2. Proper canvas utilization (60-70% of viewport)
-3. Non-overlapping, legible cluster labels
-4. Refined node sizing with better visual hierarchy
-5. Subtle cluster "halos" to reinforce grouping
+Redesign the Briefing screen to match the screenshot reference: light background, cluster filter chips, redesigned insight cards with category labels and decision questions, temporal grouping dividers, and a chat input bar. All changes are UI-only with hardcoded mock data.
 
 ---
 
-## Technical Changes
+## Visual Changes
 
-### File: `src/components/signals/SignalGraph.tsx`
+**Theme**: White/light background replacing `#13131a`. Cards on subtle gray (`#f8f8fa`). Text in dark grays.
 
-**Change 1: Increase Cluster Separation Radius**
+**Layout (top to bottom)**:
+1. Top navigation bar: "Briefing" (active) | "Radar" tabs
+2. Horizontal cluster filter chips with colored dots and signal counts
+3. Temporal grouping headers (e.g., "EARLIER TODAY", "YESTERDAY")
+4. Redesigned insight cards
+5. Bottom chat input bar ("Ask AUO anything...")
 
-Increase the initial cluster placement radius from 35% to 50% of the smaller viewport dimension, and add intelligent positioning based on cluster count.
+---
 
-```tsx
-// Line 217-225 - Replace cluster center calculation
-// FROM:
-const clusterRadius = Math.min(width, height) * 0.35;
+## File Changes
 
-// TO:
-const clusterRadius = Math.min(width, height) * 0.32;
-const baseSpacing = Math.max(120, width / (clusterCount + 1));
-```
+### 1. `src/index.css` -- Switch to light theme
 
-For 3 clusters, position them in a triangle formation with wider spacing.
+Update CSS custom properties to a light color scheme:
+- `--background`: white
+- `--foreground`: dark gray (`#1a1a2e`)
+- `--card`: light gray (`#f8f8fa`)
+- Keep DM Sans font
 
-**Change 2: Weaken Centering Force**
+### 2. `src/components/signals/InsightCard.tsx` -- Redesign card layout
 
-Reduce the center force to prevent clusters from collapsing inward.
+New card structure matching the screenshot:
+- **Top row**: Category label (colored uppercase text like "COMPETITIVE INTELLIGENCE") + signal/reference counts on the right ("4 signals, 12 refs")
+- **Title**: Bold, dark text, 17-18px
+- **Decision question**: Italicized, slightly lighter color, prefixed or styled distinctly
+- **Description**: 1-2 line summary in medium gray
+- White/light card background with subtle border, no left color bar
+- Add `decisionQuestion` field to `InsightData` interface (hardcoded for now)
 
-```tsx
-// Line 262 - Reduce center force strength
-// FROM:
-.force('center', d3.forceCenter(centerX, centerY).strength(0.05))
+### 3. `src/components/signals/BriefingView.tsx` -- Full rebuild
 
-// TO:
-.force('center', d3.forceCenter(centerX, centerY).strength(0.01))
-```
+Replace the dark conversational layout with:
 
-**Change 3: Increase Link Distance**
+**Top Nav Bar**:
+- "AUO" logo left, "Briefing" and "Radar" tab buttons center/right
+- "Briefing" shown as active (underlined or bold)
+- "Radar" clickable but non-functional for now
 
-Expand the minimum distance between linked nodes.
+**Cluster Filter Chips**:
+- Horizontal row of pill-shaped chips
+- Each chip: colored dot + cluster name + signal count
+- "All" chip selected by default
+- Clicking a chip filters the cards below
+- State managed with `useState<string | null>` (null = all)
 
-```tsx
-// Line 270 - Increase link distance
-// FROM:
-.distance(40)
+**Temporal Grouping**:
+- Group insights by time buckets: "EARLIER TODAY", "YESTERDAY", "THIS WEEK"
+- Small uppercase gray divider text
+- For now, use mock timestamps since we're not connecting to DB
 
-// TO:
-.distance(60)
-```
+**Insight Cards**:
+- Render filtered `InsightCard` components under their time groups
 
-**Change 4: Add Cluster Repulsion Force**
+**Chat Input Bar**:
+- Fixed or sticky at bottom
+- Text input with placeholder "Ask AUO anything..."
+- Send button icon on right
+- Non-functional (visual only)
 
-Create a force that pushes different clusters apart while keeping same-cluster nodes together.
+### 4. `src/components/signals/HighlightedText.tsx` -- Update colors for light theme
 
-```tsx
-// Add after line 257 (after clusterForce function)
-function clusterRepulsion(alpha: number) {
-  const strength = 0.4;
-  clusters.forEach((clusterA, i) => {
-    clusters.forEach((clusterB, j) => {
-      if (i >= j) return;
-      
-      const centerA = clusterCenters.get(clusterA.id);
-      const centerB = clusterCenters.get(clusterB.id);
-      if (!centerA || !centerB) return;
-      
-      const nodesA = nodes.filter(n => n.cluster?.id === clusterA.id);
-      const nodesB = nodes.filter(n => n.cluster?.id === clusterB.id);
-      
-      // Calculate cluster centroids
-      const avgA = { x: 0, y: 0, count: 0 };
-      const avgB = { x: 0, y: 0, count: 0 };
-      
-      nodesA.forEach(n => { 
-        avgA.x += n.x || 0; 
-        avgA.y += n.y || 0; 
-        avgA.count++; 
-      });
-      nodesB.forEach(n => { 
-        avgB.x += n.x || 0; 
-        avgB.y += n.y || 0; 
-        avgB.count++; 
-      });
-      
-      if (avgA.count && avgB.count) {
-        avgA.x /= avgA.count;
-        avgA.y /= avgA.count;
-        avgB.x /= avgB.count;
-        avgB.y /= avgB.count;
-        
-        const dx = avgB.x - avgA.x;
-        const dy = avgB.y - avgA.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const minDist = 180;
-        
-        if (dist < minDist) {
-          const push = (minDist - dist) * alpha * strength;
-          const pushX = (dx / dist) * push;
-          const pushY = (dy / dist) * push;
-          
-          nodesA.forEach(n => {
-            n.vx = (n.vx || 0) - pushX / 2;
-            n.vy = (n.vy || 0) - pushY / 2;
-          });
-          nodesB.forEach(n => {
-            n.vx = (n.vx || 0) + pushX / 2;
-            n.vy = (n.vy || 0) + pushY / 2;
-          });
-        }
-      }
-    });
-  });
+Adjust highlight and legend colors to be visible on a white background (darker/more saturated versions of coral, sage, etc.)
+
+### 5. `src/lib/clusterColors.ts` -- Adjust for light theme
+
+Update cluster color values so dots and labels are legible on white backgrounds. Increase saturation of `text` colors.
+
+### 6. `src/pages/Signals.tsx` -- Add mock data fallback
+
+Since we're not connecting to DB yet, add hardcoded mock insights with fields like `decisionQuestion`, `category`, `referenceCount`, and `createdAt` timestamps for temporal grouping. Pass these to `BriefingView` when real data is empty.
+
+---
+
+## Mock Data Structure
+
+Each insight card will use:
+
+```text
+{
+  id, title, description,
+  decisionQuestion: "Should we accelerate our timeline...?",
+  category: "competitive" | "market" | "technology" | ...,
+  signalCount: 4,
+  referenceCount: 12,
+  createdAt: Date (for temporal grouping),
+  color: cluster color,
+  urgentCount
 }
 ```
 
-Register this force in the simulation:
-
-```tsx
-// Line 273 - Add clusterRepulsion to simulation
-.force('clusterRepulsion', clusterRepulsion)
-```
-
-**Change 5: Enhanced Node Sizing**
-
-Make node size differences more pronounced.
-
-```tsx
-// Lines 47-52 - Update getNodeRadius function
-// FROM:
-if (sourceCount >= 9) return 14;
-if (sourceCount >= 6) return 11;
-return 8;
-
-// TO:
-if (sourceCount >= 9) return 18;
-if (sourceCount >= 6) return 14;
-if (sourceCount >= 3) return 10;
-return 7;
-```
-
-**Change 6: Smarter Label Positioning**
-
-Calculate label positions based on cluster node positions after simulation, with collision avoidance.
-
-```tsx
-// Lines 384-425 - Replace cluster label rendering
-// Position labels outside the node cloud, avoiding overlaps
-const labelPositions: Array<{id: string; x: number; y: number}> = [];
-
-clusters.forEach((cluster) => {
-  const clusterNodes = nodes.filter((n) => n.cluster?.id === cluster.id);
-  if (clusterNodes.length === 0) return;
-
-  const xs = clusterNodes.map((n) => n.x || 0);
-  const ys = clusterNodes.map((n) => n.y || 0);
-  const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const minY = Math.min(...ys);
-  
-  // Calculate label position above the cluster
-  let labelY = minY - 35;
-  let labelX = centerX;
-  
-  // Simple collision check with existing labels
-  labelPositions.forEach(pos => {
-    const dx = Math.abs(pos.x - labelX);
-    const dy = Math.abs(pos.y - labelY);
-    if (dx < 80 && dy < 30) {
-      labelY -= 25; // Push this label up if too close
-    }
-  });
-  
-  labelPositions.push({ id: cluster.id, x: labelX, y: labelY });
-  
-  const color = clusterColorMap.get(cluster.id) || '#6b6b7b';
-
-  labelsGroup
-    .append('text')
-    .attr('x', labelX)
-    .attr('y', labelY)
-    .attr('text-anchor', 'middle')
-    .attr('fill', hexToRgba(color, 0.8))
-    .style('font-size', '11px')
-    .style('font-weight', '500')
-    .style('text-transform', 'uppercase')
-    .style('letter-spacing', '0.12em')
-    .text(cluster.name);
-});
-```
+3-5 mock insights spread across "EARLIER TODAY" and "YESTERDAY" groups.
 
 ---
 
-## Expected Visual Result
+## Technical Notes
 
-After these changes:
+- The `BriefingView` component will manage its own filter state (`activeCluster`)
+- Temporal grouping uses a helper function that buckets `createdAt` into "EARLIER TODAY", "YESTERDAY", "THIS WEEK"
+- The chat input is a presentational `<input>` with no submit handler
+- The "Radar" tab will be a no-op button for now
+- All existing navigation callbacks (`onSelectInsight`, `onShowFullGraph`) remain wired so clicking a card still navigates to the Insight Graph view
 
-1. **3 distinct cluster zones** - Each cluster will occupy its own region of the canvas
-2. **~180px minimum gap** between cluster centroids
-3. **60-70% canvas utilization** - The graph expands to fill available space
-4. **Non-overlapping labels** - Cluster names positioned with collision detection
-5. **Clear node hierarchy** - 7/10/14/18px sizes create visual importance levels
-
-The visualization will feel more like a professional data dashboard and less like a compressed blob.
