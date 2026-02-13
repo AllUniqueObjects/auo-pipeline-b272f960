@@ -45,11 +45,10 @@ export function useSignalGraphData() {
           supabase
             .from('signals')
             .select('*')
-            .eq('user_id', user.id)
             .order('created_at', { ascending: false }),
           supabase
             .from('signal_edges')
-            .select('signal_a, signal_b, similarity'),
+            .select('source_id, target_id, similarity'),
         ]);
 
         if (clustersRes.error) throw clustersRes.error;
@@ -84,9 +83,9 @@ export function useSignalGraphData() {
         const standalone = allSignalsData.filter((s) => !clusteredSignalIds.has(s.id));
 
         // Store raw signal edges for graph rendering
-        const edges: SignalEdge[] = (edgesRes.data || []).map((e) => ({
-          signal_a: e.signal_a,
-          signal_b: e.signal_b,
+        const edges: SignalEdge[] = (edgesRes.data || []).map((e: any) => ({
+          signal_a: e.source_id,
+          signal_b: e.target_id,
           similarity: e.similarity,
         }));
 

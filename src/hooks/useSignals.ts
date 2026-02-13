@@ -22,7 +22,6 @@ export function useSignals() {
         const { data, error } = await supabase
           .from('signals')
           .select('*')
-          .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -45,7 +44,7 @@ export function useSignals() {
           event: '*',
           schema: 'public',
           table: 'signals',
-          filter: `user_id=eq.${user.id}`,
+          filter: `id=neq.placeholder`,
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {

@@ -14,8 +14,8 @@ const confidenceLabels: Record<string, string> = {
 
 export function SignalRow({ signal, isSelected, onSelect }: SignalRowProps) {
   const isUrgent = signal.urgency === 'urgent';
-  const sourceCount = signal.source_ids?.length || 0;
-  const confidence = signal.confidence as string | null;
+  const sourceCount = signal.sources || 0;
+  const confidence = signal.credibility;
 
   return (
     <button
@@ -38,8 +38,8 @@ export function SignalRow({ signal, isSelected, onSelect }: SignalRowProps) {
         </span>
         <span className="text-[11px] text-muted-foreground/70 flex-shrink-0">
           {sourceCount > 0 && `${sourceCount} src`}
-          {sourceCount > 0 && confidence && ' · '}
-          {confidence && confidenceLabels[confidence]}
+          {sourceCount > 0 && confidence != null && ' · '}
+          {confidence != null && (confidence >= 0.7 ? 'HIGH' : confidence >= 0.4 ? 'MED' : 'LOW')}
         </span>
       </div>
     </button>
