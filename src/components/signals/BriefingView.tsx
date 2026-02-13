@@ -1,6 +1,7 @@
-// Briefing screen - agent-narrated home with insight cards
-import { ColorLegend } from './HighlightedText';
+// Briefing screen – light theme with cluster filters, temporal grouping, chat input
+import { useState, useMemo } from 'react';
 import { InsightCard, type InsightData } from './InsightCard';
+import { Send } from 'lucide-react';
 
 interface BriefingViewProps {
   insights: InsightData[];
@@ -12,125 +13,170 @@ interface BriefingViewProps {
   onShowFullGraph: () => void;
 }
 
+function getTimeBucket(date: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date >= today) return 'EARLIER TODAY';
+  if (date >= yesterday) return 'YESTERDAY';
+  return 'THIS WEEK';
+}
+
+const BUCKET_ORDER = ['EARLIER TODAY', 'YESTERDAY', 'THIS WEEK'];
+
 export function BriefingView({
   insights,
   totalSignals,
   totalEdges,
   urgentCount,
-  userName = 'there',
   onSelectInsight,
   onShowFullGraph,
 }: BriefingViewProps) {
-  const currentDate = new Date();
-  const formattedDate = currentDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const [activeTab, setActiveTab] = useState<'briefing' | 'radar'>('briefing');
+  const [activeCluster, setActiveCluster] = useState<string | null>(null);
 
-  const getGreeting = () => {
-    const hour = currentDate.getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
-  };
+  // Unique clusters for filter chips
+  const clusterChips = useMemo(() => {
+    const seen = new Map<string, { name: string; color: string; count: number }>();
+    insights.forEach((i) => {
+      const key = i.cluster.id;
+      if (!seen.has(key)) {
+        seen.set(key, { name: i.cluster.name, color: i.color, count: i.signals.length });
+      }
+    });
+    return Array.from(seen.entries()).map(([id, data]) => ({ id, ...data }));
+  }, [insights]);
+
+  // Filter insights
+  const filtered = useMemo(() => {
+    if (!activeCluster) return insights;
+    return insights.filter((i) => i.cluster.id === activeCluster);
+  }, [insights, activeCluster]);
+
+  // Group by time bucket
+  const grouped = useMemo(() => {
+    const groups = new Map<string, InsightData[]>();
+    filtered.forEach((i) => {
+      const bucket = i.createdAt ? getTimeBucket(i.createdAt) : 'THIS WEEK';
+      if (!groups.has(bucket)) groups.set(bucket, []);
+      groups.get(bucket)!.push(i);
+    });
+    // Sort buckets
+    return BUCKET_ORDER
+      .filter((b) => groups.has(b))
+      .map((b) => ({ bucket: b, items: groups.get(b)! }));
+  }, [filtered]);
 
   return (
-    <div className="min-h-screen" style={{ background: '#13131a' }}>
-      <div className="max-w-[620px] mx-auto px-8 py-11">
-        {/* Header */}
-        <div className="flex justify-between items-baseline mb-3">
-          <span
-            className="text-[13px] tracking-[0.15em]"
-            style={{ fontWeight: 500, color: '#6b6b7b' }}
-          >
+    <div className="min-h-screen bg-background">
+      {/* Top nav bar */}
+      <div className="border-b border-border">
+        <div className="max-w-[680px] mx-auto px-6 flex items-center justify-between h-14">
+          <span className="text-[13px] tracking-[0.15em] font-medium text-muted-foreground">
             AUO
           </span>
-          <span
-            className="text-[11px]"
-            style={{ fontWeight: 300, color: '#44444f' }}
+          <div className="flex gap-6">
+            <button
+              onClick={() => setActiveTab('briefing')}
+              className={`text-[13px] font-medium pb-0.5 transition-colors ${
+                activeTab === 'briefing'
+                  ? 'text-foreground border-b-2 border-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Briefing
+            </button>
+            <button
+              onClick={() => setActiveTab('radar')}
+              className={`text-[13px] font-medium pb-0.5 transition-colors ${
+                activeTab === 'radar'
+                  ? 'text-foreground border-b-2 border-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Radar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-[680px] mx-auto px-6 pt-6 pb-28">
+        {/* Cluster filter chips */}
+        <div className="flex gap-2 flex-wrap mb-6">
+          <button
+            onClick={() => setActiveCluster(null)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border transition-colors ${
+              activeCluster === null
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-card text-muted-foreground border-border hover:border-ring/40'
+            }`}
           >
-            {formattedDate}
-          </span>
+            All
+            <span className="text-[11px] opacity-70">{totalSignals}</span>
+          </button>
+          {clusterChips.map((chip) => (
+            <button
+              key={chip.id}
+              onClick={() => setActiveCluster(activeCluster === chip.id ? null : chip.id)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border transition-colors ${
+                activeCluster === chip.id
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'bg-card text-muted-foreground border-border hover:border-ring/40'
+              }`}
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: chip.color }}
+              />
+              {chip.name}
+              <span className="text-[11px] opacity-70">{chip.count}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Conversational greeting */}
-        <p
-          className="text-[18px] leading-[1.6] mb-4"
-          style={{ fontWeight: 400, color: '#e8e8ed' }}
-        >
-          {getGreeting()}, {userName}.
-        </p>
-
-        {/* Summary */}
-        <p
-          className="text-[15px] leading-[1.7] mb-2.5"
-          style={{ fontWeight: 400, color: '#b8b8c8' }}
-        >
-          I found{' '}
-          <span style={{ color: '#e8e8ed' }}>{totalSignals} signals</span> this week
-          with{' '}
-          <span style={{ color: '#e8e8ed' }}>{totalEdges} connections</span> between
-          them. They cluster into{' '}
-          <span style={{ color: '#e8e8ed' }}>
-            {insights.length} stor{insights.length !== 1 ? 'ies' : 'y'}
-          </span>{' '}
-          that are all moving at the same time.
-        </p>
-
-        {/* Urgency line */}
-        <p
-          className="text-[13px] leading-[1.6] mb-5"
-          style={{ fontWeight: 300, color: '#6b6b7b' }}
-        >
-          {urgentCount > 0
-            ? `${urgentCount} need attention this week. Here's what I'm seeing.`
-            : "Here's what I'm seeing."}
-        </p>
-
-        {/* Color legend */}
-        <div className="mb-7">
-          <ColorLegend />
-        </div>
-
-        {/* Insight cards */}
-        {insights.map((insight) => (
-          <InsightCard
-            key={insight.id}
-            insight={insight}
-            onClick={() => onSelectInsight(insight)}
-          />
+        {/* Temporal groups */}
+        {grouped.map((group) => (
+          <div key={group.bucket} className="mb-6">
+            <div className="text-[10px] tracking-[0.1em] font-medium text-muted-foreground mb-3">
+              {group.bucket}
+            </div>
+            {group.items.map((insight) => (
+              <InsightCard
+                key={insight.id}
+                insight={insight}
+                onClick={() => onSelectInsight(insight)}
+              />
+            ))}
+          </div>
         ))}
 
-        {/* Full graph option */}
+        {/* Full graph link */}
         <div
           onClick={onShowFullGraph}
-          className="mt-8 rounded-[14px] cursor-pointer text-center transition-all duration-200"
-          style={{
-            padding: '20px 24px',
-            background: 'rgba(255,255,255,0.015)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.015)';
-          }}
+          className="mt-4 rounded-xl cursor-pointer text-center py-4 bg-card border border-border transition-colors hover:border-ring/30"
         >
-          <span
-            className="text-[13px]"
-            style={{ fontWeight: 400, color: '#7a7a90' }}
-          >
+          <span className="text-[13px] font-normal text-muted-foreground">
             See all {totalSignals} signals →
           </span>
         </div>
+      </div>
 
-        {/* Footer */}
-        <div
-          className="mt-12 text-center text-[10px]"
-          style={{ fontWeight: 300, color: '#33333d' }}
-        >
-          Tier 1-2 sources only · Context graph generated from post-meeting analysis
+      {/* Chat input bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border">
+        <div className="max-w-[680px] mx-auto px-6 py-3">
+          <div className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-2.5">
+            <input
+              type="text"
+              placeholder="Ask AUO anything..."
+              className="flex-1 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground outline-none"
+              readOnly
+            />
+            <button className="text-muted-foreground hover:text-foreground transition-colors">
+              <Send size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
