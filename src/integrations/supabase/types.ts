@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      brand_context: {
+        Row: {
+          company_name: string
+          consumer: Json | null
+          created_at: string | null
+          id: string
+          innovation: Json | null
+          macroeconomics: Json | null
+          market_dynamics: Json | null
+          product_categories: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_name: string
+          consumer?: Json | null
+          created_at?: string | null
+          id?: string
+          innovation?: Json | null
+          macroeconomics?: Json | null
+          market_dynamics?: Json | null
+          product_categories?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_name?: string
+          consumer?: Json | null
+          created_at?: string | null
+          id?: string
+          innovation?: Json | null
+          macroeconomics?: Json | null
+          market_dynamics?: Json | null
+          product_categories?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       brands: {
         Row: {
           context_json: Json
@@ -34,6 +70,71 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      clusters: {
+        Row: {
+          color_node: string
+          color_text: string
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          color_node: string
+          color_text: string
+          created_at?: string | null
+          id: string
+          name: string
+        }
+        Update: {
+          color_node?: string
+          color_text?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          context_signal_ids: string[] | null
+          created_at: string | null
+          id: string
+          query_type: string | null
+          response_insight_id: string | null
+          response_text: string | null
+          user_id: string | null
+          user_query: string
+        }
+        Insert: {
+          context_signal_ids?: string[] | null
+          created_at?: string | null
+          id: string
+          query_type?: string | null
+          response_insight_id?: string | null
+          response_text?: string | null
+          user_id?: string | null
+          user_query: string
+        }
+        Update: {
+          context_signal_ids?: string[] | null
+          created_at?: string | null
+          id?: string
+          query_type?: string | null
+          response_insight_id?: string | null
+          response_text?: string | null
+          user_id?: string | null
+          user_query?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       daily_briefings: {
         Row: {
@@ -59,6 +160,96 @@ export type Database = {
           id?: string
           summary?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      insights: {
+        Row: {
+          body_segments: Json
+          color: string
+          created_at: string | null
+          cross_signal_ids: string[] | null
+          decision_question: string | null
+          edge_pairs: Json
+          id: string
+          insight_type: string | null
+          signal_count: number
+          signal_ids: string[]
+          sort_order: number
+          source_conversation_id: string | null
+          title: string
+          urgency: string
+        }
+        Insert: {
+          body_segments?: Json
+          color: string
+          created_at?: string | null
+          cross_signal_ids?: string[] | null
+          decision_question?: string | null
+          edge_pairs?: Json
+          id: string
+          insight_type?: string | null
+          signal_count?: number
+          signal_ids?: string[]
+          sort_order?: number
+          source_conversation_id?: string | null
+          title: string
+          urgency: string
+        }
+        Update: {
+          body_segments?: Json
+          color?: string
+          created_at?: string | null
+          cross_signal_ids?: string[] | null
+          decision_question?: string | null
+          edge_pairs?: Json
+          id?: string
+          insight_type?: string | null
+          signal_count?: number
+          signal_ids?: string[]
+          sort_order?: number
+          source_conversation_id?: string | null
+          title?: string
+          urgency?: string
+        }
+        Relationships: []
+      }
+      role_context: {
+        Row: {
+          company_name: string
+          created_at: string | null
+          current_focus: Json | null
+          function: string
+          id: string
+          last_pulse_check: string | null
+          level: string
+          preferences: Json | null
+          updated_at: string | null
+          user_name: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string | null
+          current_focus?: Json | null
+          function: string
+          id?: string
+          last_pulse_check?: string | null
+          level: string
+          preferences?: Json | null
+          updated_at?: string | null
+          user_name: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string | null
+          current_focus?: Json | null
+          function?: string
+          id?: string
+          last_pulse_check?: string | null
+          level?: string
+          preferences?: Json | null
+          updated_at?: string | null
+          user_name?: string
         }
         Relationships: []
       }
@@ -148,36 +339,42 @@ export type Database = {
       signal_edges: {
         Row: {
           created_at: string | null
-          id: string
-          signal_a: string
-          signal_b: string
+          id: number
+          reason: string | null
           similarity: number
+          source_id: string
+          target_id: string
+          type: string
         }
         Insert: {
           created_at?: string | null
-          id?: string
-          signal_a: string
-          signal_b: string
-          similarity: number
+          id?: number
+          reason?: string | null
+          similarity?: number
+          source_id: string
+          target_id: string
+          type: string
         }
         Update: {
           created_at?: string | null
-          id?: string
-          signal_a?: string
-          signal_b?: string
+          id?: number
+          reason?: string | null
           similarity?: number
+          source_id?: string
+          target_id?: string
+          type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "signal_edges_signal_a_fkey"
-            columns: ["signal_a"]
+            foreignKeyName: "signal_edges_source_id_fkey"
+            columns: ["source_id"]
             isOneToOne: false
             referencedRelation: "signals"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "signal_edges_signal_b_fkey"
-            columns: ["signal_b"]
+            foreignKeyName: "signal_edges_target_id_fkey"
+            columns: ["target_id"]
             isOneToOne: false
             referencedRelation: "signals"
             referencedColumns: ["id"]
@@ -206,85 +403,142 @@ export type Database = {
           signal_id?: string
           user_id?: string
         }
+        Relationships: []
+      }
+      signals: {
+        Row: {
+          adjacent_layer: string | null
+          analysis_context: string | null
+          analyzed_at: string | null
+          bridge_reason: string | null
+          cluster_id: string | null
+          created_at: string | null
+          credibility: number | null
+          days_active: number | null
+          decision_question: string | null
+          discovery_type: string | null
+          entities: Json | null
+          entity_tags: Json | null
+          first_seen: string | null
+          id: string
+          last_scanned_at: string | null
+          last_source_count: number | null
+          momentum: number | null
+          nb_relevance: string | null
+          priority_score: number | null
+          query_origin: string | null
+          raw_sources: Json | null
+          scan_source: string | null
+          source_count_history: Json | null
+          sources: number
+          summary: string | null
+          title: string
+          updated_at: string | null
+          urgency: string
+          watch_topic_match: string | null
+        }
+        Insert: {
+          adjacent_layer?: string | null
+          analysis_context?: string | null
+          analyzed_at?: string | null
+          bridge_reason?: string | null
+          cluster_id?: string | null
+          created_at?: string | null
+          credibility?: number | null
+          days_active?: number | null
+          decision_question?: string | null
+          discovery_type?: string | null
+          entities?: Json | null
+          entity_tags?: Json | null
+          first_seen?: string | null
+          id: string
+          last_scanned_at?: string | null
+          last_source_count?: number | null
+          momentum?: number | null
+          nb_relevance?: string | null
+          priority_score?: number | null
+          query_origin?: string | null
+          raw_sources?: Json | null
+          scan_source?: string | null
+          source_count_history?: Json | null
+          sources?: number
+          summary?: string | null
+          title: string
+          updated_at?: string | null
+          urgency: string
+          watch_topic_match?: string | null
+        }
+        Update: {
+          adjacent_layer?: string | null
+          analysis_context?: string | null
+          analyzed_at?: string | null
+          bridge_reason?: string | null
+          cluster_id?: string | null
+          created_at?: string | null
+          credibility?: number | null
+          days_active?: number | null
+          decision_question?: string | null
+          discovery_type?: string | null
+          entities?: Json | null
+          entity_tags?: Json | null
+          first_seen?: string | null
+          id?: string
+          last_scanned_at?: string | null
+          last_source_count?: number | null
+          momentum?: number | null
+          nb_relevance?: string | null
+          priority_score?: number | null
+          query_origin?: string | null
+          raw_sources?: Json | null
+          scan_source?: string | null
+          source_count_history?: Json | null
+          sources?: number
+          summary?: string | null
+          title?: string
+          updated_at?: string | null
+          urgency?: string
+          watch_topic_match?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "signal_feedback_signal_id_fkey"
-            columns: ["signal_id"]
+            foreignKeyName: "signals_cluster_id_fkey"
+            columns: ["cluster_id"]
             isOneToOne: false
-            referencedRelation: "signals"
+            referencedRelation: "clusters"
             referencedColumns: ["id"]
           },
         ]
       }
-      signals: {
+      source_registry: {
         Row: {
-          action_paths: Json | null
-          body: string
           category: string
-          confidence: string | null
-          confidence_reason: string | null
-          connected_signals: string[] | null
           created_at: string | null
-          data_points: Json | null
-          decision_question: string | null
-          embedding: string | null
+          domain: string
           id: string
-          opportunity: string | null
-          reasoning: string | null
-          risk: string | null
-          source_ids: string[] | null
-          source_urls: string[] | null
-          summary: string
-          title: string
-          urgency: string | null
-          urgency_reason: string | null
-          user_id: string
+          label: string | null
+          notes: string | null
+          tier: number
+          weight: number
         }
         Insert: {
-          action_paths?: Json | null
-          body: string
           category: string
-          confidence?: string | null
-          confidence_reason?: string | null
-          connected_signals?: string[] | null
           created_at?: string | null
-          data_points?: Json | null
-          decision_question?: string | null
-          embedding?: string | null
+          domain: string
           id?: string
-          opportunity?: string | null
-          reasoning?: string | null
-          risk?: string | null
-          source_ids?: string[] | null
-          source_urls?: string[] | null
-          summary: string
-          title: string
-          urgency?: string | null
-          urgency_reason?: string | null
-          user_id: string
+          label?: string | null
+          notes?: string | null
+          tier: number
+          weight: number
         }
         Update: {
-          action_paths?: Json | null
-          body?: string
           category?: string
-          confidence?: string | null
-          confidence_reason?: string | null
-          connected_signals?: string[] | null
           created_at?: string | null
-          data_points?: Json | null
-          decision_question?: string | null
-          embedding?: string | null
+          domain?: string
           id?: string
-          opportunity?: string | null
-          reasoning?: string | null
-          risk?: string | null
-          source_ids?: string[] | null
-          source_urls?: string[] | null
-          summary?: string
-          title?: string
-          urgency?: string | null
-          urgency_reason?: string | null
-          user_id?: string
+          label?: string | null
+          notes?: string | null
+          tier?: number
+          weight?: number
         }
         Relationships: []
       }
@@ -345,6 +599,36 @@ export type Database = {
         }
         Relationships: []
       }
+      tactical_layer: {
+        Row: {
+          created_at: string | null
+          current_work: Json | null
+          id: string
+          recent_topics: Json | null
+          updated_at: string | null
+          user_name: string
+          watch_topics: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_work?: Json | null
+          id?: string
+          recent_topics?: Json | null
+          updated_at?: string | null
+          user_name: string
+          watch_topics?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          current_work?: Json | null
+          id?: string
+          recent_topics?: Json | null
+          updated_at?: string | null
+          user_name?: string
+          watch_topics?: Json | null
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           brand_id: string | null
@@ -376,6 +660,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      users: {
+        Row: {
+          company: string | null
+          competitors: string[] | null
+          created_at: string | null
+          current_priorities: string | null
+          current_work: Json | null
+          focus_areas: string[] | null
+          function: string | null
+          id: string
+          key_products: string[] | null
+          level: string | null
+          name: string | null
+          preferences: Json | null
+          role: string | null
+          updated_at: string | null
+          watch_topics: Json | null
+        }
+        Insert: {
+          company?: string | null
+          competitors?: string[] | null
+          created_at?: string | null
+          current_priorities?: string | null
+          current_work?: Json | null
+          focus_areas?: string[] | null
+          function?: string | null
+          id?: string
+          key_products?: string[] | null
+          level?: string | null
+          name?: string | null
+          preferences?: Json | null
+          role?: string | null
+          updated_at?: string | null
+          watch_topics?: Json | null
+        }
+        Update: {
+          company?: string | null
+          competitors?: string[] | null
+          created_at?: string | null
+          current_priorities?: string | null
+          current_work?: Json | null
+          focus_areas?: string[] | null
+          function?: string | null
+          id?: string
+          key_products?: string[] | null
+          level?: string | null
+          name?: string | null
+          preferences?: Json | null
+          role?: string | null
+          updated_at?: string | null
+          watch_topics?: Json | null
+        }
+        Relationships: []
       }
     }
     Views: {
