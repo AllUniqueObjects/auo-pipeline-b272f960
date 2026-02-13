@@ -95,7 +95,7 @@ export function FullSignalMap({
 
     const simNodes: NodeData[] = allSignals.map(({ signal, cluster }) => {
       const target = cluster ? targets[cluster.id] : targets['standalone'];
-      const sourceCount = signal.source_urls?.length || 0;
+      const sourceCount = signal.sources || 0;
       return {
         id: signal.id,
         signal,
@@ -350,7 +350,7 @@ export function FullSignalMap({
               className="text-[10px] mt-1.5"
               style={{ fontWeight: 300, color: '#7a7a90' }}
             >
-              {tooltipNode.signal.urgency || 'stable'} · {tooltipNode.signal.source_urls?.length || 0} sources
+              {tooltipNode.signal.urgency || 'stable'} · {tooltipNode.signal.sources || 0} sources
             </div>
           </div>
         )}
