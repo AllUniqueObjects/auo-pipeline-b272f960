@@ -18,6 +18,7 @@ export interface InsightWithData {
   tier: Tier;
   totalRefs: number;
   clusterName: string;
+  compositeScore: number;
 }
 
 export interface InsightEdge {
@@ -59,8 +60,16 @@ export function useInsightData() {
           const totalRefs = signals.reduce((sum, s) => sum + (s.sources || 0), 0);
           const firstClusterId = signals[0]?.cluster_id;
           const clusterName = firstClusterId ? (clMap[firstClusterId] || firstClusterId) : 'INTELLIGENCE';
-          return { insight, signals, tier: getTier(insight.urgency), totalRefs, clusterName };
+          // Composite score: weighted blend of references, momentum, and signal count
+          const compositeScore =
+            (totalRefs * 0.5) +
+            ((insight.sort_order ? (100 - insight.sort_order) : 0) * 0.3) +
+            (signals.length * 0.2 * 10);
+          return { insight, signals, tier: getTier(insight.urgency), totalRefs, clusterName, compositeScore };
         });
+
+        // Sort by composite score descending within each tier
+        insightData.sort((a, b) => b.compositeScore - a.compositeScore);
 
         // Compute insight-to-insight edges
         const edges = edgesRes.data || [];
