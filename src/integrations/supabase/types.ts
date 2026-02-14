@@ -165,7 +165,10 @@ export type Database = {
       }
       insights: {
         Row: {
+          archived_at: string | null
           body_segments: Json
+          category: string | null
+          cluster_name: string | null
           color: string
           created_at: string | null
           cross_signal_ids: string[] | null
@@ -173,15 +176,21 @@ export type Database = {
           edge_pairs: Json
           id: string
           insight_type: string | null
+          momentum_score: number | null
+          reference_count: number | null
           signal_count: number
           signal_ids: string[]
           sort_order: number
           source_conversation_id: string | null
           title: string
           urgency: string
+          user_relevance: string | null
         }
         Insert: {
+          archived_at?: string | null
           body_segments?: Json
+          category?: string | null
+          cluster_name?: string | null
           color: string
           created_at?: string | null
           cross_signal_ids?: string[] | null
@@ -189,15 +198,21 @@ export type Database = {
           edge_pairs?: Json
           id: string
           insight_type?: string | null
+          momentum_score?: number | null
+          reference_count?: number | null
           signal_count?: number
           signal_ids?: string[]
           sort_order?: number
           source_conversation_id?: string | null
           title: string
           urgency: string
+          user_relevance?: string | null
         }
         Update: {
+          archived_at?: string | null
           body_segments?: Json
+          category?: string | null
+          cluster_name?: string | null
           color?: string
           created_at?: string | null
           cross_signal_ids?: string[] | null
@@ -205,12 +220,15 @@ export type Database = {
           edge_pairs?: Json
           id?: string
           insight_type?: string | null
+          momentum_score?: number | null
+          reference_count?: number | null
           signal_count?: number
           signal_ids?: string[]
           sort_order?: number
           source_conversation_id?: string | null
           title?: string
           urgency?: string
+          user_relevance?: string | null
         }
         Relationships: []
       }
@@ -410,7 +428,9 @@ export type Database = {
           adjacent_layer: string | null
           analysis_context: string | null
           analyzed_at: string | null
+          archived_at: string | null
           bridge_reason: string | null
+          category: string | null
           cluster_id: string | null
           created_at: string | null
           credibility: number | null
@@ -424,10 +444,12 @@ export type Database = {
           last_scanned_at: string | null
           last_source_count: number | null
           momentum: number | null
+          nb_impact: string | null
           nb_relevance: string | null
           priority_score: number | null
           query_origin: string | null
           raw_sources: Json | null
+          reference_count: number | null
           scan_source: string | null
           source_count_history: Json | null
           sources: number
@@ -441,7 +463,9 @@ export type Database = {
           adjacent_layer?: string | null
           analysis_context?: string | null
           analyzed_at?: string | null
+          archived_at?: string | null
           bridge_reason?: string | null
+          category?: string | null
           cluster_id?: string | null
           created_at?: string | null
           credibility?: number | null
@@ -455,10 +479,12 @@ export type Database = {
           last_scanned_at?: string | null
           last_source_count?: number | null
           momentum?: number | null
+          nb_impact?: string | null
           nb_relevance?: string | null
           priority_score?: number | null
           query_origin?: string | null
           raw_sources?: Json | null
+          reference_count?: number | null
           scan_source?: string | null
           source_count_history?: Json | null
           sources?: number
@@ -472,7 +498,9 @@ export type Database = {
           adjacent_layer?: string | null
           analysis_context?: string | null
           analyzed_at?: string | null
+          archived_at?: string | null
           bridge_reason?: string | null
+          category?: string | null
           cluster_id?: string | null
           created_at?: string | null
           credibility?: number | null
@@ -486,10 +514,12 @@ export type Database = {
           last_scanned_at?: string | null
           last_source_count?: number | null
           momentum?: number | null
+          nb_impact?: string | null
           nb_relevance?: string | null
           priority_score?: number | null
           query_origin?: string | null
           raw_sources?: Json | null
+          reference_count?: number | null
           scan_source?: string | null
           source_count_history?: Json | null
           sources?: number
