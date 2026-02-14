@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useInsightData, type InsightWithData, type Tier } from '@/hooks/useInsights';
@@ -25,16 +25,59 @@ const URGENCY_VAR: Record<string, string> = {
   relevant: 'hsl(var(--monitoring))',
 };
 
+/* Generous spacing layouts — cards are well separated */
 const LAYOUTS: Record<number, { x: number; y: number }[]> = {
   1: [{ x: 0, y: 0 }],
-  2: [{ x: -190, y: -25 }, { x: 190, y: 25 }],
-  3: [{ x: -180, y: -90 }, { x: 180, y: -90 }, { x: 0, y: 100 }],
-  4: [{ x: 0, y: -150 }, { x: -210, y: 10 }, { x: 210, y: 10 }, { x: 0, y: 170 }],
-  5: [{ x: -155, y: -130 }, { x: 155, y: -130 }, { x: -220, y: 60 }, { x: 220, y: 60 }, { x: 0, y: 180 }],
+  2: [{ x: -280, y: -40 }, { x: 280, y: 40 }],
+  3: [{ x: -300, y: -160 }, { x: 300, y: -100 }, { x: 0, y: 180 }],
+  4: [{ x: 0, y: -240 }, { x: -340, y: 30 }, { x: 340, y: 30 }, { x: 0, y: 280 }],
+  5: [{ x: -280, y: -220 }, { x: 280, y: -200 }, { x: -360, y: 100 }, { x: 360, y: 120 }, { x: 0, y: 300 }],
 };
 
 function hashCode(s: string): number {
   return Math.abs(s.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0));
+}
+
+/* ─── Infinite Canvas Hook ──────────────────── */
+
+function useCanvas() {
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const isPanning = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
+  const hasMoved = useRef(false);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    // Only pan when clicking on the canvas background, not on cards
+    if ((e.target as HTMLElement).closest('[data-card]')) return;
+    isPanning.current = true;
+    hasMoved.current = false;
+    lastPos.current = { x: e.clientX, y: e.clientY };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isPanning.current) return;
+    const dx = e.clientX - lastPos.current.x;
+    const dy = e.clientY - lastPos.current.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) hasMoved.current = true;
+    setPan(p => ({ x: p.x + dx, y: p.y + dy }));
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    isPanning.current = false;
+  }, []);
+
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.92 : 1.08;
+    setScale(s => Math.min(2, Math.max(0.3, s * delta)));
+  }, []);
+
+  const didPan = useCallback(() => hasMoved.current, []);
+
+  return { pan, scale, onPointerDown, onPointerMove, onPointerUp, onWheel, didPan };
 }
 
 export default function Home() {
@@ -43,6 +86,14 @@ export default function Home() {
   const { insights, insightEdges, clusterNames, loading } = useInsightData();
   const [activeTier, setActiveTier] = useState<Tier>('urgent');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const canvas = useCanvas();
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Reset pan/scale when switching tiers
+  useEffect(() => {
+    canvas.pan.x = 0;
+    canvas.pan.y = 0;
+  }, [activeTier]);
 
   const tierCounts = useMemo(() => ({
     urgent: insights.filter(i => i.tier === 'urgent').length,
@@ -59,18 +110,13 @@ export default function Home() {
     ? insights.find(i => i.insight.id === expandedId)
     : null;
 
-  const containerW = 900;
-  const containerH = 600;
-  const cx = containerW / 2;
-  const cy = containerH / 2;
-
   const maxRefs = Math.max(...visibleInsights.map(i => i.totalRefs), 1);
-  const getCardWidth = (refs: number) => 260 + 120 * (refs / maxRefs);
+  const getCardWidth = (refs: number) => 280 + 100 * (refs / maxRefs);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Header */}
-      <header className="px-6 pt-6 pb-4">
+      <header className="flex-shrink-0 px-6 pt-5 pb-3">
         <button
           onClick={() => { setExpandedId(null); navigate('/'); }}
           className="text-[22px] font-bold tracking-[0.3em] text-destructive"
@@ -81,7 +127,7 @@ export default function Home() {
 
       {/* Tier Tabs */}
       {!expandedId && (
-        <div className="flex justify-center gap-3 px-6 pb-6">
+        <div className="flex-shrink-0 flex justify-center gap-3 px-6 pb-4">
           {(['urgent', 'emerging', 'relevant'] as Tier[]).map(tier => {
             const active = activeTier === tier;
             const meta = TIER_META[tier];
@@ -102,115 +148,141 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main content */}
-      {loading ? (
-        <div className="flex justify-center py-20 text-muted-foreground text-sm">
-          Loading intelligence...
-        </div>
-      ) : expandedInsight ? (
-        <ExpandedView
-          insight={expandedInsight}
-          clusterNames={clusterNames}
-          onBack={() => setExpandedId(null)}
-          onSignalClick={(id) => navigate(`/signal/${id}`)}
-        />
-      ) : visibleInsights.length === 0 ? (
-        <div className="flex justify-center py-20 text-muted-foreground text-sm">
-          No {activeTier} insights right now
-        </div>
-      ) : isMobile ? (
-        <div className="px-4 space-y-4">
-          {visibleInsights.map(item => (
-            <InsightCardComponent
-              key={item.insight.id}
-              item={item}
-              onClick={() => setExpandedId(item.insight.id)}
+      {/* Main content area */}
+      <div className="flex-1 relative overflow-hidden">
+        {loading ? (
+          <div className="flex justify-center items-center h-full text-muted-foreground text-sm">
+            Loading intelligence...
+          </div>
+        ) : expandedInsight ? (
+          <div className="h-full overflow-y-auto pb-20">
+            <ExpandedView
+              insight={expandedInsight}
+              clusterNames={clusterNames}
+              onBack={() => setExpandedId(null)}
+              onSignalClick={(id) => navigate(`/signal/${id}`)}
             />
-          ))}
-        </div>
-      ) : (
-        /* Level A: Card Map */
-        <div className="relative mx-auto overflow-hidden" style={{ width: containerW, height: containerH }}>
-          {/* SVG connections */}
-          <svg className="absolute inset-0 pointer-events-none z-0" width={containerW} height={containerH}>
-            {insightEdges
-              .filter(e => {
-                const ids = new Set(visibleInsights.map(i => i.insight.id));
-                return ids.has(e.insightA) && ids.has(e.insightB);
-              })
-              .map((edge, idx) => {
-                const layout = LAYOUTS[Math.min(visibleInsights.length, 5)] || LAYOUTS[1];
-                const idxA = visibleInsights.findIndex(i => i.insight.id === edge.insightA);
-                const idxB = visibleInsights.findIndex(i => i.insight.id === edge.insightB);
-                if (idxA < 0 || idxB < 0 || !layout[idxA] || !layout[idxB]) return null;
+          </div>
+        ) : visibleInsights.length === 0 ? (
+          <div className="flex justify-center items-center h-full text-muted-foreground text-sm">
+            No {activeTier} insights right now
+          </div>
+        ) : isMobile ? (
+          <div className="h-full overflow-y-auto px-4 pb-20 space-y-4">
+            {visibleInsights.map(item => (
+              <InsightCardComponent
+                key={item.insight.id}
+                item={item}
+                onClick={() => setExpandedId(item.insight.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          /* Infinite Canvas */
+          <div
+            ref={canvasRef}
+            className="w-full h-full cursor-grab active:cursor-grabbing select-none"
+            onPointerDown={canvas.onPointerDown}
+            onPointerMove={canvas.onPointerMove}
+            onPointerUp={canvas.onPointerUp}
+            onWheel={canvas.onWheel}
+            style={{ touchAction: 'none' }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                transform: `translate(${canvas.pan.x}px, ${canvas.pan.y}px) scale(${canvas.scale})`,
+                transformOrigin: '50% 50%',
+                transition: 'none',
+              }}
+            >
+              {/* SVG connection lines */}
+              <svg className="absolute inset-0 pointer-events-none z-0" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                {insightEdges
+                  .filter(e => {
+                    const ids = new Set(visibleInsights.map(i => i.insight.id));
+                    return ids.has(e.insightA) && ids.has(e.insightB);
+                  })
+                  .map((edge, idx) => {
+                    const layout = LAYOUTS[Math.min(visibleInsights.length, 5)] || LAYOUTS[1];
+                    const idxA = visibleInsights.findIndex(i => i.insight.id === edge.insightA);
+                    const idxB = visibleInsights.findIndex(i => i.insight.id === edge.insightB);
+                    if (idxA < 0 || idxB < 0 || !layout[idxA] || !layout[idxB]) return null;
 
-                const isDashed = edge.type === 'SAME_CHANNEL';
-                const isDotted = edge.type === 'CONTRADICTING';
+                    const posA = layout[idxA];
+                    const posB = layout[idxB];
+                    const isDashed = edge.type === 'SAME_CHANNEL';
+                    const isDotted = edge.type === 'CONTRADICTING';
+
+                    return (
+                      <g key={idx}>
+                        <line
+                          x1={`calc(50% + ${posA.x}px)`} y1={`calc(50% + ${posA.y}px)`}
+                          x2={`calc(50% + ${posB.x}px)`} y2={`calc(50% + ${posB.y}px)`}
+                          stroke={isDotted ? 'hsl(0 80% 85%)' : 'hsl(var(--border))'}
+                          strokeWidth={1.5}
+                          strokeDasharray={isDashed ? '6,4' : isDotted ? '2,3' : undefined}
+                        />
+                        <text
+                          x={`calc(50% + ${(posA.x + posB.x) / 2}px)`}
+                          y={`calc(50% + ${(posA.y + posB.y) / 2 - 10}px)`}
+                          textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 11 }}
+                        >
+                          {edge.type}
+                        </text>
+                      </g>
+                    );
+                  })}
+              </svg>
+
+              {/* Cards positioned relative to center */}
+              {visibleInsights.map((item, idx) => {
+                const layout = LAYOUTS[Math.min(visibleInsights.length, 5)] || LAYOUTS[1];
+                const pos = layout[idx];
+                if (!pos) return null;
+                const w = getCardWidth(item.totalRefs);
+                const seed = hashCode(item.insight.id);
+                const ox = (seed % 16) - 8;
+                const oy = ((seed >> 4) % 16) - 8;
 
                 return (
-                  <g key={idx}>
-                    <line
-                      x1={cx + layout[idxA].x} y1={cy + layout[idxA].y}
-                      x2={cx + layout[idxB].x} y2={cy + layout[idxB].y}
-                      stroke={isDotted ? 'hsl(0 80% 85%)' : 'hsl(var(--border))'}
-                      strokeWidth={1.5}
-                      strokeDasharray={isDashed ? '6,4' : isDotted ? '2,3' : undefined}
-                    />
-                    <text
-                      x={(2 * cx + layout[idxA].x + layout[idxB].x) / 2}
-                      y={(2 * cy + layout[idxA].y + layout[idxB].y) / 2 - 8}
-                      textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 11 }}
-                    >
-                      {edge.type}
-                    </text>
-                  </g>
+                  <div
+                    key={item.insight.id}
+                    data-card
+                    onClick={() => {
+                      if (!canvas.didPan()) setExpandedId(item.insight.id);
+                    }}
+                    className="absolute z-10 cursor-pointer rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-lg"
+                    style={{
+                      width: w,
+                      left: `calc(50% + ${pos.x + ox}px - ${w / 2}px)`,
+                      top: `calc(50% + ${pos.y + oy}px - 70px)`,
+                      borderLeftWidth: 4,
+                      borderLeftColor: URGENCY_VAR[item.tier],
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] tracking-[0.08em] font-medium uppercase"
+                        style={{ color: URGENCY_VAR[item.tier] }}>
+                        ● {item.clusterName}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{item.totalRefs} ref</span>
+                    </div>
+                    <h3 className="text-[15px] font-semibold text-card-foreground leading-tight line-clamp-3 mb-2">
+                      {item.insight.title}
+                    </h3>
+                    {item.insight.decision_question && (
+                      <p className="text-xs italic text-muted-foreground line-clamp-2">
+                        {item.insight.decision_question}
+                      </p>
+                    )}
+                  </div>
                 );
               })}
-          </svg>
-
-          {/* Positioned insight cards */}
-          {visibleInsights.map((item, idx) => {
-            const layout = LAYOUTS[Math.min(visibleInsights.length, 5)] || LAYOUTS[1];
-            const pos = layout[idx];
-            if (!pos) return null;
-            const w = getCardWidth(item.totalRefs);
-            const seed = hashCode(item.insight.id);
-            const ox = (seed % 20) - 10;
-            const oy = ((seed >> 4) % 20) - 10;
-
-            return (
-              <div
-                key={item.insight.id}
-                onClick={() => setExpandedId(item.insight.id)}
-                className="absolute z-10 cursor-pointer rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg"
-                style={{
-                  width: w,
-                  left: cx + pos.x + ox - w / 2,
-                  top: cy + pos.y + oy - 70,
-                  borderLeftWidth: 4,
-                  borderLeftColor: URGENCY_VAR[item.tier],
-                }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] tracking-[0.08em] font-medium uppercase"
-                    style={{ color: URGENCY_VAR[item.tier] }}>
-                    ● {item.clusterName}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{item.totalRefs} ref</span>
-                </div>
-                <h3 className="text-[15px] font-semibold text-card-foreground leading-tight line-clamp-3 mb-2">
-                  {item.insight.title}
-                </h3>
-                {item.insight.decision_question && (
-                  <p className="text-xs italic text-muted-foreground line-clamp-2">
-                    {item.insight.decision_question}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          </div>
+        )}
+      </div>
 
       <ChatBar />
     </div>
@@ -238,7 +310,6 @@ function ExpandedView({
         ← Back to map
       </button>
 
-      {/* Expanded insight card */}
       <div
         className="mx-auto max-w-[520px] rounded-xl border border-border bg-card p-6 shadow-sm mb-8"
         style={{ borderLeftWidth: 4, borderLeftColor: urgencyColor }}
@@ -257,7 +328,6 @@ function ExpandedView({
         )}
       </div>
 
-      {/* Signal cards grid */}
       {insight.signals.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {insight.signals.map(signal => {
