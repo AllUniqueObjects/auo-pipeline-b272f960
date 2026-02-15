@@ -25,7 +25,7 @@ const URGENCY_VAR: Record<string, string> = {
   relevant: 'hsl(var(--monitoring))',
 };
 
-/* Generous spacing layouts — cards are well separated */
+/* Generous spacing layouts */
 const LAYOUTS: Record<number, { x: number; y: number }[]> = {
   1: [{ x: 0, y: 0 }],
   2: [{ x: -280, y: -40 }, { x: 280, y: 40 }],
@@ -48,7 +48,6 @@ function useCanvas() {
   const hasMoved = useRef(false);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
-    // Only pan when clicking on the canvas background, not on cards
     if ((e.target as HTMLElement).closest('[data-card]')) return;
     isPanning.current = true;
     hasMoved.current = false;
@@ -76,8 +75,9 @@ function useCanvas() {
   }, []);
 
   const didPan = useCallback(() => hasMoved.current, []);
+  const reset = useCallback(() => { setPan({ x: 0, y: 0 }); setScale(1); }, []);
 
-  return { pan, scale, onPointerDown, onPointerMove, onPointerUp, onWheel, didPan };
+  return { pan, scale, onPointerDown, onPointerMove, onPointerUp, onWheel, didPan, reset };
 }
 
 export default function Home() {
@@ -86,14 +86,11 @@ export default function Home() {
   const { insights, insightEdges, clusterNames, loading } = useInsightData();
   const [activeTier, setActiveTier] = useState<Tier>('urgent');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
   const canvas = useCanvas();
-  const canvasRef = useRef<HTMLDivElement>(null);
 
   // Reset pan/scale when switching tiers
-  useEffect(() => {
-    canvas.pan.x = 0;
-    canvas.pan.y = 0;
-  }, [activeTier]);
+  useEffect(() => { canvas.reset(); }, [activeTier]);
 
   const tierCounts = useMemo(() => ({
     urgent: insights.filter(i => i.tier === 'urgent').length,
@@ -111,7 +108,23 @@ export default function Home() {
     : null;
 
   const maxRefs = Math.max(...visibleInsights.map(i => i.totalRefs), 1);
-  const getCardWidth = (refs: number) => 280 + 100 * (refs / maxRefs);
+  const getCardWidth = (refs: number) => 260 + 120 * (refs / maxRefs);
+
+  const handleExpand = (id: string) => {
+    setTransitioning(true);
+    setTimeout(() => {
+      setExpandedId(id);
+      setTransitioning(false);
+    }, 300);
+  };
+
+  const handleCollapse = () => {
+    setTransitioning(true);
+    setTimeout(() => {
+      setExpandedId(null);
+      setTransitioning(false);
+    }, 300);
+  };
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -155,11 +168,14 @@ export default function Home() {
             Loading intelligence...
           </div>
         ) : expandedInsight ? (
-          <div className="h-full overflow-y-auto pb-20">
+          <div className={cn(
+            "h-full overflow-y-auto pb-20 transition-all duration-300",
+            transitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
+          )}>
             <ExpandedView
               insight={expandedInsight}
               clusterNames={clusterNames}
-              onBack={() => setExpandedId(null)}
+              onBack={handleCollapse}
               onSignalClick={(id) => navigate(`/signal/${id}`)}
             />
           </div>
@@ -168,20 +184,25 @@ export default function Home() {
             No {activeTier} insights right now
           </div>
         ) : isMobile ? (
-          <div className="h-full overflow-y-auto px-4 pb-20 space-y-4">
+          <div className={cn(
+            "h-full overflow-y-auto px-4 pb-20 space-y-4 transition-all duration-300",
+            transitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
+          )}>
             {visibleInsights.map(item => (
-              <InsightCardComponent
+              <InsightCardMobile
                 key={item.insight.id}
                 item={item}
-                onClick={() => setExpandedId(item.insight.id)}
+                onClick={() => handleExpand(item.insight.id)}
               />
             ))}
           </div>
         ) : (
           /* Infinite Canvas */
           <div
-            ref={canvasRef}
-            className="w-full h-full cursor-grab active:cursor-grabbing select-none"
+            className={cn(
+              "w-full h-full cursor-grab active:cursor-grabbing select-none transition-all duration-300",
+              transitioning ? "opacity-0 scale-95" : "opacity-100 scale-100"
+            )}
             onPointerDown={canvas.onPointerDown}
             onPointerMove={canvas.onPointerMove}
             onPointerUp={canvas.onPointerUp}
@@ -193,7 +214,6 @@ export default function Home() {
               style={{
                 transform: `translate(${canvas.pan.x}px, ${canvas.pan.y}px) scale(${canvas.scale})`,
                 transformOrigin: '50% 50%',
-                transition: 'none',
               }}
             >
               {/* SVG connection lines */}
@@ -235,7 +255,7 @@ export default function Home() {
                   })}
               </svg>
 
-              {/* Cards positioned relative to center */}
+              {/* Cards */}
               {visibleInsights.map((item, idx) => {
                 const layout = LAYOUTS[Math.min(visibleInsights.length, 5)] || LAYOUTS[1];
                 const pos = layout[idx];
@@ -250,9 +270,9 @@ export default function Home() {
                     key={item.insight.id}
                     data-card
                     onClick={() => {
-                      if (!canvas.didPan()) setExpandedId(item.insight.id);
+                      if (!canvas.didPan()) handleExpand(item.insight.id);
                     }}
-                    className="absolute z-10 cursor-pointer rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-lg"
+                    className="absolute z-10 cursor-pointer rounded-xl border border-border bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:scale-[1.02]"
                     style={{
                       width: w,
                       left: `calc(50% + ${pos.x + ox}px - ${w / 2}px)`,
@@ -271,11 +291,9 @@ export default function Home() {
                     <h3 className="text-[15px] font-semibold text-card-foreground leading-tight line-clamp-3 mb-2">
                       {item.insight.title}
                     </h3>
-                    {item.insight.decision_question && (
-                      <p className="text-xs italic text-muted-foreground line-clamp-2">
-                        {item.insight.decision_question}
-                      </p>
-                    )}
+                    <p className="text-xs italic text-muted-foreground/70 line-clamp-2">
+                      {item.insight.user_relevance || item.insight.decision_question || ''}
+                    </p>
                   </div>
                 );
               })}
@@ -302,6 +320,7 @@ function ExpandedView({
   onBack: () => void;
   onSignalClick: (id: string) => void;
 }) {
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const urgencyColor = URGENCY_VAR[insight.tier];
 
   return (
@@ -310,6 +329,7 @@ function ExpandedView({
         ← Back to map
       </button>
 
+      {/* Expanded insight card */}
       <div
         className="mx-auto max-w-[520px] rounded-xl border border-border bg-card p-6 shadow-sm mb-8"
         style={{ borderLeftWidth: 4, borderLeftColor: urgencyColor }}
@@ -322,12 +342,38 @@ function ExpandedView({
         </div>
         <h2 className="text-lg font-semibold text-card-foreground mb-2">{insight.insight.title}</h2>
         {insight.insight.decision_question && (
-          <p className="text-sm italic text-muted-foreground leading-relaxed">
+          <p className="text-sm italic text-muted-foreground leading-relaxed mb-3">
             {insight.insight.decision_question}
           </p>
         )}
+        {insight.insight.user_relevance && (
+          <p className="text-xs text-muted-foreground/70 leading-relaxed">
+            {insight.insight.user_relevance}
+          </p>
+        )}
+
+        {/* Expandable analysis */}
+        <button
+          onClick={() => setAnalysisOpen(!analysisOpen)}
+          className="mt-3 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {analysisOpen ? '▾' : '▸'} Full analysis
+        </button>
+        {analysisOpen && insight.insight.category && (
+          <div className="mt-2 text-xs text-muted-foreground leading-relaxed">
+            <span className="inline-block rounded-full bg-accent px-2 py-0.5 text-accent-foreground mr-2">
+              {insight.insight.category}
+            </span>
+            {insight.insight.cluster_name && (
+              <span className="inline-block rounded-full bg-accent px-2 py-0.5 text-accent-foreground">
+                {insight.insight.cluster_name}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* Signal cards */}
       {insight.signals.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {insight.signals.map(signal => {
@@ -358,11 +404,11 @@ function ExpandedView({
 
 /* ─── Mobile Insight Card ──────────────────── */
 
-function InsightCardComponent({ item, onClick }: { item: InsightWithData; onClick: () => void }) {
+function InsightCardMobile({ item, onClick }: { item: InsightWithData; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
-      className="rounded-xl border border-border bg-card p-5 cursor-pointer transition-all duration-200 hover:shadow-md"
+      className="rounded-xl border border-border bg-card p-5 cursor-pointer transition-all duration-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)]"
       style={{ borderLeftWidth: 4, borderLeftColor: URGENCY_VAR[item.tier] }}
     >
       <div className="flex items-center justify-between mb-2">
@@ -374,8 +420,8 @@ function InsightCardComponent({ item, onClick }: { item: InsightWithData; onClic
       <h3 className="text-[15px] font-semibold text-card-foreground leading-tight line-clamp-3 mb-2">
         {item.insight.title}
       </h3>
-      <p className="text-xs italic text-muted-foreground line-clamp-2">
-        {item.insight.decision_question || ''}
+      <p className="text-xs italic text-muted-foreground/70 line-clamp-2">
+        {item.insight.user_relevance || item.insight.decision_question || ''}
       </p>
     </div>
   );

@@ -25,7 +25,7 @@ export default function Login() {
   }
 
   if (user) {
-    return <Navigate to="/signals" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -39,7 +39,7 @@ export default function Login() {
       setError(error.message);
       setIsSubmitting(false);
     } else {
-      navigate('/signals');
+      navigate('/');
     }
   };
 
