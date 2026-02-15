@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import SignalDetailPage from "./pages/SignalDetailPage";
+
+// Remove stale /signals route — app uses / as home
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

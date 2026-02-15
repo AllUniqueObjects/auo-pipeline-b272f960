@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email, 
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/signals`
+        emailRedirectTo: `${window.location.origin}/`
       }
     });
     return { error };
