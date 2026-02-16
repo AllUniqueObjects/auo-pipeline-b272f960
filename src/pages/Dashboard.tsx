@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { MessageSquare, BarChart3, ArrowLeft } from 'lucide-react';
+import { MessageSquare, BarChart3, ArrowLeft, Share2, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChatView } from '@/components/views/ChatView';
 import { InsightsView } from '@/components/views/InsightsView';
 import { SignalDetailView } from '@/components/views/SignalDetailView';
+import { ShareWizardView } from '@/components/views/ShareWizardView';
+import { ThreadView } from '@/components/views/ThreadView';
 import { ChatBar } from '@/components/views/ChatBar';
 
-export type AppView = 'chat' | 'insights' | 'signal-detail';
+export type AppView = 'chat' | 'insights' | 'signal-detail' | 'share' | 'thread';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -22,8 +24,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setSelectedInsightId(id);
     setView('signal-detail');
   };
+  const goToShare = () => setView('share');
+  const goToThread = () => setView('thread');
   const goBack = () => {
-    if (view === 'signal-detail') setView('insights');
+    if (view === 'thread') setView('share');
+    else if (view === 'share') setView('signal-detail');
+    else if (view === 'signal-detail') setView('insights');
     else setView('chat');
   };
 
@@ -45,30 +51,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           </span>
         </div>
         <nav className="flex items-center gap-1">
-          <button
-            onClick={goToChat}
-            className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-              view === 'chat'
-                ? 'bg-accent text-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-            )}
-          >
-            <MessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">Chat</span>
-          </button>
-          <button
-            onClick={goToInsights}
-            className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-              view === 'insights' || view === 'signal-detail'
-                ? 'bg-accent text-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-            )}
-          >
-            <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Insights</span>
-          </button>
+          <NavButton icon={<MessageSquare className="h-4 w-4" />} label="Chat" active={view === 'chat'} onClick={goToChat} />
+          <NavButton icon={<BarChart3 className="h-4 w-4" />} label="Insights" active={view === 'insights' || view === 'signal-detail'} onClick={goToInsights} />
+          {selectedInsightId && (
+            <>
+              <NavButton icon={<Share2 className="h-4 w-4" />} label="Share" active={view === 'share'} onClick={goToShare} />
+              <NavButton icon={<MessageCircle className="h-4 w-4" />} label="Thread" active={view === 'thread'} onClick={goToThread} />
+            </>
+          )}
         </nav>
       </header>
 
@@ -81,10 +71,33 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         {view === 'signal-detail' && selectedInsightId && (
           <SignalDetailView insightId={selectedInsightId} onBack={goBack} />
         )}
+        {view === 'share' && selectedInsightId && (
+          <ShareWizardView insightId={selectedInsightId} onBack={goBack} onOpenThread={goToThread} />
+        )}
+        {view === 'thread' && selectedInsightId && (
+          <ThreadView insightId={selectedInsightId} onBack={goBack} />
+        )}
 
         {/* Persistent chat bar on non-chat views */}
-        {view !== 'chat' && <ChatBar />}
+        {view !== 'chat' && view !== 'thread' && <ChatBar />}
       </main>
     </div>
+  );
+}
+
+function NavButton({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+        active
+          ? 'bg-accent text-foreground'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+      )}
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }
