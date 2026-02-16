@@ -1,27 +1,19 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+import { MOCK_INSIGHTS, type MockInsight } from '@/data/mock';
 
-type Insight = Tables<'insights'>;
-type TierTab = 'breaking' | 'developing' | 'established';
+type TierTab = 'all' | 'breaking' | 'developing' | 'established';
 
-const TIER_COLORS: Record<TierTab, { dot: string; badge: string; border: string }> = {
-  breaking: {
-    dot: 'bg-tier-breaking',
-    badge: 'bg-tier-breaking text-tier-breaking-foreground',
-    border: 'border-l-tier-breaking',
-  },
-  developing: {
-    dot: 'bg-tier-developing',
-    badge: 'bg-tier-developing text-tier-developing-foreground',
-    border: 'border-l-tier-developing',
-  },
-  established: {
-    dot: 'bg-tier-established',
-    badge: 'bg-tier-established text-tier-established-foreground',
-    border: 'border-l-tier-established',
-  },
+const TIER_BORDER: Record<string, string> = {
+  breaking: 'border-l-tier-breaking',
+  developing: 'border-l-tier-developing',
+  established: 'border-l-tier-established',
+};
+
+const TIER_DOT: Record<string, string> = {
+  breaking: 'bg-tier-breaking',
+  developing: 'bg-tier-developing',
+  established: 'bg-tier-established',
 };
 
 interface InsightsViewProps {
@@ -29,193 +21,118 @@ interface InsightsViewProps {
 }
 
 export function InsightsView({ onSelectInsight }: InsightsViewProps) {
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TierTab>('breaking');
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState<TierTab>('all');
 
-  const fetchInsights = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('insights')
-      .select('*')
-      .not('tier', 'is', null)
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      setInsights(data);
-      setLastUpdated(new Date());
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchInsights();
-  }, []);
-
-  const tierCounts = useMemo(() => ({
-    breaking: insights.filter(i => i.tier === 'breaking').length,
-    developing: insights.filter(i => i.tier === 'developing').length,
-    established: insights.filter(i => i.tier === 'established').length,
-  }), [insights]);
+  const counts = useMemo(() => ({
+    breaking: MOCK_INSIGHTS.filter(i => i.tier === 'breaking').length,
+    developing: MOCK_INSIGHTS.filter(i => i.tier === 'developing').length,
+    established: MOCK_INSIGHTS.filter(i => i.tier === 'established').length,
+  }), []);
 
   const filtered = useMemo(() =>
-    insights.filter(i => i.tier === activeTab),
-    [insights, activeTab]
+    activeTab === 'all' ? MOCK_INSIGHTS : MOCK_INSIGHTS.filter(i => i.tier === activeTab),
+    [activeTab]
   );
 
-  const tabs: TierTab[] = ['breaking', 'developing', 'established'];
+  // Group by category
+  const grouped = useMemo(() => {
+    const map = new Map<string, MockInsight[]>();
+    for (const insight of filtered) {
+      const group = map.get(insight.category) || [];
+      group.push(insight);
+      map.set(insight.category, group);
+    }
+    // Sort groups: breaking-containing first, then developing, then established
+    const tierPriority = (items: MockInsight[]) => {
+      if (items.some(i => i.tier === 'breaking')) return 0;
+      if (items.some(i => i.tier === 'developing')) return 1;
+      return 2;
+    };
+    return [...map.entries()].sort((a, b) => tierPriority(a[1]) - tierPriority(b[1]));
+  }, [filtered]);
+
+  const tabs: { key: TierTab; label: string; count?: number }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'breaking', label: 'Breaking', count: counts.breaking },
+    { key: 'developing', label: 'Developing', count: counts.developing },
+    { key: 'established', label: 'Established', count: counts.established },
+  ];
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Tier tabs */}
+    <div className="flex flex-col h-full pb-14">
+      {/* Filter bar */}
       <div className="flex-shrink-0 border-b border-border px-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-1 py-2">
+        <div className="max-w-5xl mx-auto flex items-center gap-1 py-2">
           {tabs.map(tab => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors capitalize',
-                activeTab === tab
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                activeTab === tab.key
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
               )}
             >
-              <span className={cn('h-2 w-2 rounded-full', TIER_COLORS[tab].dot)} />
-              {tab}
-              <span className="text-xs text-muted-foreground">({tierCounts[tab]})</span>
+              {tab.key !== 'all' && (
+                <span className={cn('h-2 w-2 rounded-full', TIER_DOT[tab.key])} />
+              )}
+              {tab.label}
+              {tab.count !== undefined && (
+                <span className="text-xs text-muted-foreground">({tab.count})</span>
+              )}
             </button>
           ))}
-
-          <div className="flex-1" />
-
-          {lastUpdated && (
-            <span className="text-xs text-muted-foreground hidden sm:block">
-              Updated {formatRelative(lastUpdated)}
-            </span>
-          )}
-          <button
-            onClick={fetchInsights}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-            disabled={loading}
-          >
-            ↻
-          </button>
         </div>
       </div>
 
-      {/* Cards */}
+      {/* Grouped cards */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-3xl mx-auto space-y-3">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <span className="text-sm text-muted-foreground">Loading insights...</span>
+        <div className="max-w-5xl mx-auto space-y-8">
+          {grouped.map(([category, items]) => (
+            <div key={category}>
+              {/* Group header */}
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
+                  {category}
+                </h2>
+                <span className="text-xs text-muted-foreground ml-4 flex-shrink-0">
+                  {items.length}
+                </span>
+              </div>
+
+              {/* 2-col grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {items.map(insight => (
+                  <button
+                    key={insight.id}
+                    onClick={() => onSelectInsight(insight.id)}
+                    className={cn(
+                      'text-left rounded-lg border border-border bg-card p-4 transition-all duration-150',
+                      'hover:border-muted-foreground/30 hover:shadow-md',
+                      'border-l-[3px]',
+                      TIER_BORDER[insight.tier],
+                      'h-[120px] flex flex-col justify-between'
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className={cn('h-2 w-2 rounded-full mt-1.5 flex-shrink-0', TIER_DOT[insight.tier])} />
+                      <h3 className="text-sm font-semibold text-card-foreground leading-snug line-clamp-2">
+                        {insight.title}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground whitespace-nowrap mt-auto pt-2">
+                      <span>{insight.signal_count} signals</span>
+                      <span>·</span>
+                      <span>{insight.evidence_count} refs</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex justify-center py-12">
-              <span className="text-sm text-muted-foreground">
-                No {activeTab} insights right now
-              </span>
-            </div>
-          ) : (
-            filtered.map(insight => (
-              <InsightCard
-                key={insight.id}
-                insight={insight}
-                tier={activeTab}
-                onClick={() => onSelectInsight(insight.id)}
-              />
-            ))
-          )}
+          ))}
         </div>
       </div>
     </div>
   );
-}
-
-function InsightCard({
-  insight,
-  tier,
-  onClick,
-}: {
-  insight: Insight;
-  tier: TierTab;
-  onClick: () => void;
-}) {
-  const colors = TIER_COLORS[tier];
-  const [expanded, setExpanded] = useState(false);
-  const evidenceCount = Array.isArray(insight.evidence_refs) ? (insight.evidence_refs as unknown[]).length : 0;
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full text-left rounded-lg border border-border bg-card p-5 transition-all duration-200',
-        'hover:border-muted-foreground/30 hover:shadow-md',
-        'border-l-4',
-        colors.border
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <h3 className="text-[15px] font-semibold text-card-foreground leading-snug">
-          {insight.title}
-        </h3>
-        <span className={cn('flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize', colors.badge)}>
-          {tier}
-        </span>
-      </div>
-
-      {/* Decision question */}
-      {insight.decision_question && (
-        <p className="text-sm text-foreground/80 leading-relaxed mb-3 border-l-2 border-muted-foreground/20 pl-3 italic">
-          {insight.decision_question}
-        </p>
-      )}
-
-      {/* User relevance */}
-      {insight.user_relevance && (
-        <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-          {insight.user_relevance}
-        </p>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>Based on {insight.signal_count} signals</span>
-        {evidenceCount > 0 && (
-          <span>{evidenceCount} citations</span>
-        )}
-      </div>
-
-      {/* Expandable tier reasoning */}
-      {insight.tier_reasoning && (
-        <div className="mt-3">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {expanded ? '▾' : '▸'} Why this tier
-          </button>
-          {expanded && (
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed pl-3 border-l border-border">
-              {insight.tier_reasoning}
-            </p>
-          )}
-        </div>
-      )}
-    </button>
-  );
-}
-
-function formatRelative(date: Date): string {
-  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
 }

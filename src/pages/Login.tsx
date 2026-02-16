@@ -1,39 +1,20 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export default function Login() {
-  const { user, loading, signIn } = useAuth();
+interface LoginProps {
+  onLogin: () => void;
+}
+
+export default function Login({ onLogin }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <span className="text-sm text-muted-foreground">Loading...</span>
-      </div>
-    );
-  }
-
-  if (user) {
-    return <Navigate to="/" replace />;
-  }
-
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setIsSubmitting(true);
-
-    const { error } = await signIn(email, password);
-    if (error) {
-      setError(error.message);
-    }
-    setIsSubmitting(false);
+    console.log('Login attempt:', { email, password });
+    onLogin();
   };
 
   return (
@@ -44,7 +25,7 @@ export default function Login() {
       </div>
 
       <div className="w-full max-w-[340px]">
-        <form onSubmit={handleSignIn} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="email" className="text-xs text-muted-foreground uppercase tracking-wide">
               Email
@@ -73,9 +54,8 @@ export default function Login() {
               className="bg-card border-border"
             />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in...' : 'Sign In'}
+          <Button type="submit" className="w-full">
+            Sign In
           </Button>
         </form>
       </div>
