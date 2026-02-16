@@ -31,6 +31,7 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
   const [showConvergence, setShowConvergence] = useState(false);
   const [showTierReasoning, setShowTierReasoning] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  const [expandedSignalId, setExpandedSignalId] = useState<string | null>(null);
 
   const signals = useMemo(() => {
     if (!insight?.signal_ids) return MOCK_SIGNALS;
@@ -86,7 +87,12 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {signals.map(signal => (
-              <SignalCard key={signal.id} signal={signal} />
+              <SignalCard
+                key={signal.id}
+                signal={signal}
+                expanded={expandedSignalId === signal.id}
+                onToggle={() => setExpandedSignalId(expandedSignalId === signal.id ? null : signal.id)}
+              />
             ))}
           </div>
         </div>
@@ -164,15 +170,28 @@ function CollapsibleSection({
   );
 }
 
-function SignalCard({ signal }: { signal: typeof MOCK_SIGNALS[number] }) {
+function SignalCard({ signal, expanded, onToggle }: {
+  signal: typeof MOCK_SIGNALS[number];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const credPct = Math.round(signal.credibility * 100);
   const barColor = credPct > 50 ? 'bg-ring' : credPct > 30 ? 'bg-tier-developing' : 'bg-tier-breaking';
   const relTime = formatRelative(new Date(signal.created_at));
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-muted-foreground/30">
+    <button
+      onClick={onToggle}
+      className={cn(
+        'text-left rounded-lg border bg-card p-4 transition-all duration-200 overflow-hidden',
+        expanded
+          ? 'border-ring/40 bg-accent/5 md:col-span-2'
+          : 'border-border hover:border-muted-foreground/30'
+      )}
+      style={{ overflowWrap: 'break-word' }}
+    >
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <h3 className="text-sm font-medium text-card-foreground leading-snug line-clamp-2">
+        <h3 className={cn('text-sm font-medium text-card-foreground leading-snug', !expanded && 'line-clamp-2')}>
           {signal.title}
         </h3>
         <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">{relTime}</span>
@@ -192,10 +211,16 @@ function SignalCard({ signal }: { signal: typeof MOCK_SIGNALS[number] }) {
         </span>
       </div>
 
-      <p className="text-xs text-muted-foreground italic line-clamp-1">
+      {expanded && (
+        <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>
+          {signal.analysis_context}
+        </p>
+      )}
+
+      <p className={cn('text-xs text-muted-foreground italic', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>
         {signal.nb_relevance}
       </p>
-    </div>
+    </button>
   );
 }
 
