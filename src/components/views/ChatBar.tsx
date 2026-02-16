@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOCK_CHAT_MESSAGES, type MockChatMessage } from '@/data/mock';
+import { MarkdownLite } from '@/components/views/ChatView';
 
 export function ChatBar() {
   const [expanded, setExpanded] = useState(false);
@@ -60,8 +61,7 @@ export function ChatBar() {
                       ? 'bg-accent text-accent-foreground'
                       : 'bg-muted/50 text-card-foreground'
                   )}>
-                    {msg.content.split('\n').slice(0, 4).join('\n')}
-                    {msg.content.split('\n').length > 4 && '...'}
+                    <MarkdownLite text={msg.content.split('\n').slice(0, 4).join('\n') + (msg.content.split('\n').length > 4 ? '...' : '')} />
                   </div>
                 </div>
               ))}

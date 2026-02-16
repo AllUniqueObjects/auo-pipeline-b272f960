@@ -108,11 +108,11 @@ export function InsightsView({ onSelectInsight }: InsightsViewProps) {
                     key={insight.id}
                     onClick={() => onSelectInsight(insight.id)}
                     className={cn(
-                      'text-left rounded-lg border border-border bg-card p-4 transition-all duration-150',
+                      'text-left rounded-lg border border-border bg-card px-4 pt-3 pb-2 transition-all duration-150',
                       'hover:border-muted-foreground/30 hover:shadow-md',
                       'border-l-[3px]',
                       TIER_BORDER[insight.tier],
-                      'h-[120px] flex flex-col justify-between'
+                      'flex flex-col'
                     )}
                   >
                     <div className="flex items-start gap-2">
@@ -121,7 +121,7 @@ export function InsightsView({ onSelectInsight }: InsightsViewProps) {
                         {insight.title}
                       </h3>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground whitespace-nowrap mt-auto pt-2">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground whitespace-nowrap pt-1">
                       <span>{insight.signal_count} signals</span>
                       <span>·</span>
                       <span>{insight.evidence_count} refs</span>
