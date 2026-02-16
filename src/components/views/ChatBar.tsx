@@ -52,7 +52,7 @@ export function ChatBar() {
             </div>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 pb-16 space-y-3">
               {messages.map(msg => (
                 <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                   <div className={cn(
