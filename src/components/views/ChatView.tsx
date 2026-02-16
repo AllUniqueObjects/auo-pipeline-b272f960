@@ -19,10 +19,9 @@ export function ChatView() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [streaming, setStreaming] = useState(false);
-  const [sessionOpened, setSessionOpened] = useState(false);
+  const sessionOpenedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const conversationIdRef = useRef<string>(crypto.randomUUID());
-  const abortRef = useRef<AbortController | null>(null);
 
   // Load recent messages on mount
   useEffect(() => {
@@ -41,7 +40,7 @@ export function ChatView() {
           .filter(m => m.conversation_id === conversationIdRef.current)
           .reverse();
         setMessages(convoMessages as ChatMessage[]);
-        setSessionOpened(true); // Skip auto-briefing if resuming
+        sessionOpenedRef.current = true; // Skip auto-briefing if resuming
       }
       setLoading(false);
     };
@@ -57,26 +56,25 @@ export function ChatView() {
 
   // Send __session_open__ on first load if no history
   useEffect(() => {
-    if (!loading && !sessionOpened && user && session) {
-      setSessionOpened(true);
-      streamFromProxy('__session_open__');
+    if (!loading && !sessionOpenedRef.current && user && session) {
+      sessionOpenedRef.current = true;
+      sendToProxy('__session_open__');
     }
-  }, [loading, sessionOpened, user, session]);
+  }, [loading, user, session]);
 
-  const streamFromProxy = useCallback(async (messageText: string) => {
+  const sendToProxy = useCallback(async (messageText: string) => {
     if (!user || !session) return;
 
     setStreaming(true);
-    abortRef.current = new AbortController();
-
     const assistantMsgId = crypto.randomUUID();
-    const assistantMsg: ChatMessage = {
+
+    // Add placeholder assistant message
+    setMessages(prev => [...prev, {
       id: assistantMsgId,
       role: 'assistant',
       content: '',
       created_at: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, assistantMsg]);
+    }]);
 
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/chat-proxy`, {
@@ -89,7 +87,6 @@ export function ChatView() {
           message: messageText,
           conversation_id: conversationIdRef.current,
         }),
-        signal: abortRef.current.signal,
       });
 
       if (!res.ok) {
@@ -106,52 +103,69 @@ export function ChatView() {
         return;
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) { setStreaming(false); return; }
-
-      const decoder = new TextDecoder();
+      const contentType = res.headers.get('content-type') || '';
       let fullContent = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      if (contentType.includes('text/event-stream') && res.body) {
+        // SSE streaming mode
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
 
-            try {
-              const parsed = JSON.parse(data);
-              const token = parsed.choices?.[0]?.delta?.content
-                || parsed.token
-                || parsed.text
-                || parsed.content
-                || (typeof parsed === 'string' ? parsed : '');
-              if (token) {
-                fullContent += token;
-                setMessages(prev =>
-                  prev.map(m =>
-                    m.id === assistantMsgId ? { ...m, content: fullContent } : m
-                  )
-                );
-              }
-            } catch {
-              // Non-JSON SSE data — treat as raw token
-              if (data && data !== '[DONE]') {
-                fullContent += data;
-                setMessages(prev =>
-                  prev.map(m =>
-                    m.id === assistantMsgId ? { ...m, content: fullContent } : m
-                  )
-                );
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                const token = parsed.choices?.[0]?.delta?.content
+                  || parsed.token
+                  || parsed.text
+                  || parsed.content
+                  || (typeof parsed === 'string' ? parsed : '');
+                if (token) {
+                  fullContent += token;
+                  setMessages(prev =>
+                    prev.map(m =>
+                      m.id === assistantMsgId ? { ...m, content: fullContent } : m
+                    )
+                  );
+                }
+              } catch {
+                if (data && data !== '[DONE]') {
+                  fullContent += data;
+                  setMessages(prev =>
+                    prev.map(m =>
+                      m.id === assistantMsgId ? { ...m, content: fullContent } : m
+                    )
+                  );
+                }
               }
             }
           }
         }
+      } else {
+        // JSON response mode (Modal returns plain JSON)
+        const text = await res.text();
+        try {
+          const json = JSON.parse(text);
+          fullContent = json.response || json.content || json.text || json.message || text;
+        } catch {
+          fullContent = text;
+        }
+
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantMsgId ? { ...m, content: fullContent } : m
+          )
+        );
       }
 
       // Persist assistant message
@@ -166,7 +180,7 @@ export function ChatView() {
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      console.error('Streaming error:', err);
+      console.error('Chat error:', err);
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantMsgId && !m.content
@@ -202,8 +216,8 @@ export function ChatView() {
       content: userMsg.content,
     });
 
-    streamFromProxy(messageText);
-  }, [input, user, streaming, streamFromProxy]);
+    sendToProxy(messageText);
+  }, [input, user, streaming, sendToProxy]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -214,7 +228,6 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-4">
           {loading ? (
@@ -235,7 +248,7 @@ export function ChatView() {
               <div
                 key={msg.id}
                 className={cn(
-                  'flex',
+                  'flex animate-fade-in',
                   msg.role === 'user' ? 'justify-end' : 'justify-start'
                 )}
               >
@@ -248,7 +261,9 @@ export function ChatView() {
                   )}
                 >
                   {msg.role === 'assistant' ? (
-                    <MarkdownLite text={msg.content} />
+                    msg.content ? <MarkdownLite text={msg.content} /> : (
+                      <span className="text-muted-foreground animate-pulse">Thinking...</span>
+                    )
                   ) : (
                     msg.content
                   )}
@@ -256,17 +271,9 @@ export function ChatView() {
               </div>
             ))
           )}
-          {streaming && messages[messages.length - 1]?.content === '' && (
-            <div className="flex justify-start">
-              <div className="bg-card border border-border rounded-lg px-4 py-3">
-                <span className="text-sm text-muted-foreground animate-pulse">Thinking...</span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Input area */}
       <div className="flex-shrink-0 border-t border-border px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <input
@@ -291,14 +298,12 @@ export function ChatView() {
   );
 }
 
-/** Simple markdown-like rendering for bold, lists, and inline code */
 function MarkdownLite({ text }: { text: string }) {
   if (!text) return null;
   const lines = text.split('\n');
   return (
     <div className="space-y-1.5">
       {lines.map((line, i) => {
-        // Bold: **text**
         const parts = line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
         const rendered = parts.map((part, j) => {
           if (part.startsWith('**') && part.endsWith('**')) {
@@ -310,7 +315,6 @@ function MarkdownLite({ text }: { text: string }) {
           return <span key={j}>{part}</span>;
         });
 
-        // List items
         if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
           return (
             <div key={i} className="flex gap-2 pl-1">
@@ -319,8 +323,6 @@ function MarkdownLite({ text }: { text: string }) {
             </div>
           );
         }
-
-        // Numbered list
         if (/^\d+\.\s/.test(line.trim())) {
           const num = line.trim().match(/^(\d+)\./)?.[1];
           return (
@@ -330,7 +332,6 @@ function MarkdownLite({ text }: { text: string }) {
             </div>
           );
         }
-
         if (!line.trim()) return <div key={i} className="h-2" />;
         return <p key={i}>{rendered}</p>;
       })}
