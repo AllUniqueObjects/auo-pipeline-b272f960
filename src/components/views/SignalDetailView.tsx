@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronRight, ArrowLeft } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOCK_INSIGHTS, MOCK_SIGNALS, MOCK_EVIDENCE_REFS } from '@/data/mock';
 
@@ -51,15 +51,6 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
   return (
     <div className="h-full overflow-y-auto px-4 py-6 pb-20">
       <div className="max-w-3xl mx-auto">
-        {/* Back button */}
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Insights
-        </button>
-
         {/* Hero */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
@@ -83,33 +74,9 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
           </div>
 
           {/* User relevance */}
-          <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+          <p className="text-sm text-muted-foreground leading-relaxed">
             {insight.user_relevance}
           </p>
-
-          {/* Collapsible: How these signals connect */}
-          {insight.convergence_reasoning && (
-            <CollapsibleSection
-              label="How these signals connect"
-              open={showConvergence}
-              onToggle={() => setShowConvergence(!showConvergence)}
-            >
-              <p className="text-sm text-foreground/70 leading-relaxed">
-                {insight.convergence_reasoning}
-              </p>
-            </CollapsibleSection>
-          )}
-
-          {/* Collapsible: Why this tier */}
-          <CollapsibleSection
-            label="Why this tier"
-            open={showTierReasoning}
-            onToggle={() => setShowTierReasoning(!showTierReasoning)}
-          >
-            <p className="text-sm text-foreground/70 leading-relaxed">
-              {insight.tier_reasoning}
-            </p>
-          </CollapsibleSection>
         </div>
 
         {/* Signals */}
@@ -124,15 +91,39 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
           </div>
         </div>
 
+        {/* Collapsible: How these signals connect */}
+        {insight.convergence_reasoning && (
+          <CollapsibleSection
+            label="How these signals connect"
+            open={showConvergence}
+            onToggle={() => setShowConvergence(!showConvergence)}
+          >
+            <p className="text-sm text-foreground/70 leading-relaxed">
+              {insight.convergence_reasoning}
+            </p>
+          </CollapsibleSection>
+        )}
+
+        {/* Collapsible: Why this tier */}
+        <CollapsibleSection
+          label="Why this tier"
+          open={showTierReasoning}
+          onToggle={() => setShowTierReasoning(!showTierReasoning)}
+        >
+          <p className="text-sm text-foreground/70 leading-relaxed">
+            {insight.tier_reasoning}
+          </p>
+        </CollapsibleSection>
+
         {/* Evidence */}
         <CollapsibleSection
           label={`${MOCK_EVIDENCE_REFS.length} citations`}
           open={showEvidence}
           onToggle={() => setShowEvidence(!showEvidence)}
         >
-          <div className="space-y-2">
+          <div className="space-y-1">
             {MOCK_EVIDENCE_REFS.map((ref, i) => (
-              <div key={i} className="flex gap-3 text-sm p-3 rounded-lg bg-muted/30 border border-border">
+              <div key={i} className="flex gap-3 text-sm py-2 px-3 rounded bg-muted/30">
                 <span className="text-xs font-mono text-muted-foreground flex-shrink-0 mt-0.5">
                   [{ref.number}]
                 </span>
@@ -180,14 +171,14 @@ function SignalCard({ signal }: { signal: typeof MOCK_SIGNALS[number] }) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-muted-foreground/30">
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
         <h3 className="text-sm font-medium text-card-foreground leading-snug line-clamp-2">
           {signal.title}
         </h3>
         <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">{relTime}</span>
       </div>
 
-      <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground whitespace-nowrap">
+      <div className="flex items-center gap-4 mb-1.5 text-xs text-muted-foreground whitespace-nowrap">
         <span>{signal.sources} sources</span>
         <span className="flex items-center gap-1.5">
           Credibility
@@ -200,10 +191,6 @@ function SignalCard({ signal }: { signal: typeof MOCK_SIGNALS[number] }) {
           <span className="text-[10px]">{credPct}%</span>
         </span>
       </div>
-
-      <p className="text-xs text-foreground/60 leading-relaxed line-clamp-2 mb-2">
-        {signal.analysis_context}
-      </p>
 
       <p className="text-xs text-muted-foreground italic line-clamp-1">
         {signal.nb_relevance}

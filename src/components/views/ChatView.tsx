@@ -95,7 +95,7 @@ function MessageBubble({ message }: { message: MockChatMessage }) {
   );
 }
 
-function MarkdownLite({ text }: { text: string }) {
+export function MarkdownLite({ text }: { text: string }) {
   if (!text) return null;
   const lines = text.split('\n');
   return (
