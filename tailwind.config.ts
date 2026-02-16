@@ -47,6 +47,18 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "tier-breaking": {
+          DEFAULT: "hsl(var(--tier-breaking))",
+          foreground: "hsl(var(--tier-breaking-foreground))",
+        },
+        "tier-developing": {
+          DEFAULT: "hsl(var(--tier-developing))",
+          foreground: "hsl(var(--tier-developing-foreground))",
+        },
+        "tier-established": {
+          DEFAULT: "hsl(var(--tier-established))",
+          foreground: "hsl(var(--tier-established-foreground))",
+        },
         urgent: {
           DEFAULT: "hsl(var(--urgent))",
           foreground: "hsl(var(--urgent-foreground))",

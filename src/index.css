@@ -4,56 +4,64 @@
 
 @layer base {
   :root {
-    /* AUO Light Theme */
-    --background: 0 0% 100%;
-    --foreground: 220 15% 10%;
+    /* AUO Dark Theme — Navy/Charcoal */
+    --background: 220 20% 10%;
+    --foreground: 210 20% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 10%;
+    --card: 220 18% 14%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 10%;
+    --popover: 220 18% 14%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 220 15% 15%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 210 20% 92%;
+    --primary-foreground: 220 20% 10%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 15% 15%;
+    --secondary: 220 14% 20%;
+    --secondary-foreground: 210 20% 85%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 220 14% 18%;
+    --muted-foreground: 215 12% 55%;
 
-    --accent: 220 14% 94%;
-    --accent-foreground: 220 15% 15%;
+    --accent: 220 14% 22%;
+    --accent-foreground: 210 20% 85%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --border: 220 14% 22%;
+    --input: 220 14% 22%;
     --ring: 217 91% 60%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    /* Urgency tokens */
-    --urgent: 0 72% 51%;
+    /* Tier tokens */
+    --tier-breaking: 0 72% 58%;
+    --tier-breaking-foreground: 0 0% 100%;
+    --tier-developing: 38 92% 55%;
+    --tier-developing-foreground: 0 0% 10%;
+    --tier-established: 215 12% 55%;
+    --tier-established-foreground: 0 0% 100%;
+
+    /* Legacy urgency tokens (kept for compatibility) */
+    --urgent: 0 72% 58%;
     --urgent-foreground: 0 0% 100%;
-    --emerging: 38 92% 50%;
+    --emerging: 38 92% 55%;
     --emerging-foreground: 0 0% 100%;
-    --monitoring: 220 9% 46%;
+    --monitoring: 215 12% 55%;
     --monitoring-foreground: 0 0% 100%;
 
     /* NB callout */
-    --nb-callout: 138 76% 97%;
+    --nb-callout: 220 18% 16%;
     --nb-callout-border: 142 71% 45%;
 
-    --sidebar-background: 220 14% 96%;
-    --sidebar-foreground: 220 15% 10%;
-    --sidebar-primary: 220 15% 15%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 94%;
-    --sidebar-accent-foreground: 220 15% 15%;
-    --sidebar-border: 220 13% 91%;
+    --sidebar-background: 220 18% 12%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 210 20% 92%;
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 14% 20%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 220 14% 22%;
     --sidebar-ring: 217 91% 60%;
   }
 }
