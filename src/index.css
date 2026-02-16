@@ -4,65 +4,65 @@
 
 @layer base {
   :root {
-    /* AUO Dark Theme — Navy/Charcoal */
-    --background: 220 20% 10%;
-    --foreground: 210 40% 98%;
+    /* AUO Light Theme — Clean White */
+    --background: 0 0% 100%;
+    --foreground: 220 20% 12%;
 
-    --card: 220 18% 14%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 20% 97%;
+    --card-foreground: 220 20% 12%;
 
-    --popover: 220 18% 14%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 12%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 220 20% 10%;
+    --primary: 220 20% 12%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 20%;
-    --secondary-foreground: 214 32% 91%;
+    --secondary: 220 14% 93%;
+    --secondary-foreground: 220 14% 35%;
 
-    --muted: 220 14% 18%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 215 12% 45%;
 
-    --accent: 220 14% 22%;
-    --accent-foreground: 214 32% 91%;
+    --accent: 220 14% 92%;
+    --accent-foreground: 220 14% 30%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 22%;
-    --input: 220 14% 22%;
-    --ring: 217 91% 60%;
+    --border: 220 14% 88%;
+    --input: 220 14% 88%;
+    --ring: 217 91% 50%;
 
     --radius: 0.5rem;
 
     /* Tier tokens */
-    --tier-breaking: 0 72% 58%;
+    --tier-breaking: 0 72% 50%;
     --tier-breaking-foreground: 0 0% 100%;
-    --tier-developing: 38 92% 55%;
-    --tier-developing-foreground: 0 0% 10%;
-    --tier-established: 215 12% 55%;
+    --tier-developing: 38 92% 45%;
+    --tier-developing-foreground: 0 0% 100%;
+    --tier-established: 215 16% 50%;
     --tier-established-foreground: 0 0% 100%;
 
     /* Legacy urgency tokens (kept for compatibility) */
-    --urgent: 0 72% 58%;
+    --urgent: 0 72% 50%;
     --urgent-foreground: 0 0% 100%;
-    --emerging: 38 92% 55%;
+    --emerging: 38 92% 45%;
     --emerging-foreground: 0 0% 100%;
-    --monitoring: 215 12% 55%;
+    --monitoring: 215 16% 50%;
     --monitoring-foreground: 0 0% 100%;
 
     /* NB callout */
-    --nb-callout: 220 18% 16%;
-    --nb-callout-border: 142 71% 45%;
+    --nb-callout: 140 30% 96%;
+    --nb-callout-border: 142 71% 35%;
 
-    --sidebar-background: 220 18% 12%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 210 40% 98%;
-    --sidebar-primary-foreground: 220 20% 10%;
-    --sidebar-accent: 220 14% 20%;
-    --sidebar-accent-foreground: 214 32% 91%;
-    --sidebar-border: 220 14% 22%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-background: 220 14% 96%;
+    --sidebar-foreground: 220 20% 12%;
+    --sidebar-primary: 220 20% 12%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 92%;
+    --sidebar-accent-foreground: 220 14% 30%;
+    --sidebar-border: 220 14% 88%;
+    --sidebar-ring: 217 91% 50%;
   }
 }
 
