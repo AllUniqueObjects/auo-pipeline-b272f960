@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_log: {
+        Row: {
+          channel: string
+          created_at: string | null
+          id: string
+          insight_id: string
+          opened_at: string | null
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string | null
+          id?: string
+          insight_id: string
+          opened_at?: string | null
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string | null
+          id?: string
+          insight_id?: string
+          opened_at?: string | null
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_context: {
         Row: {
           company_name: string
@@ -25,6 +63,7 @@ export type Database = {
           market_dynamics: Json | null
           product_categories: Json | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           company_name: string
@@ -36,6 +75,7 @@ export type Database = {
           market_dynamics?: Json | null
           product_categories?: Json | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           company_name?: string
@@ -47,8 +87,17 @@ export type Database = {
           market_dynamics?: Json | null
           product_categories?: Json | null
           updated_at?: string | null
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brand_context_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       brands: {
         Row: {
@@ -163,6 +212,72 @@ export type Database = {
         }
         Relationships: []
       }
+      decisions: {
+        Row: {
+          affected_decisions: string[] | null
+          confirmed_at: string
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          insight_ids: string[] | null
+          reasoning: string | null
+          signal_ids: string[] | null
+          status: string
+          summary: string
+          superseded_by: string | null
+          tactical_updates: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          affected_decisions?: string[] | null
+          confirmed_at?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          insight_ids?: string[] | null
+          reasoning?: string | null
+          signal_ids?: string[] | null
+          status?: string
+          summary: string
+          superseded_by?: string | null
+          tactical_updates?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          affected_decisions?: string[] | null
+          confirmed_at?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          insight_ids?: string[] | null
+          reasoning?: string | null
+          signal_ids?: string[] | null
+          status?: string
+          summary?: string
+          superseded_by?: string | null
+          tactical_updates?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decisions_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "decisions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       insights: {
         Row: {
           archived_at: string | null
@@ -170,10 +285,12 @@ export type Database = {
           category: string | null
           cluster_name: string | null
           color: string
+          convergence_reasoning: string | null
           created_at: string | null
           cross_signal_ids: string[] | null
           decision_question: string | null
           edge_pairs: Json
+          evidence_refs: Json | null
           id: string
           insight_type: string | null
           momentum_score: number | null
@@ -182,6 +299,8 @@ export type Database = {
           signal_ids: string[]
           sort_order: number
           source_conversation_id: string | null
+          tier: string | null
+          tier_reasoning: string | null
           title: string
           urgency: string
           user_relevance: string | null
@@ -192,10 +311,12 @@ export type Database = {
           category?: string | null
           cluster_name?: string | null
           color: string
+          convergence_reasoning?: string | null
           created_at?: string | null
           cross_signal_ids?: string[] | null
           decision_question?: string | null
           edge_pairs?: Json
+          evidence_refs?: Json | null
           id: string
           insight_type?: string | null
           momentum_score?: number | null
@@ -204,6 +325,8 @@ export type Database = {
           signal_ids?: string[]
           sort_order?: number
           source_conversation_id?: string | null
+          tier?: string | null
+          tier_reasoning?: string | null
           title: string
           urgency: string
           user_relevance?: string | null
@@ -214,10 +337,12 @@ export type Database = {
           category?: string | null
           cluster_name?: string | null
           color?: string
+          convergence_reasoning?: string | null
           created_at?: string | null
           cross_signal_ids?: string[] | null
           decision_question?: string | null
           edge_pairs?: Json
+          evidence_refs?: Json | null
           id?: string
           insight_type?: string | null
           momentum_score?: number | null
@@ -226,6 +351,8 @@ export type Database = {
           signal_ids?: string[]
           sort_order?: number
           source_conversation_id?: string | null
+          tier?: string | null
+          tier_reasoning?: string | null
           title?: string
           urgency?: string
           user_relevance?: string | null
@@ -359,6 +486,7 @@ export type Database = {
           created_at: string | null
           id: number
           reason: string | null
+          semantic_label: string | null
           similarity: number
           source_id: string
           target_id: string
@@ -368,6 +496,7 @@ export type Database = {
           created_at?: string | null
           id?: number
           reason?: string | null
+          semantic_label?: string | null
           similarity?: number
           source_id: string
           target_id: string
@@ -377,6 +506,7 @@ export type Database = {
           created_at?: string | null
           id?: number
           reason?: string | null
+          semantic_label?: string | null
           similarity?: number
           source_id?: string
           target_id?: string
@@ -450,6 +580,8 @@ export type Database = {
           query_origin: string | null
           raw_sources: Json | null
           reference_count: number | null
+          reference_velocity: number | null
+          role_in_insight: string | null
           scan_source: string | null
           source_count_history: Json | null
           sources: number
@@ -485,6 +617,8 @@ export type Database = {
           query_origin?: string | null
           raw_sources?: Json | null
           reference_count?: number | null
+          reference_velocity?: number | null
+          role_in_insight?: string | null
           scan_source?: string | null
           source_count_history?: Json | null
           sources?: number
@@ -520,6 +654,8 @@ export type Database = {
           query_origin?: string | null
           raw_sources?: Json | null
           reference_count?: number | null
+          reference_velocity?: number | null
+          role_in_insight?: string | null
           scan_source?: string | null
           source_count_history?: Json | null
           sources?: number
@@ -636,6 +772,7 @@ export type Database = {
           id: string
           recent_topics: Json | null
           updated_at: string | null
+          user_id: string | null
           user_name: string
           watch_topics: Json | null
         }
@@ -645,6 +782,7 @@ export type Database = {
           id?: string
           recent_topics?: Json | null
           updated_at?: string | null
+          user_id?: string | null
           user_name: string
           watch_topics?: Json | null
         }
@@ -654,10 +792,19 @@ export type Database = {
           id?: string
           recent_topics?: Json | null
           updated_at?: string | null
+          user_id?: string | null
           user_name?: string
           watch_topics?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tactical_layer_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_profiles: {
         Row: {
@@ -687,6 +834,50 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_sessions: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          decisions_logged: string[] | null
+          ended_at: string | null
+          id: string
+          insights_briefed: string[] | null
+          insights_discussed: string[] | null
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          decisions_logged?: string[] | null
+          ended_at?: string | null
+          id?: string
+          insights_briefed?: string[] | null
+          insights_discussed?: string[] | null
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          decisions_logged?: string[] | null
+          ended_at?: string | null
+          id?: string
+          insights_briefed?: string[] | null
+          insights_discussed?: string[] | null
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
