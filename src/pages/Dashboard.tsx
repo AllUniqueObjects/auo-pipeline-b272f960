@@ -4,28 +4,27 @@ import { cn } from '@/lib/utils';
 import { ChatView } from '@/components/views/ChatView';
 import { InsightsView } from '@/components/views/InsightsView';
 import { SignalDetailView } from '@/components/views/SignalDetailView';
+import { ChatBar } from '@/components/views/ChatBar';
 
 export type AppView = 'chat' | 'insights' | 'signal-detail';
 
-export interface NavigationState {
-  view: AppView;
-  insightId?: string;
-  signalId?: string;
+interface DashboardProps {
+  onLogout: () => void;
 }
 
-export default function Dashboard() {
-  const [nav, setNav] = useState<NavigationState>({ view: 'chat' });
+export default function Dashboard({ onLogout }: DashboardProps) {
+  const [view, setView] = useState<AppView>('chat');
+  const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
 
-  const goToInsights = () => setNav({ view: 'insights' });
-  const goToChat = () => setNav({ view: 'chat' });
-  const goToSignalDetail = (insightId: string) =>
-    setNav({ view: 'signal-detail', insightId });
+  const goToInsights = () => setView('insights');
+  const goToChat = () => setView('chat');
+  const goToSignalDetail = (id: string) => {
+    setSelectedInsightId(id);
+    setView('signal-detail');
+  };
   const goBack = () => {
-    if (nav.view === 'signal-detail') {
-      setNav({ view: 'insights' });
-    } else {
-      setNav({ view: 'chat' });
-    }
+    if (view === 'signal-detail') setView('insights');
+    else setView('chat');
   };
 
   return (
@@ -33,7 +32,7 @@ export default function Dashboard() {
       {/* Top bar */}
       <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-3">
-          {nav.view !== 'chat' && (
+          {view !== 'chat' && (
             <button
               onClick={goBack}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -50,7 +49,7 @@ export default function Dashboard() {
             onClick={goToChat}
             className={cn(
               'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-              nav.view === 'chat'
+              view === 'chat'
                 ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
             )}
@@ -62,7 +61,7 @@ export default function Dashboard() {
             onClick={goToInsights}
             className={cn(
               'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-              nav.view === 'insights' || nav.view === 'signal-detail'
+              view === 'insights' || view === 'signal-detail'
                 ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
             )}
@@ -74,14 +73,17 @@ export default function Dashboard() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 overflow-hidden">
-        {nav.view === 'chat' && <ChatView />}
-        {nav.view === 'insights' && (
+      <main className="flex-1 overflow-hidden relative">
+        {view === 'chat' && <ChatView />}
+        {view === 'insights' && (
           <InsightsView onSelectInsight={goToSignalDetail} />
         )}
-        {nav.view === 'signal-detail' && nav.insightId && (
-          <SignalDetailView insightId={nav.insightId} onBack={goBack} />
+        {view === 'signal-detail' && selectedInsightId && (
+          <SignalDetailView insightId={selectedInsightId} onBack={goBack} />
         )}
+
+        {/* Persistent chat bar on non-chat views */}
+        {view !== 'chat' && <ChatBar />}
       </main>
     </div>
   );

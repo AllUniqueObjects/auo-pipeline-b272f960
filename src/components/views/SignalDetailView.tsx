@@ -1,216 +1,193 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { ChevronRight, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+import { MOCK_INSIGHTS, MOCK_SIGNALS, MOCK_EVIDENCE_REFS } from '@/data/mock';
 
-type Insight = Tables<'insights'>;
-type Signal = Tables<'signals'>;
-type Edge = Tables<'signal_edges'>;
+const TIER_COLORS: Record<string, { badge: string; bg: string; border: string }> = {
+  breaking: {
+    badge: 'bg-tier-breaking text-tier-breaking-foreground',
+    bg: 'bg-tier-breaking/5',
+    border: 'border-tier-breaking',
+  },
+  developing: {
+    badge: 'bg-tier-developing text-tier-developing-foreground',
+    bg: 'bg-tier-developing/5',
+    border: 'border-tier-developing',
+  },
+  established: {
+    badge: 'bg-tier-established text-tier-established-foreground',
+    bg: 'bg-tier-established/5',
+    border: 'border-tier-established',
+  },
+};
 
 interface SignalDetailViewProps {
   insightId: string;
   onBack: () => void;
 }
 
-const TIER_COLORS: Record<string, { badge: string; border: string }> = {
-  breaking: {
-    badge: 'bg-tier-breaking text-tier-breaking-foreground',
-    border: 'hsl(var(--tier-breaking))',
-  },
-  developing: {
-    badge: 'bg-tier-developing text-tier-developing-foreground',
-    border: 'hsl(var(--tier-developing))',
-  },
-  established: {
-    badge: 'bg-tier-established text-tier-established-foreground',
-    border: 'hsl(var(--tier-established))',
-  },
-};
-
 export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
-  const [insight, setInsight] = useState<Insight | null>(null);
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
-  const [loading, setLoading] = useState(true);
+  const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
+  const [showConvergence, setShowConvergence] = useState(false);
+  const [showTierReasoning, setShowTierReasoning] = useState(false);
+  const [showEvidence, setShowEvidence] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-
-      const { data: ins } = await supabase
-        .from('insights')
-        .select('*')
-        .eq('id', insightId)
-        .single();
-
-      if (!ins) { setLoading(false); return; }
-      setInsight(ins);
-
-      const signalIds = ins.signal_ids || [];
-      if (signalIds.length > 0) {
-        const { data: sigs } = await supabase
-          .from('signals')
-          .select('*')
-          .in('id', signalIds);
-
-        if (sigs) setSignals(sigs);
-
-        // Fetch edges between these signals
-        const { data: edgesData } = await supabase
-          .from('signal_edges')
-          .select('*')
-          .or(`source_id.in.(${signalIds.join(',')}),target_id.in.(${signalIds.join(',')})`);
-
-        if (edgesData) setEdges(edgesData);
-      }
-
-      setLoading(false);
-    };
-    fetchData();
-  }, [insightId]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-full">
-        <span className="text-sm text-muted-foreground">Loading insight...</span>
-      </div>
-    );
-  }
+  const signals = useMemo(() => {
+    if (!insight?.signal_ids) return MOCK_SIGNALS;
+    return MOCK_SIGNALS.filter(s => insight.signal_ids!.includes(s.id));
+  }, [insight]);
 
   if (!insight) {
     return (
-      <div className="flex justify-center items-center h-full">
+      <div className="flex items-center justify-center h-full">
         <span className="text-sm text-muted-foreground">Insight not found</span>
       </div>
     );
   }
 
-  const tier = (insight.tier || 'developing') as keyof typeof TIER_COLORS;
+  const tier = insight.tier;
   const colors = TIER_COLORS[tier] || TIER_COLORS.developing;
-  const evidenceRefs = Array.isArray(insight.evidence_refs) ? (insight.evidence_refs as EvidenceRef[]) : [];
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-6">
+    <div className="h-full overflow-y-auto px-4 py-6 pb-20">
       <div className="max-w-3xl mx-auto">
-        {/* Insight header */}
+        {/* Back button */}
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Insights
+        </button>
+
+        {/* Hero */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
-            <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize', colors.badge)}>
+            <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize whitespace-nowrap', colors.badge)}>
               {tier}
             </span>
-            {insight.category && (
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                {insight.category}
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground uppercase tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
+              {insight.category}
+            </span>
           </div>
 
-          <h1 className="text-xl font-bold text-foreground leading-tight mb-4">
+          <h1 className="text-xl font-bold text-foreground leading-tight mb-4 line-clamp-3">
             {insight.title}
           </h1>
 
-          {insight.decision_question && (
-            <p className="text-sm text-foreground/80 leading-relaxed mb-4 border-l-2 pl-4 italic"
-              style={{ borderColor: colors.border }}>
+          {/* Decision question callout */}
+          <div className={cn('p-4 rounded-lg border-l-[3px] mb-4', colors.border, colors.bg)}>
+            <p className="text-sm text-foreground/80 leading-relaxed italic">
               {insight.decision_question}
             </p>
-          )}
+          </div>
 
-          {insight.user_relevance && (
-            <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              {insight.user_relevance}
-            </p>
-          )}
+          {/* User relevance */}
+          <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+            {insight.user_relevance}
+          </p>
 
+          {/* Collapsible: How these signals connect */}
           {insight.convergence_reasoning && (
-            <div className="mb-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                How these signals connect
-              </p>
+            <CollapsibleSection
+              label="How these signals connect"
+              open={showConvergence}
+              onToggle={() => setShowConvergence(!showConvergence)}
+            >
               <p className="text-sm text-foreground/70 leading-relaxed">
                 {insight.convergence_reasoning}
               </p>
-            </div>
+            </CollapsibleSection>
           )}
 
-          {insight.tier_reasoning && (
-            <div className="mb-4 p-4 rounded-lg bg-muted/50 border border-border">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
-                Tier reasoning
-              </p>
-              <p className="text-sm text-foreground/70 leading-relaxed">
-                {insight.tier_reasoning}
-              </p>
-            </div>
-          )}
+          {/* Collapsible: Why this tier */}
+          <CollapsibleSection
+            label="Why this tier"
+            open={showTierReasoning}
+            onToggle={() => setShowTierReasoning(!showTierReasoning)}
+          >
+            <p className="text-sm text-foreground/70 leading-relaxed">
+              {insight.tier_reasoning}
+            </p>
+          </CollapsibleSection>
         </div>
 
-        {/* Signals section */}
+        {/* Signals */}
         <div className="mb-8">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
             Based on {signals.length} signals
           </p>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {signals.map(signal => (
               <SignalCard key={signal.id} signal={signal} />
             ))}
           </div>
         </div>
 
-        {/* Evidence refs */}
-        {evidenceRefs.length > 0 && (
-          <div className="mb-8">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
-              Evidence citations ({evidenceRefs.length})
-            </p>
-            <div className="space-y-2">
-              {evidenceRefs.map((ref, i) => (
-                <div key={i} className="flex gap-3 text-sm p-3 rounded-lg bg-muted/30 border border-border">
-                  <span className="text-xs font-mono text-muted-foreground flex-shrink-0 mt-0.5">
-                    [{ref.number || i + 1}]
-                  </span>
-                  <p className="text-foreground/70 text-xs leading-relaxed">
-                    {ref.signal_excerpt || ref.excerpt || ''}
-                  </p>
-                </div>
-              ))}
-            </div>
+        {/* Evidence */}
+        <CollapsibleSection
+          label={`${MOCK_EVIDENCE_REFS.length} citations`}
+          open={showEvidence}
+          onToggle={() => setShowEvidence(!showEvidence)}
+        >
+          <div className="space-y-2">
+            {MOCK_EVIDENCE_REFS.map((ref, i) => (
+              <div key={i} className="flex gap-3 text-sm p-3 rounded-lg bg-muted/30 border border-border">
+                <span className="text-xs font-mono text-muted-foreground flex-shrink-0 mt-0.5">
+                  [{ref.number}]
+                </span>
+                <p className="text-foreground/70 text-xs leading-relaxed overflow-hidden text-ellipsis">
+                  {ref.signal_excerpt}
+                </p>
+              </div>
+            ))}
           </div>
-        )}
+        </CollapsibleSection>
       </div>
     </div>
   );
 }
 
-interface EvidenceRef {
-  number?: number;
-  signal_id?: string;
-  signal_excerpt?: string;
-  excerpt?: string;
+function CollapsibleSection({
+  label,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-4">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronRight className={cn('h-3 w-3 transition-transform', open && 'rotate-90')} />
+        {label}
+      </button>
+      {open && <div className="mt-2 pl-4">{children}</div>}
+    </div>
+  );
 }
 
-function SignalCard({ signal }: { signal: Signal }) {
-  const credPct = Math.round((signal.credibility || 0) * 100);
+function SignalCard({ signal }: { signal: typeof MOCK_SIGNALS[number] }) {
+  const credPct = Math.round(signal.credibility * 100);
   const barColor = credPct > 50 ? 'bg-ring' : credPct > 30 ? 'bg-tier-developing' : 'bg-tier-breaking';
-
-  // Extract "David can tell his team:" section from analysis_context
-  const takeaway = signal.analysis_context
-    ? extractTakeaway(signal.analysis_context)
-    : null;
-
-  const relativeTime = signal.created_at ? formatRelative(new Date(signal.created_at)) : '';
+  const relTime = formatRelative(new Date(signal.created_at));
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-muted-foreground/30">
       <div className="flex items-start justify-between gap-3 mb-2">
-        <h3 className="text-sm font-medium text-card-foreground leading-snug">
+        <h3 className="text-sm font-medium text-card-foreground leading-snug line-clamp-2">
           {signal.title}
         </h3>
-        <span className="text-xs text-muted-foreground flex-shrink-0">{relativeTime}</span>
+        <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">{relTime}</span>
       </div>
 
-      {/* Metrics row */}
-      <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground whitespace-nowrap">
         <span>{signal.sources} sources</span>
         <span className="flex items-center gap-1.5">
           Credibility
@@ -224,29 +201,15 @@ function SignalCard({ signal }: { signal: Signal }) {
         </span>
       </div>
 
-      {/* Takeaway */}
-      {takeaway && (
-        <p className="text-xs text-foreground/60 leading-relaxed line-clamp-3">
-          {takeaway}
-        </p>
-      )}
+      <p className="text-xs text-foreground/60 leading-relaxed line-clamp-2 mb-2">
+        {signal.analysis_context}
+      </p>
 
-      {/* NB relevance */}
-      {signal.nb_relevance && (
-        <p className="text-xs text-muted-foreground mt-2 italic line-clamp-2">
-          {signal.nb_relevance}
-        </p>
-      )}
+      <p className="text-xs text-muted-foreground italic line-clamp-1">
+        {signal.nb_relevance}
+      </p>
     </div>
   );
-}
-
-function extractTakeaway(text: string): string | null {
-  const match = text.match(/David can tell his team[:\s]+(.+?)(?:\n|$)/i);
-  if (match) return match[1].trim();
-  // Fallback: first meaningful line
-  const lines = text.split('\n').filter(l => l.trim().length > 20);
-  return lines[0]?.replace(/^[•\-]\s*/, '').trim() || null;
 }
 
 function formatRelative(date: Date): string {
