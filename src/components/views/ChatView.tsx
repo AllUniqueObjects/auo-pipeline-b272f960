@@ -13,13 +13,15 @@ interface ChatMessage {
 
 const SUPABASE_URL = "https://melbptgutajptxhpjeuv.supabase.co";
 
+// Module-level flag survives React StrictMode unmount/remount
+let sessionOpenSent = false;
+
 export function ChatView() {
   const { user, session } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [streaming, setStreaming] = useState(false);
-  const sessionOpenedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const conversationIdRef = useRef<string>(crypto.randomUUID());
 
@@ -40,7 +42,7 @@ export function ChatView() {
           .filter(m => m.conversation_id === conversationIdRef.current)
           .reverse();
         setMessages(convoMessages as ChatMessage[]);
-        sessionOpenedRef.current = true; // Skip auto-briefing if resuming
+        sessionOpenSent = true; // Skip auto-briefing if resuming
       }
       setLoading(false);
     };
@@ -56,8 +58,8 @@ export function ChatView() {
 
   // Send __session_open__ on first load if no history
   useEffect(() => {
-    if (!loading && !sessionOpenedRef.current && user && session) {
-      sessionOpenedRef.current = true;
+    if (!loading && !sessionOpenSent && user && session) {
+      sessionOpenSent = true;
       sendToProxy('__session_open__');
     }
   }, [loading, user, session]);
