@@ -74,13 +74,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Stream the SSE response back to the client
+    // Pass through the response with its original content type
+    const responderContentType = responderResponse.headers.get("content-type") || "application/json";
+    
     return new Response(responderResponse.body, {
       headers: {
         ...corsHeaders,
-        "Content-Type": "text/event-stream",
+        "Content-Type": responderContentType,
         "Cache-Control": "no-cache",
-        Connection: "keep-alive",
       },
     });
   } catch (err) {
