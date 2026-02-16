@@ -6,10 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
-import Home from "./pages/Home";
-import SignalDetailPage from "./pages/SignalDetailPage";
-
-// Remove stale /signals route — app uses / as home
+import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,15 +24,7 @@ const App = () => (
               path="/"
               element={
                 <ProtectedRoute>
-                  <Home />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/signal/:id"
-              element={
-                <ProtectedRoute>
-                  <SignalDetailPage />
+                  <Dashboard />
                 </ProtectedRoute>
               }
             />
