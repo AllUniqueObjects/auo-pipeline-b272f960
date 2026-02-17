@@ -85,8 +85,8 @@ export function ShareWizardView({ insightId, onBack, onOpenThread, userNotes, as
   };
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-6 pb-20">
-      <div className="max-w-2xl mx-auto">
+    <div className="h-full overflow-y-auto px-4 py-6">
+      <div>
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-lg font-bold text-foreground">Get others on board</h1>

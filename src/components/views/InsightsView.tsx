@@ -18,9 +18,10 @@ const TIER_DOT: Record<string, string> = {
 
 interface InsightsViewProps {
   onSelectInsight: (insightId: string) => void;
+  selectedInsightId?: string;
 }
 
-export function InsightsView({ onSelectInsight }: InsightsViewProps) {
+export function InsightsView({ onSelectInsight, selectedInsightId }: InsightsViewProps) {
   const [activeTab, setActiveTab] = useState<TierTab>('all');
 
   const counts = useMemo(() => ({
@@ -59,10 +60,10 @@ export function InsightsView({ onSelectInsight }: InsightsViewProps) {
   ];
 
   return (
-    <div className="flex flex-col h-full pb-14">
+    <div className="flex flex-col h-full">
       {/* Filter bar */}
       <div className="flex-shrink-0 border-b border-border px-4">
-        <div className="max-w-5xl mx-auto flex items-center gap-1 py-2">
+        <div className="flex items-center gap-1 py-2">
           {tabs.map(tab => (
             <button
               key={tab.key}
@@ -88,7 +89,7 @@ export function InsightsView({ onSelectInsight }: InsightsViewProps) {
 
       {/* Grouped cards */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-5xl mx-auto space-y-8">
+        <div className="space-y-8">
           {grouped.map(([category, items]) => (
             <div key={category}>
               {/* Group header */}
@@ -112,7 +113,8 @@ export function InsightsView({ onSelectInsight }: InsightsViewProps) {
                       'hover:border-muted-foreground/30 hover:shadow-md',
                       'border-l-[3px]',
                       TIER_BORDER[insight.tier],
-                      'flex flex-col'
+                      'flex flex-col',
+                      selectedInsightId === insight.id && 'bg-accent/50'
                     )}
                   >
                     <div className="flex items-start gap-2">

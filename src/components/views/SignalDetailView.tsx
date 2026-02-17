@@ -36,7 +36,6 @@ export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNot
   const [showConvergence, setShowConvergence] = useState(false);
   const [showTierReasoning, setShowTierReasoning] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
-  const [showYourTake, setShowYourTake] = useState(false);
   const [expandedSignalId, setExpandedSignalId] = useState<string | null>(null);
 
   const signals = useMemo(() => {
@@ -58,8 +57,8 @@ export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNot
   const hasNotes = note && (note.userNotes.trim() || note.recommendedAction.trim() || note.assumptions.some(a => a.checked));
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-6 pb-20">
-      <div className="max-w-3xl mx-auto">
+    <div className="h-full overflow-y-auto px-4 py-6">
+      <div>
         {/* Hero */}
         <div className="mb-8">
           <div className="flex items-center justify-between gap-3 mb-4">
@@ -71,15 +70,6 @@ export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNot
                 {insight.category}
               </span>
             </div>
-            {onShare && (
-              <button
-                onClick={onShare}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors flex-shrink-0"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                Share This
-              </button>
-            )}
           </div>
 
           <h1 className="text-xl font-bold text-foreground leading-tight mb-4 line-clamp-3">
@@ -160,78 +150,88 @@ export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNot
           </div>
         </CollapsibleSection>
 
-        {/* Your Take panel */}
+        {/* Your Take panel -- always visible */}
         {note && onUpdateNote && (
           <div className="mt-6 border-t border-border pt-6">
-            <button
-              onClick={() => setShowYourTake(!showYourTake)}
-              className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-foreground/80 transition-colors"
-            >
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-4">
               <Pencil className="h-3.5 w-3.5" />
               Your Take
               {hasNotes && <Check className="h-3 w-3 text-primary" />}
-              <ChevronRight className={cn('h-3.5 w-3.5 transition-transform ml-1', showYourTake && 'rotate-90')} />
-            </button>
+            </div>
 
-            {showYourTake && (
-              <div className="mt-4 space-y-5">
-                {/* Free-text reasoning */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    What's your read on this?
-                  </label>
-                  <textarea
-                    value={note.userNotes}
-                    onChange={e => onUpdateNote({ ...note, userNotes: e.target.value })}
-                    placeholder="Your reasoning, context, or gut read..."
-                    rows={3}
-                    className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
-                  />
-                </div>
+            <div className="space-y-5">
+              {/* Free-text reasoning */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  What's your read on this?
+                </label>
+                <textarea
+                  value={note.userNotes}
+                  onChange={e => onUpdateNote({ ...note, userNotes: e.target.value })}
+                  placeholder="Your reasoning, context, or gut read..."
+                  rows={3}
+                  className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+                />
+              </div>
 
-                {/* Assumptions */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Key Assumptions
-                  </label>
-                  <div className="mt-2 space-y-2">
-                    {note.assumptions.map((a, i) => (
-                      <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
-                        <Checkbox
-                          checked={a.checked}
-                          onCheckedChange={(checked) => {
-                            const updated = [...note.assumptions];
-                            updated[i] = { ...updated[i], checked: !!checked };
-                            onUpdateNote({ ...note, assumptions: updated });
-                          }}
-                          className="mt-0.5"
-                        />
-                        <span className={cn(
-                          'text-sm leading-snug transition-colors',
-                          a.checked ? 'text-foreground' : 'text-muted-foreground'
-                        )}>
-                          {a.text}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Recommended Action */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Recommended Action
-                  </label>
-                  <input
-                    type="text"
-                    value={note.recommendedAction}
-                    onChange={e => onUpdateNote({ ...note, recommendedAction: e.target.value })}
-                    placeholder="What should we do?"
-                    className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
+              {/* Assumptions */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Key Assumptions
+                </label>
+                <div className="mt-2 space-y-2">
+                  {note.assumptions.map((a, i) => (
+                    <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
+                      <Checkbox
+                        checked={a.checked}
+                        onCheckedChange={(checked) => {
+                          const updated = [...note.assumptions];
+                          updated[i] = { ...updated[i], checked: !!checked };
+                          onUpdateNote({ ...note, assumptions: updated });
+                        }}
+                        className="mt-0.5"
+                      />
+                      <span className={cn(
+                        'text-sm leading-snug transition-colors',
+                        a.checked ? 'text-foreground' : 'text-muted-foreground'
+                      )}>
+                        {a.text}
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
-            )}
+
+              {/* Recommended Action */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Recommended Action
+                </label>
+                <input
+                  type="text"
+                  value={note.recommendedAction}
+                  onChange={e => onUpdateNote({ ...note, recommendedAction: e.target.value })}
+                  placeholder="What should we do?"
+                  className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Share This CTA */}
+        {onShare && (
+          <div className="mt-8 mb-6">
+            <button
+              onClick={onShare}
+              className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-medium text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+            >
+              <Share2 className="h-4 w-4" />
+              Share This
+            </button>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              {hasNotes ? 'Your reasoning will be included' : 'Add your take above to share with context'}
+            </p>
           </div>
         )}
       </div>

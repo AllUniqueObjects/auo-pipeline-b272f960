@@ -193,6 +193,12 @@ export const MOCK_EVIDENCE_REFS: MockEvidenceRef[] = [
   { number: '12-18 month', signal_excerpt: "Dick's-Foot Locker consolidation creates 12-18 month planogram reset window" },
 ];
 
+export const MOCK_PROJECTS = [
+  { id: 'p1', name: 'NB 880 Pipeline' },
+  { id: 'p2', name: 'Q2 Strategy' },
+  { id: 'p3', name: 'Competitive Intel' },
+];
+
 export const MOCK_CHAT_MESSAGES: MockChatMessage[] = [
   {
     id: '1',
