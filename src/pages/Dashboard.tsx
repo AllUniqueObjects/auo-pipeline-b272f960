@@ -7,6 +7,7 @@ import { SignalDetailView } from '@/components/views/SignalDetailView';
 import { ShareWizardView } from '@/components/views/ShareWizardView';
 import { ThreadView } from '@/components/views/ThreadView';
 import { ChatBar } from '@/components/views/ChatBar';
+import { type InvestigationNote, getDefaultAssumptions } from '@/data/mock-positions';
 
 export type AppView = 'chat' | 'insights' | 'signal-detail' | 'share' | 'thread';
 
@@ -17,11 +18,21 @@ interface DashboardProps {
 export default function Dashboard({ onLogout }: DashboardProps) {
   const [view, setView] = useState<AppView>('chat');
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
+  const [investigationNote, setInvestigationNote] = useState<InvestigationNote | null>(null);
 
   const goToInsights = () => setView('insights');
   const goToChat = () => setView('chat');
   const goToSignalDetail = (id: string) => {
     setSelectedInsightId(id);
+    // Initialize note for this insight if switching insights
+    if (!investigationNote || investigationNote.insightId !== id) {
+      setInvestigationNote({
+        insightId: id,
+        userNotes: '',
+        assumptions: getDefaultAssumptions(id),
+        recommendedAction: '',
+      });
+    }
     setView('signal-detail');
   };
   const goToShare = () => setView('share');
@@ -69,17 +80,38 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <InsightsView onSelectInsight={goToSignalDetail} />
         )}
         {view === 'signal-detail' && selectedInsightId && (
-          <SignalDetailView insightId={selectedInsightId} onBack={goBack} />
+          <SignalDetailView
+            insightId={selectedInsightId}
+            onBack={goBack}
+            onShare={goToShare}
+            note={investigationNote || undefined}
+            onUpdateNote={setInvestigationNote}
+          />
         )}
         {view === 'share' && selectedInsightId && (
-          <ShareWizardView insightId={selectedInsightId} onBack={goBack} onOpenThread={goToThread} />
+          <ShareWizardView
+            insightId={selectedInsightId}
+            onBack={goBack}
+            onOpenThread={goToThread}
+            userNotes={investigationNote?.userNotes}
+            assumptions={investigationNote?.assumptions}
+            recommendedAction={investigationNote?.recommendedAction}
+          />
         )}
         {view === 'thread' && selectedInsightId && (
-          <ThreadView insightId={selectedInsightId} onBack={goBack} />
+          <ThreadView
+            insightId={selectedInsightId}
+            onBack={goBack}
+            userNotes={investigationNote?.userNotes}
+            assumptions={investigationNote?.assumptions}
+            recommendedAction={investigationNote?.recommendedAction}
+          />
         )}
 
         {/* Persistent chat bar on non-chat views */}
-        {view !== 'chat' && view !== 'thread' && <ChatBar />}
+        {view !== 'chat' && view !== 'thread' && (
+          <ChatBar contextInsightId={view === 'signal-detail' ? selectedInsightId || undefined : undefined} />
+        )}
       </main>
     </div>
   );

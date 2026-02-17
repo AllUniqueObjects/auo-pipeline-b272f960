@@ -4,7 +4,11 @@ import { cn } from '@/lib/utils';
 import { MOCK_CHAT_MESSAGES, type MockChatMessage } from '@/data/mock';
 import { MarkdownLite } from '@/components/views/ChatView';
 
-export function ChatBar() {
+interface ChatBarProps {
+  contextInsightId?: string;
+}
+
+export function ChatBar({ contextInsightId }: ChatBarProps = {}) {
   const [expanded, setExpanded] = useState(false);
   const [messages] = useState<MockChatMessage[]>(MOCK_CHAT_MESSAGES.slice(-3));
   const [input, setInput] = useState('');
@@ -90,7 +94,7 @@ export function ChatBar() {
             className="w-full h-full flex items-center gap-3 px-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <Send className="h-3.5 w-3.5" />
-            Ask AUO anything...
+            {contextInsightId ? `Ask AUO about this signal...` : 'Ask AUO anything...'}
           </button>
         )}
       </div>

@@ -8,9 +8,12 @@ import { MarkdownLite } from '@/components/views/ChatView';
 interface ThreadViewProps {
   insightId: string;
   onBack: () => void;
+  userNotes?: string;
+  assumptions?: { text: string; checked: boolean }[];
+  recommendedAction?: string;
 }
 
-export function ThreadView({ insightId, onBack }: ThreadViewProps) {
+export function ThreadView({ insightId, onBack, userNotes, assumptions, recommendedAction }: ThreadViewProps) {
   const thread = MOCK_THREAD;
   const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const signals = useMemo(() => {
@@ -153,6 +156,35 @@ export function ThreadView({ insightId, onBack }: ThreadViewProps) {
               </div>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </button>
+          </div>
+        )}
+
+        {/* Shared Position card */}
+        {(userNotes?.trim() || recommendedAction?.trim() || assumptions?.some(a => a.checked)) && (
+          <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-primary mb-3">David's Position</p>
+            {userNotes?.trim() && (
+              <p className="text-sm text-foreground leading-relaxed mb-3">{userNotes}</p>
+            )}
+            {assumptions?.some(a => a.checked) && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">Key Assumptions</p>
+                <ul className="space-y-1">
+                  {assumptions.filter(a => a.checked).map((a, i) => (
+                    <li key={i} className="text-xs text-foreground/80 flex items-start gap-1.5">
+                      <span className="text-primary mt-0.5">✓</span>
+                      {a.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {recommendedAction?.trim() && (
+              <div className="rounded bg-primary/10 px-3 py-2">
+                <p className="text-xs font-medium text-muted-foreground mb-0.5">Recommended Action</p>
+                <p className="text-sm font-medium text-foreground">{recommendedAction}</p>
+              </div>
+            )}
           </div>
         )}
 
