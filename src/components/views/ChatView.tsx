@@ -56,7 +56,7 @@ export function ChatView({ activeInsightIds = [], onAddInsight, onShare, chatCol
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const primaryInsightId = activeInsightIds[0] || null;
-  const contextKey = activeInsightIds.sort().join(',');
+  const contextKey = [...activeInsightIds].sort().join(',');
 
   // When activeInsightIds changes, inject a contextual prompt
   useEffect(() => {
