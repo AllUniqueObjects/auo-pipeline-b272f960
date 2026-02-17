@@ -12,6 +12,12 @@ export interface MockInsight {
   signal_ids?: string[];
 }
 
+export interface MockSourceUrl {
+  title: string;
+  url: string;
+  domain: string;
+}
+
 export interface MockSignal {
   id: string;
   title: string;
@@ -20,6 +26,15 @@ export interface MockSignal {
   created_at: string;
   analysis_context: string;
   nb_relevance: string;
+  source_urls: MockSourceUrl[];
+}
+
+export interface MockPosition {
+  id: string;
+  insightId: string;
+  title: string;
+  status: 'draft' | 'shared';
+  createdAt: string;
 }
 
 export interface MockEvidenceRef {
@@ -155,6 +170,10 @@ export const MOCK_SIGNALS: MockSignal[] = [
     created_at: '2026-02-12T00:00:00Z',
     analysis_context: "Dick's integrating Foot Locker operations creates 2,200+ door consolidated buyer — single largest wholesale partner now has internal SKU allocation pressure",
     nb_relevance: "Nike's supply chain failures create immediate shelf availability advantage for NB's 880 v15 FW26 launch",
+    source_urls: [
+      { title: "Dick's Sporting Goods Completes Foot Locker Acquisition", url: 'https://example.com/dicks-fl', domain: 'wsj.com' },
+      { title: 'JD Sports Canadian Flagship Opening Analysis', url: 'https://example.com/jd-canada', domain: 'retaildive.com' },
+    ],
   },
   {
     id: 'scan-002',
@@ -164,6 +183,10 @@ export const MOCK_SIGNALS: MockSignal[] = [
     created_at: '2026-02-12T00:00:00Z',
     analysis_context: "Nike's Amazon return + JD Sports expansion = 12-18% wholesale SKU count increase by Q2 2025",
     nb_relevance: "Direct threat to 880/1080 shelf placement at Dick's, Foot Locker in $140-160 neutral cushion segment",
+    source_urls: [
+      { title: 'Nike Returns to Amazon Marketplace', url: 'https://example.com/nike-amazon', domain: 'bloomberg.com' },
+      { title: 'Nike Wholesale Strategy Shift Q1 2026', url: 'https://example.com/nike-wholesale', domain: 'footwearnews.com' },
+    ],
   },
   {
     id: 'scan-003',
@@ -173,6 +196,11 @@ export const MOCK_SIGNALS: MockSignal[] = [
     created_at: '2026-02-13T00:00:00Z',
     analysis_context: "Current Vietnam FOB $18.40 may jump 20-25% if tariffs land. NB's 30% Vietnam exposure vs Nike's 51%.",
     nb_relevance: 'FW26 BOM lock decision window closes before tariff clarity arrives',
+    source_urls: [
+      { title: 'Supreme Court Docket: Trade Policy Review', url: 'https://example.com/scotus', domain: 'supremecourt.gov' },
+      { title: 'Vietnam FOB Price Index Q1 2026', url: 'https://example.com/fob-index', domain: 'reuters.com' },
+      { title: 'Footwear Tariff Impact Analysis', url: 'https://example.com/tariff', domain: 'tradegov.com' },
+    ],
   },
   {
     id: 'scan-004',
@@ -182,7 +210,17 @@ export const MOCK_SIGNALS: MockSignal[] = [
     created_at: '2026-02-14T00:00:00Z',
     analysis_context: 'Vietnam labor wages rising 7-8% annually. Domestic expansion ($8-12M, 18-month build) reaches 35-40% capacity by FW27.',
     nb_relevance: 'Maine expansion becomes competitive moat as competitors face reshoring cost barriers',
+    source_urls: [
+      { title: 'Vietnam Manufacturing Wage Report 2026', url: 'https://example.com/vietnam-wages', domain: 'ilo.org' },
+      { title: 'Southeast Asia Climate Risk to Supply Chains', url: 'https://example.com/climate-sea', domain: 'mckinsey.com' },
+    ],
   },
+];
+
+export const MOCK_POSITIONS: MockPosition[] = [
+  { id: 'pos-1', insightId: '1', title: 'Vietnam FOB Lock', status: 'draft', createdAt: '2026-02-15T10:00:00Z' },
+  { id: 'pos-2', insightId: '2', title: '880 v15 Shelf Lock', status: 'shared', createdAt: '2026-02-14T14:30:00Z' },
+  { id: 'pos-3', insightId: '3', title: '880 v15 Pricing at $150', status: 'draft', createdAt: '2026-02-13T09:00:00Z' },
 ];
 
 export const MOCK_EVIDENCE_REFS: MockEvidenceRef[] = [
