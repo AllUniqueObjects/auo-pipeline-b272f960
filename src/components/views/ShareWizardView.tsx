@@ -22,12 +22,10 @@ interface ShareWizardViewProps {
   insightIds: string[];
   onBack: () => void;
   onOpenThread: () => void;
-  userNotes?: string;
-  assumptions?: { text: string; checked: boolean }[];
-  recommendedAction?: string;
+  positionBrief?: { title: string; sections: { label: string; content: string; items?: string[] }[] };
 }
 
-export function ShareWizardView({ insightIds, onBack, onOpenThread, userNotes, assumptions, recommendedAction }: ShareWizardViewProps) {
+export function ShareWizardView({ insightIds, onBack, onOpenThread, positionBrief }: ShareWizardViewProps) {
   const insightId = insightIds[0];
   const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const [step, setStep] = useState<Step>('recipient');
@@ -41,29 +39,8 @@ export function ShareWizardView({ insightIds, onBack, onOpenThread, userNotes, a
   const currentStepIdx = STEPS.findIndex(s => s.key === step);
   const recipientLabel = RECIPIENT_OPTIONS.find(r => r.id === selectedRecipient)?.label || recipientName || 'Team';
   const intentLabel = INTENT_OPTIONS.find(i => i.id === selectedIntent)?.label || '';
-  const decisionTitle = insight?.title || '';
 
-  let messageText = generateShareMessage(recipientLabel, intentLabel, decisionTitle);
-
-  // Append David's Take if notes exist
-  const hasUserContext = userNotes?.trim() || recommendedAction?.trim() || assumptions?.some(a => a.checked);
-  if (hasUserContext) {
-    let takeSection = '\n\n---\n**David\'s Take**\n';
-    if (userNotes?.trim()) {
-      takeSection += `\n${userNotes.trim()}\n`;
-    }
-    const checkedAssumptions = assumptions?.filter(a => a.checked);
-    if (checkedAssumptions && checkedAssumptions.length > 0) {
-      takeSection += '\nKey assumptions:\n';
-      checkedAssumptions.forEach(a => {
-        takeSection += `• ${a.text}\n`;
-      });
-    }
-    if (recommendedAction?.trim()) {
-      takeSection += `\nRecommended action: ${recommendedAction.trim()}`;
-    }
-    messageText += takeSection;
-  }
+  const messageText = generateShareMessage(recipientLabel, intentLabel, positionBrief);
 
   const canProceed = () => {
     if (step === 'recipient') return !!selectedRecipient;

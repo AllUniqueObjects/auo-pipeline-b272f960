@@ -237,25 +237,159 @@ export const INSIGHT_RECOMMENDATIONS: Record<string, string[]> = {
   '9': ['8'],
 };
 
-// Combined position briefs keyed by sorted insight ID combos
-export const MULTI_POSITION_BRIEFS: Record<string, { title: string; call: string; why: string; assumptions: string[] }> = {
+// Proactive briefings: AUO sends these immediately when insights are selected
+export const PROACTIVE_BRIEFINGS: Record<string, string> = {
+  '1': `A few things worth knowing here...
+
+Vietnam FOB is sitting at $18.40, but that number hides two converging pressures: labor inflation running 7-8% annually AND a Supreme Court tariff ruling that lands 8-12 weeks after your BOM lock deadline.
+
+The timing mismatch is the real issue — you're deciding blind.
+
+There's also a margin compression angle I'm tracking that connects to this:
+
+__INSIGHT_RECS__4,3
+
+Want me to pull those threads together?`,
+
+  '2': `Worth flagging what's converging here...
+
+Foot Locker's leadership vacuum isn't just organizational noise — it's a negotiation window. New buyers take 60-90 days to establish vendor relationships, and March vendor reviews are when planograms reset.
+
+Meanwhile, Nike's wholesale flood is about to hit the same shelves you're targeting for 880 v15. The question isn't whether to lock placement — it's whether you can lock it before the window closes.
+
+I see a shelf hierarchy angle that connects:
+
+__INSIGHT_RECS__6,5
+
+Should I map how these interact?`,
+
+  '3': `Here's what's tricky about this one...
+
+Consumer price resistance is hitting *before* tariff clarity arrives. That means your $150 vs $165 decision has to be made without knowing your actual cost basis for FW26.
+
+The dual-compression: upstream costs are rising (Vietnam FOB + potential tariffs), but downstream you're hitting price ceilings. FuelCell differentiation is the only lever that doesn't involve eating margin.
+
+Related threads I'm watching:
+
+__INSIGHT_RECS__1,6
+
+Want me to run the margin math both ways?`,
+
+  '1,4': `Interesting combination. Here's what connects these two:
+
+Vietnam FOB lock at $18.40 + the margin compression story are two sides of the same squeeze. If tariffs land at 20%+, you're looking at 8-12 points of margin erosion unless Maine expansion accelerates.
+
+The hedge: lock FOB now AND pull Maine timeline forward. One without the other leaves a gap.
+
+Three data points that matter:
+- Vietnam labor wages rising 7-8% annually — this is structural, not cyclical
+- Maine expansion reaches 35-40% capacity by FW27 — but only if timeline accelerates now
+- Supreme Court ruling 8-12 weeks after your BOM deadline — you can't wait
+
+I also see a thread to pricing:
+
+__INSIGHT_RECS__3
+
+This is becoming a dual-track hedge story.`,
+
+  '1,3': `These two are more connected than they look...
+
+Upstream cost risk (Vietnam FOB + tariffs) flows directly into the consumer price defense question. If you lock FOB at $18.40 and tariffs land at 20%, your landed cost jumps to $22-23. That makes $150 retail extremely tight on margin.
+
+But here's the counterpoint: if you push to $165, you lose 12-18% volume in a segment where Brooks Ghost 16 just reset expectations at $140.
+
+The play might be: lock FOB (protect the floor), hold $150 (protect volume), and let FuelCell messaging do the margin work.
+
+One more thread worth pulling in:
+
+__INSIGHT_RECS__4
+
+The margin math changes if Maine accelerates.`,
+
+  '2,6': `Two shelf threats converging at once...
+
+Foot Locker leadership churn opens a negotiation window, but Brooks hitting $1B with Ghost 16 resets what "default neutral cushion" means on the shelf. Your 880 v15 at $150 is now $10 above the category anchor.
+
+The window: lock Dick's placement during churn AND lead with FuelCell differentiation to justify the $10 premium. If you wait for both to settle, you lose leverage on placement AND price positioning.
+
+Worth considering the competitive tech angle:
+
+__INSIGHT_RECS__5
+
+On's quality issues might be your strongest argument for shelf priority.`,
+};
+
+export interface PositionSection {
+  label: string;
+  content: string;
+  items?: string[];
+}
+
+export interface FluidPositionBrief {
+  title: string;
+  sections: PositionSection[];
+  basedOn?: string[];
+}
+
+// Fluid position briefs — single insight (lean)
+export const MOCK_POSITION_BRIEFS: Record<string, FluidPositionBrief> = {
+  '1': {
+    title: 'Vietnam FOB Lock',
+    sections: [
+      { label: 'Call', content: 'Lock at $18.40/pair before BOM deadline' },
+      { label: 'Why this matters', content: 'Asymmetric tariff risk too high to wait — BOM lock closes 8-12 weeks before Supreme Court clarity. You\'re paying inflation-adjusted fair price regardless.' },
+      { label: 'Key assumptions', content: '', items: ['Tariffs land at 20%+', 'Maine not ready for FW26 volume', 'Supreme Court ruling comes after BOM lock'] },
+    ],
+  },
+  '2': {
+    title: '880 v15 Shelf Lock',
+    sections: [
+      { label: 'Recommendation', content: "Lock Dick's-Foot Locker placement within 60 days during leadership churn" },
+      { label: 'Context', content: 'New buyers take 60-90 days to establish vendor relationships. March vendor reviews reset planograms. Nike wholesale flood hits Q2.' },
+      { label: 'Dependencies', content: '', items: ['Foot Locker leadership churn persists through March', 'Nike wholesale flood hits Q2 not Q1', "Dick's consolidation favors existing NB relationship"] },
+      { label: 'Timeline', content: '60-day window closes with March vendor reviews' },
+    ],
+  },
+  '3': {
+    title: '880 v15 Pricing Hold',
+    sections: [
+      { label: 'Position', content: 'Hold at $150 with FuelCell differentiation messaging' },
+      { label: 'Trade-off', content: '$165 risks 12-18% volume loss in a segment where Ghost 16 reset expectations at $140. $150 absorbs 3-5% margin but holds volume and shelf position.' },
+      { label: 'What changes this', content: '', items: ['Tariff clarity arrives before BOM lock', 'Ghost 16 momentum stalls', 'FuelCell testing data strengthens premium justification'] },
+    ],
+  },
+};
+
+// Fluid position briefs — multi-insight synthesis (rich)
+export const MULTI_POSITION_BRIEFS: Record<string, FluidPositionBrief> = {
   '1,4': {
     title: 'Vietnam Supply Chain Lock',
-    call: 'Lock FOB at $18.40 + accelerate Maine expansion timeline',
-    why: 'Double compression from tariff risk and Vietnam labor inflation demands immediate dual-track hedge',
-    assumptions: ['Tariffs land at 20%+', 'Maine reaches 35-40% capacity by FW27', 'Vietnam labor inflation holds at 7-8%'],
+    sections: [
+      { label: 'Strategic call', content: 'Lock FOB at $18.40 + accelerate Maine expansion timeline' },
+      { label: 'What connects these', content: 'Double compression from tariff risk and Vietnam labor inflation demands immediate dual-track hedge. One without the other leaves a gap.' },
+      { label: 'What must be true', content: '', items: ['Tariffs land at 20%+', 'Maine reaches 35-40% capacity by FW27', 'Vietnam labor inflation holds at 7-8% annually'] },
+      { label: 'Evidence', content: '', items: ['Vietnam FOB at $18.40 may jump 20-25% if tariffs land', 'Labor wages rising 7-8% annually — structural, not cyclical', 'Maine $8-12M investment, 18-month build timeline'] },
+      { label: 'Risk if wrong', content: 'Overpay 7-8% vs spot — but that\'s inflation-adjusted fair price regardless of tariff outcome' },
+      { label: 'Decision window', content: '8-12 weeks before Supreme Court ruling; BOM lock precedes clarity' },
+    ],
   },
   '1,3': {
     title: 'Vietnam FOB + Pricing Hedge',
-    call: 'Lock FOB at $18.40 and hold 880 v15 at $150 with FuelCell messaging',
-    why: 'Absorb upstream cost risk while defending consumer price point — margin compression is temporary',
-    assumptions: ['Tariffs land at 20%+', 'Consumer price resistance peaks pre-tariff', 'FuelCell differentiates at $150'],
+    sections: [
+      { label: 'Combined position', content: 'Lock FOB at $18.40 and hold 880 v15 at $150 with FuelCell messaging' },
+      { label: 'Margin math', content: 'If tariffs land at 20%, landed cost jumps to $22-23. At $150 retail that\'s tight. But $165 loses 12-18% volume. FuelCell differentiation is the only lever that doesn\'t eat margin or volume.' },
+      { label: 'Assumptions', content: '', items: ['Tariffs land at 20%+', 'Consumer price resistance peaks pre-tariff', 'FuelCell differentiates at $150 vs Ghost 16 at $140'] },
+      { label: 'Open questions', content: '', items: ['Can Maine timeline accelerate to improve FW27 cost basis?', 'What\'s the floor if tariffs don\'t land?', 'Does FuelCell testing data support premium messaging?'] },
+    ],
   },
   '2,6': {
     title: 'Shelf Defense Strategy',
-    call: "Lock Dick's placement for 880 v15 + counter Brooks Ghost 16 with FuelCell differentiation",
-    why: "Leadership vacuum + Brooks $1B milestone create converging shelf threats — act before March vendor reviews",
-    assumptions: ['Foot Locker churn persists through March', 'Ghost 16 momentum plateaus at $140', "Dick's consolidation favors NB relationship"],
+    sections: [
+      { label: 'Shelf strategy', content: "Lock Dick's placement for 880 v15 + counter Brooks Ghost 16 with FuelCell differentiation" },
+      { label: 'Competitive context', content: "Leadership vacuum + Brooks $1B milestone create converging shelf threats. Ghost 16 resets neutral cushion anchor at $140 — your $150 needs justification." },
+      { label: 'Action items', content: '', items: ["Lock Dick's placement during leadership churn window", 'Lead negotiations with FuelCell performance data', 'Position against Ghost 16 on technology, not price'] },
+      { label: 'Timing', content: '60-day window closes with March vendor reviews. Brooks momentum may plateau but shelf position locks now.' },
+    ],
   },
 };
 
