@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
+import { Send, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOCK_CHAT_MESSAGES, type MockChatMessage } from '@/data/mock';
 
@@ -7,11 +7,39 @@ export function ChatView() {
   const [messages, setMessages] = useState<MockChatMessage[]>(MOCK_CHAT_MESSAGES);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [inputExpanded, setInputExpanded] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, typing]);
+
+  const resetTextareaHeight = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  };
+
+  const adjustHeight = () => {
+    if (!textareaRef.current) return;
+    textareaRef.current.style.height = 'auto';
+    if (inputExpanded) {
+      const h = Math.min(textareaRef.current.scrollHeight, 120);
+      textareaRef.current.style.height = `${h}px`;
+    } else {
+      textareaRef.current.style.height = '38px';
+    }
+  };
+
+  useEffect(() => {
+    adjustHeight();
+  }, [inputExpanded]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    adjustHeight();
+  };
 
   const handleSend = () => {
     const text = input.trim();
@@ -20,6 +48,7 @@ export function ChatView() {
     const userMsg: MockChatMessage = { id: crypto.randomUUID(), role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    resetTextareaHeight();
     setTyping(true);
 
     setTimeout(() => {
@@ -44,7 +73,7 @@ export function ChatView() {
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div className="space-y-4">
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} />
           ))}
@@ -54,15 +83,23 @@ export function ChatView() {
 
       {/* Input */}
       <div className="flex-shrink-0 border-t border-border px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <input
-            type="text"
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={textareaRef}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Ask AUO anything..."
-            className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            rows={1}
+            className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none overflow-y-auto"
+            style={{ maxHeight: inputExpanded ? '120px' : '38px' }}
           />
+          <button
+            onClick={() => setInputExpanded(!inputExpanded)}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          >
+            {inputExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </button>
           <button
             onClick={handleSend}
             disabled={!input.trim()}
