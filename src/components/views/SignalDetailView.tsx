@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import { ChevronRight, ExternalLink, X, Plus, ChevronDown } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOCK_INSIGHTS, MOCK_SIGNALS, MOCK_EVIDENCE_REFS } from '@/data/mock';
+import { SignalCard } from './SignalCard';
+import { CollapsibleSection } from './CollapsibleSection';
 
 const TIER_COLORS: Record<string, { badge: string; bg: string; border: string }> = {
   breaking: {
@@ -201,75 +203,3 @@ export function SignalDetailView({ insightIds, onBack, onAddInsight, onRemoveIns
   );
 }
 
-function CollapsibleSection({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
-  return (
-    <div className="mb-4">
-      <button onClick={onToggle} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-        <ChevronRight className={cn('h-3 w-3 transition-transform', open && 'rotate-90')} />
-        {label}
-      </button>
-      {open && <div className="mt-2 pl-4">{children}</div>}
-    </div>
-  );
-}
-
-function SignalCard({ signal, expanded, onToggle }: { signal: typeof MOCK_SIGNALS[number]; expanded: boolean; onToggle: () => void }) {
-  const credPct = Math.round(signal.credibility * 100);
-  const barColor = credPct > 50 ? 'bg-ring' : credPct > 30 ? 'bg-tier-developing' : 'bg-tier-breaking';
-  const relTime = formatRelative(new Date(signal.created_at));
-
-  return (
-    <div
-      onClick={onToggle}
-      className={cn(
-        'text-left rounded-lg border bg-card p-4 transition-all duration-200 overflow-hidden cursor-pointer',
-        expanded ? 'border-ring/40 bg-accent/5 md:col-span-2' : 'border-border hover:border-muted-foreground/30'
-      )}
-      style={{ overflowWrap: 'break-word' }}
-    >
-      <div className="flex items-start justify-between gap-2 mb-1.5">
-        <h3 className={cn('text-sm font-medium text-card-foreground leading-snug', !expanded && 'line-clamp-2')}>{signal.title}</h3>
-        <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">{relTime}</span>
-      </div>
-      <div className="flex items-center gap-4 mb-1.5 text-xs text-muted-foreground whitespace-nowrap">
-        <span>{signal.sources} sources</span>
-        <span className="flex items-center gap-1.5">
-          Credibility
-          <span className="inline-block w-12 h-1.5 rounded-full bg-muted overflow-hidden">
-            <span className={cn('block h-full rounded-full', barColor)} style={{ width: `${Math.max(credPct, 5)}%` }} />
-          </span>
-          <span className="text-[10px]">{credPct}%</span>
-        </span>
-      </div>
-      {expanded && (
-        <>
-          <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>{signal.analysis_context}</p>
-          {signal.source_urls.length > 0 && (
-            <div className="mt-3 pt-2.5 border-t border-border/50">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sources</span>
-              <div className="mt-1.5 space-y-1">
-                {signal.source_urls.map((src, i) => (
-                  <a key={i} href={src.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                    className="flex items-center gap-2 text-xs text-foreground/70 hover:text-foreground transition-colors group">
-                    <span className="text-muted-foreground text-[10px] font-mono flex-shrink-0">{src.domain}</span>
-                    <span className="truncate">{src.title}</span>
-                    <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-      <p className={cn('text-xs text-muted-foreground italic', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>{signal.nb_relevance}</p>
-    </div>
-  );
-}
-
-function formatRelative(date: Date): string {
-  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
