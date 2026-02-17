@@ -1,152 +1,185 @@
 
 
-# Conversational Position Building
+# Multi-Insight Position Building with AUO Agent Recommendations
 
-## Core Idea
+## What We're Building
 
-Replace the manual "Your Take" form with a conversational flow. When David views a signal detail, the chat sidebar becomes contextual -- AUO guides him through building a shareable position via natural conversation, then auto-generates a brief template.
+Two connected features:
 
-## Changes
+1. **Multi-select insights** to build a combined position through conversation
+2. **AUO proactively recommends related insights** based on what the user is thinking about
 
-### 1. Conversational "Your Take" (replaces form)
-
-**Current problem:** Textarea + checkboxes + recommended action input = manual and feels like homework.
-
-**New approach:** When David opens a signal detail, the chat sidebar gets a contextual prompt scoped to that insight. AUO asks structured questions conversationally:
+## User Flow
 
 ```text
-Chat sidebar (when viewing Signal Detail for insight #1):
-
-AUO: "You're looking at the Vietnam FOB decision. 
-      What's your initial read -- lock at $18.40 or wait?"
-
-David: "I think we lock. The asymmetric risk is too high."
-
-AUO: "Got it. What assumptions are you making?"
-
-David: "Tariffs land at 20%+, Maine isn't ready for FW26"
-
-AUO: "Clear. Here's your position brief:"
-
-[Auto-generated card appears in chat]
-+------------------------------------------+
-| POSITION: Vietnam FOB Lock               |
-| Call: Lock at $18.40/pair before BOM      |
-| Why: Asymmetric tariff risk too high      |
-| Assumptions:                              |
-|   - Tariffs land at 20%+                  |
-|   - Maine not ready for FW26              |
-| [Edit] [Share This]                       |
-+------------------------------------------+
+1. User is on Insights list
+2. Clicks an insight card -> enters Signal Detail (current behavior)
+3. Chat scopes to that insight, AUO asks for their read
+4. User shares their thinking: "I think we lock Vietnam FOB now"
+5. AUO responds: "That connects to 2 other insights you should consider"
+   -> Renders clickable InsightChip cards inline in chat
+6. User clicks a chip -> that insight gets ADDED to a selected set
+   -> Signal Detail view updates to show combined signals from all selected insights
+7. After 2+ messages, AUO generates a PositionCard that references all selected insights
+8. User can also manually add/remove insights via pills at the top of Signal Detail
 ```
 
-**Technical approach:**
-- Remove the "Your Take" section entirely from `SignalDetailView.tsx` (delete lines 153-219 -- textarea, checkboxes, recommended action)
-- Remove the "Share This" button from the bottom of SignalDetailView
-- Add `activeInsightId` prop to `ChatView` -- when set, chat shows a contextual prompt and scoped placeholder
-- Add a new `PositionCard` component rendered inline in chat messages -- shows the generated brief with "Edit" and "Share This" buttons
-- Mock the conversation: after 2-3 user messages about the insight, AUO responds with a PositionCard
-- "Share This" on the PositionCard triggers `onShare` (navigates to Share Wizard)
-- `InvestigationNote` data structure stays but gets populated from the mock conversation flow instead of form inputs
+## Layout Changes
 
-### 2. Minimizable Chat Sidebar
+### Signal Detail View -- Multi-Insight Header
 
-**Current:** Left panel is always 340px, no way to collapse.
+Top of Signal Detail gets a row of selected insight pills:
 
-**New approach:** Add a collapse/expand toggle on the chat panel border.
+```text
++--------------------------------------------------+
+| [Vietnam FOB Lock x] [880 v15 Shelf Lock x]      |
+| [+ Add Insight]                                   |
++--------------------------------------------------+
+| (merged signals from all selected insights)       |
+```
 
-- Add `chatCollapsed` state to `Dashboard.tsx`
-- When collapsed: left panel shrinks to `w-12` (48px), shows only a vertical "Chat" label or a chat icon button to expand
-- When expanded: normal `w-[340px]`
-- Toggle button sits on the right edge of the left panel (a small chevron)
-- Right panel gets more space when chat is collapsed
-- On mobile: no change (already single-panel toggle)
+- Each pill shows truncated insight title with an "x" to remove
+- "+ Add Insight" opens a small dropdown of remaining insights
+- Signals section merges signals from all selected insight IDs (deduplicated)
+- Hero section shows the PRIMARY insight (first selected), with a note like "Combined with 1 other insight"
 
-### 3. Expandable Signals with Clickable Sources
+### Chat View -- AUO Recommends Insights
 
-**Current:** Signal cards expand to show `analysis_context` and `nb_relevance` text, but no actual source links.
+After the user's first message in a signal-detail context, AUO's mock reply includes an `InsightRecommendation` component -- small clickable cards rendered inline in chat:
 
-**New approach:** Add mock source URLs to signal data and render them as clickable links.
+```text
+AUO: "Locking FOB at $18.40 makes sense if you believe tariffs 
+      land above 20%. Two related insights to consider:"
 
-- Add `source_urls` field to `MockSignal` interface:
-  ```
-  source_urls: { title: string; url: string; domain: string }[]
-  ```
-- Add mock URLs to each signal in `MOCK_SIGNALS` (e.g., Reuters, WSJ, industry reports)
-- In the expanded `SignalCard` (in `SignalDetailView.tsx`), render source links below the analysis text:
-  ```text
-  [expanded signal card]
-  Analysis context text...
-  NB relevance text...
-  
-  Sources:
-  [icon] reuters.com -- "Vietnam tariff policy..."    [external link icon]
-  [icon] wsj.com -- "Supreme Court hearing..."        [external link icon]
-  ```
-- Links open in new tab (`target="_blank"`) -- they're mock URLs so they won't go anywhere real, but the UI shows the pattern
+  [Vietnam FOB Inflation...]    <- clickable chip
+  [880 v15 Pricing Hold...]     <- clickable chip
 
-### 4. Position Navigation
+"Adding these would strengthen your position with 
+ margin compression context."
+```
 
-**Current:** No concept of saved positions. `investigationNote` resets when switching insights.
+Clicking a chip calls a new `onAddInsight(insightId)` callback that adds the insight to the selected set in Dashboard.
 
-**New approach:** Lightweight position list in the header or as a sub-nav.
+### Chat View -- Position Card Update
 
-- Add `MockPosition` type: `{ id, insightId, title, status: 'draft' | 'shared', createdAt }`
-- Add `MOCK_POSITIONS` array with 2-3 pre-built positions
-- Add a "Positions" section accessible from the header (small dropdown or pill)
-- Clicking a position navigates to its signal detail with the saved note pre-loaded
-- "New Position" starts from the Insights list -- clicking any insight card starts a new position
-- The current `investigationNote` state in Dashboard becomes a map: `Record<string, InvestigationNote>` keyed by insight ID, so switching between insights preserves each position's state
+The `PositionCard` mock brief updates to list contributing insights:
 
-**Starting a new position:** Click any insight card from the Insights list. That's it -- the conversation in the chat sidebar begins scoped to that insight.
-
-**Navigating positions:** A small dropdown in the header shows active positions with their status (draft/shared). Click one to jump back to its signal detail.
+```text
++------------------------------------------+
+| POSITION: Vietnam Supply Chain Lock      |
+| Based on: Insight #1, #4                 |
+| Call: Lock FOB + accelerate Maine        |
+| Why: ...                                 |
+| Assumptions: ...                         |
+| [Edit] [Share This]                      |
++------------------------------------------+
+```
 
 ## File Changes
 
+### 1. `src/data/mock.ts`
+
+- Add `INSIGHT_RECOMMENDATIONS` map: for each insight ID, list 1-2 related insight IDs that AUO would recommend
+- Add `MULTI_POSITION_BRIEFS` map: keyed by sorted insight ID combos (e.g., `"1,4"`), containing combined position briefs
+- Update `MockPosition` to support `insightIds: string[]` (array instead of single `insightId`)
+
+### 2. `src/pages/Dashboard.tsx`
+
+- Change `selectedInsightId: string | null` to `selectedInsightIds: string[]`
+- First entry in the array is the "primary" insight
+- Add `handleAddInsight(id)` and `handleRemoveInsight(id)` functions
+- Pass `selectedInsightIds`, `onAddInsight`, `onRemoveInsight` to both `ChatView` and `SignalDetailView`
+- Update position dropdown and navigation to work with arrays
+
+### 3. `src/components/views/ChatView.tsx`
+
+- Accept new props: `activeInsightIds: string[]`, `onAddInsight: (id: string) => void`
+- After user's first message in insight context, AUO's mock reply includes recommended insight IDs
+- New `InsightChip` sub-component: small clickable card showing insight title + tier dot, calls `onAddInsight` on click
+- Render `InsightChip` components inline in specific mock assistant messages using a `__INSIGHT_RECS__` content marker (similar to `__POSITION_CARD__`)
+- Update position card generation to use combined insight IDs key
+- Contextual prompt updates when multiple insights are selected: "You're combining Vietnam FOB with margin compression. What's the unified call?"
+
+### 4. `src/components/views/SignalDetailView.tsx`
+
+- Accept `insightIds: string[]` instead of single `insightId`
+- Add `onAddInsight` and `onRemoveInsight` props
+- Render selected insight pills at the top (truncated title + "x" button)
+- Render "+ Add Insight" button that opens a dropdown of unselected insights
+- Merge signals from all selected insights (deduplicate by signal ID)
+- Hero shows primary insight title; if multiple, add subtitle: "Combined with N other insights"
+- Decision question shows primary insight's question
+
+### 5. `src/components/views/PositionCard.tsx`
+
+- Add optional `basedOn?: string[]` field to `PositionBrief` interface
+- Render "Based on: ..." line showing contributing insight titles
+
+### 6. `src/components/views/ShareWizardView.tsx` and `ThreadView.tsx`
+
+- Update to accept `insightIds: string[]` instead of single `insightId`
+- Minor prop threading, no major logic changes
+
+## Mock Data Details
+
+### Insight Recommendations Map
+
+```text
+INSIGHT_RECOMMENDATIONS = {
+  '1': ['4', '3'],     // Vietnam FOB -> margin compression, pricing
+  '2': ['6', '5'],     // Shelf lock -> Brooks competition, On's quality
+  '3': ['1', '6'],     // Pricing -> Vietnam FOB, Brooks
+  '4': ['1'],          // Margin compression -> Vietnam FOB
+  '5': ['2', '7'],     // On's quality -> shelf lock, Anta
+  '6': ['3', '2'],     // Brooks -> pricing, shelf lock
+}
+```
+
+### Combined Position Briefs
+
+A few pre-built combos:
+
+- `"1,4"`: "Vietnam Supply Chain Lock" -- combined FOB + Maine acceleration
+- `"1,3"`: "Vietnam FOB + Pricing Hedge" -- lock FOB and hold $150
+- `"2,6"`: "Shelf Defense Strategy" -- lock placement + counter Brooks
+
+Fallback: if no pre-built combo exists, use the primary insight's brief with a note about combined signals.
+
+## State Flow
+
+```text
+User clicks Insight #1
+  -> selectedInsightIds = ['1']
+  -> Chat shows contextual prompt for #1
+  -> Signal Detail shows #1 signals
+
+User sends message
+  -> AUO replies with recommendation chips for #4, #3
+
+User clicks chip for #4
+  -> selectedInsightIds = ['1', '4']
+  -> Signal Detail merges signals from #1 and #4
+  -> Chat prompt updates to reference combined context
+
+User sends 2nd message
+  -> AUO generates PositionCard for combo "1,4"
+
+User clicks "x" on #4 pill
+  -> selectedInsightIds = ['1']
+  -> Back to single-insight view
+```
+
+## Files Summary
+
 | File | Action |
 |------|--------|
-| `src/pages/Dashboard.tsx` | Add `chatCollapsed` state, position map state, pass `activeInsightId` to ChatView, position dropdown in header |
-| `src/components/views/ChatView.tsx` | Accept `activeInsightId` prop, show contextual prompts, render `PositionCard` in messages, handle "Share This" callback |
-| `src/components/views/PositionCard.tsx` | New component -- renders the auto-generated position brief inline in chat |
-| `src/components/views/SignalDetailView.tsx` | Remove "Your Take" form section (lines 153-219), remove bottom "Share This" button, keep everything else |
-| `src/data/mock.ts` | Add `source_urls` to `MockSignal`, add `MockPosition` type and `MOCK_POSITIONS` data, add mock source URLs to each signal |
-| `src/data/mock-positions.ts` | Keep `InvestigationNote` type, remove `getDefaultAssumptions` (no longer needed for form) |
+| `src/data/mock.ts` | Add recommendation map, combined briefs, update MockPosition |
+| `src/pages/Dashboard.tsx` | selectedInsightIds array, add/remove handlers |
+| `src/components/views/ChatView.tsx` | InsightChip component, recommendation rendering, multi-insight context |
+| `src/components/views/SignalDetailView.tsx` | Multi-insight pills, merged signals, add/remove UI |
+| `src/components/views/PositionCard.tsx` | "Based on" field |
+| `src/components/views/ShareWizardView.tsx` | Accept insightIds array |
+| `src/components/views/ThreadView.tsx` | Accept insightIds array |
 
 No new dependencies.
 
-## Technical Detail
-
-### ChatView prop changes
-```
-interface ChatViewProps {
-  activeInsightId?: string | null;
-  onShare?: () => void;
-  chatCollapsed?: boolean;
-  onToggleCollapse?: () => void;
-}
-```
-
-When `activeInsightId` changes, ChatView appends a contextual AUO message scoped to that insight (mock). The placeholder text changes to "What's your read on this?" instead of "Ask AUO anything..."
-
-### Position map in Dashboard
-```
-const [positionNotes, setPositionNotes] = useState<Record<string, InvestigationNote>>({});
-```
-
-When user selects insight #1, check if `positionNotes['1']` exists. If not, start fresh. If yes, restore it. This preserves positions across navigation.
-
-### Mock source URLs
-```
-{
-  id: 'scan-003',
-  title: 'US Tariff Policy Creates 2026 Overhang...',
-  sources: 57,
-  credibility: 0.85,
-  source_urls: [
-    { title: 'Supreme Court Docket: Trade Policy Review', url: 'https://example.com/scotus', domain: 'supremecourt.gov' },
-    { title: 'Vietnam FOB Price Index Q1 2026', url: 'https://example.com/fob', domain: 'reuters.com' },
-  ],
-  ...
-}
-```
