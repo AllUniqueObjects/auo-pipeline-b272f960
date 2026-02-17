@@ -39,6 +39,32 @@ export interface MockPosition {
   createdAt: string;
 }
 
+export interface PositionSignal {
+  id: string;
+  insight_id: string;
+  title: string;
+  summary: string;
+  analysis_context: string[];
+  credibility: number;
+  sources: number;
+  source_url: string;
+  source: 'ambient' | 'on_demand';
+  comment_count: number;
+  created_at: string;
+}
+
+export interface PositionData {
+  id: string;
+  title: string;
+  tier: 'breaking' | 'developing' | 'established';
+  created_at: string;
+  davids_take: string;
+  insights_referenced: { id: string; title: string; tier: string }[];
+  signals: PositionSignal[];
+  sections: { id: string; title: string; content: string }[];
+  collaborators: { id: string; name: string; initials: string; color: string }[];
+}
+
 export interface MockEvidenceRef {
   number: string;
   signal_excerpt: string;
