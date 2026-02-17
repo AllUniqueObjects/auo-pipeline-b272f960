@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ChatView } from '@/components/views/ChatView';
@@ -7,8 +7,7 @@ import { InsightsView } from '@/components/views/InsightsView';
 import { SignalDetailView } from '@/components/views/SignalDetailView';
 import { ShareWizardView } from '@/components/views/ShareWizardView';
 import { ThreadView } from '@/components/views/ThreadView';
-import { type InvestigationNote, getDefaultAssumptions } from '@/data/mock-positions';
-import { MOCK_PROJECTS } from '@/data/mock';
+import { MOCK_PROJECTS, MOCK_POSITIONS } from '@/data/mock';
 
 type RightView = 'insights' | 'signal-detail' | 'share' | 'thread';
 
@@ -20,21 +19,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const isMobile = useIsMobile();
   const [rightView, setRightView] = useState<RightView>('insights');
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
-  const [investigationNote, setInvestigationNote] = useState<InvestigationNote | null>(null);
   const [activeProject, setActiveProject] = useState('p1');
-  const [showChat, setShowChat] = useState(true); // mobile toggle
+  const [showChat, setShowChat] = useState(true);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [showPositions, setShowPositions] = useState(false);
 
   const goToInsights = () => setRightView('insights');
   const goToSignalDetail = (id: string) => {
     setSelectedInsightId(id);
-    if (!investigationNote || investigationNote.insightId !== id) {
-      setInvestigationNote({
-        insightId: id,
-        userNotes: '',
-        assumptions: getDefaultAssumptions(id),
-        recommendedAction: '',
-      });
-    }
     setRightView('signal-detail');
     if (isMobile) setShowChat(false);
   };
@@ -77,10 +69,46 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             </button>
           ))}
         </div>
+
+        {/* Positions dropdown */}
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setShowPositions(!showPositions)}
+            className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          >
+            Positions ({MOCK_POSITIONS.length})
+            <ChevronDown className={cn('h-3 w-3 transition-transform', showPositions && 'rotate-180')} />
+          </button>
+          {showPositions && (
+            <div className="absolute right-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
+              {MOCK_POSITIONS.map(pos => (
+                <button
+                  key={pos.id}
+                  onClick={() => {
+                    goToSignalDetail(pos.insightId);
+                    setShowPositions(false);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="text-sm text-card-foreground">{pos.title}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={cn(
+                      'text-[10px] font-medium uppercase',
+                      pos.status === 'shared' ? 'text-primary' : 'text-muted-foreground'
+                    )}>
+                      {pos.status}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {isMobile && (
           <button
             onClick={() => setShowChat(!showChat)}
-            className="ml-auto px-3 py-1 rounded-full text-xs font-medium bg-accent text-foreground"
+            className="px-3 py-1 rounded-full text-xs font-medium bg-accent text-foreground"
           >
             {showChat ? 'Content' : 'Chat'}
           </button>
@@ -91,8 +119,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Chat */}
         {(!isMobile || showChat) && (
-          <div className={cn('flex flex-col border-r border-border', isMobile ? 'w-full' : 'w-[340px] flex-shrink-0')}>
-            <ChatView />
+          <div className={cn(
+            'flex flex-col border-r border-border transition-all duration-200',
+            isMobile ? 'w-full' : chatCollapsed ? 'w-12 flex-shrink-0' : 'w-[340px] flex-shrink-0'
+          )}>
+            <ChatView
+              activeInsightId={rightView === 'signal-detail' ? selectedInsightId : null}
+              onShare={goToShare}
+              chatCollapsed={!isMobile && chatCollapsed}
+              onToggleCollapse={!isMobile ? () => setChatCollapsed(!chatCollapsed) : undefined}
+            />
           </div>
         )}
 
@@ -109,9 +145,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               <SignalDetailView
                 insightId={selectedInsightId}
                 onBack={goBack}
-                onShare={goToShare}
-                note={investigationNote || undefined}
-                onUpdateNote={setInvestigationNote}
               />
             )}
             {rightView === 'share' && selectedInsightId && (
@@ -119,18 +152,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 insightId={selectedInsightId}
                 onBack={goBack}
                 onOpenThread={goToThread}
-                userNotes={investigationNote?.userNotes}
-                assumptions={investigationNote?.assumptions}
-                recommendedAction={investigationNote?.recommendedAction}
               />
             )}
             {rightView === 'thread' && selectedInsightId && (
               <ThreadView
                 insightId={selectedInsightId}
                 onBack={goBack}
-                userNotes={investigationNote?.userNotes}
-                assumptions={investigationNote?.assumptions}
-                recommendedAction={investigationNote?.recommendedAction}
               />
             )}
           </div>

@@ -1,9 +1,7 @@
 import { useState, useMemo } from 'react';
-import { ChevronRight, Share2, Pencil, Check } from 'lucide-react';
+import { ChevronRight, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOCK_INSIGHTS, MOCK_SIGNALS, MOCK_EVIDENCE_REFS } from '@/data/mock';
-import type { InvestigationNote, Assumption } from '@/data/mock-positions';
-import { Checkbox } from '@/components/ui/checkbox';
 
 const TIER_COLORS: Record<string, { badge: string; bg: string; border: string }> = {
   breaking: {
@@ -26,12 +24,9 @@ const TIER_COLORS: Record<string, { badge: string; bg: string; border: string }>
 interface SignalDetailViewProps {
   insightId: string;
   onBack: () => void;
-  onShare?: () => void;
-  note?: InvestigationNote;
-  onUpdateNote?: (note: InvestigationNote) => void;
 }
 
-export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNote }: SignalDetailViewProps) {
+export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
   const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const [showConvergence, setShowConvergence] = useState(false);
   const [showTierReasoning, setShowTierReasoning] = useState(false);
@@ -53,8 +48,6 @@ export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNot
 
   const tier = insight.tier;
   const colors = TIER_COLORS[tier] || TIER_COLORS.developing;
-
-  const hasNotes = note && (note.userNotes.trim() || note.recommendedAction.trim() || note.assumptions.some(a => a.checked));
 
   return (
     <div className="h-full overflow-y-auto px-4 py-6">
@@ -149,91 +142,6 @@ export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNot
             ))}
           </div>
         </CollapsibleSection>
-
-        {/* Your Take panel -- always visible */}
-        {note && onUpdateNote && (
-          <div className="mt-6 border-t border-border pt-6">
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-4">
-              <Pencil className="h-3.5 w-3.5" />
-              Your Take
-              {hasNotes && <Check className="h-3 w-3 text-primary" />}
-            </div>
-
-            <div className="space-y-5">
-              {/* Free-text reasoning */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  What's your read on this?
-                </label>
-                <textarea
-                  value={note.userNotes}
-                  onChange={e => onUpdateNote({ ...note, userNotes: e.target.value })}
-                  placeholder="Your reasoning, context, or gut read..."
-                  rows={3}
-                  className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
-                />
-              </div>
-
-              {/* Assumptions */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Key Assumptions
-                </label>
-                <div className="mt-2 space-y-2">
-                  {note.assumptions.map((a, i) => (
-                    <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
-                      <Checkbox
-                        checked={a.checked}
-                        onCheckedChange={(checked) => {
-                          const updated = [...note.assumptions];
-                          updated[i] = { ...updated[i], checked: !!checked };
-                          onUpdateNote({ ...note, assumptions: updated });
-                        }}
-                        className="mt-0.5"
-                      />
-                      <span className={cn(
-                        'text-sm leading-snug transition-colors',
-                        a.checked ? 'text-foreground' : 'text-muted-foreground'
-                      )}>
-                        {a.text}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recommended Action */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Recommended Action
-                </label>
-                <input
-                  type="text"
-                  value={note.recommendedAction}
-                  onChange={e => onUpdateNote({ ...note, recommendedAction: e.target.value })}
-                  placeholder="What should we do?"
-                  className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Share This CTA */}
-        {onShare && (
-          <div className="mt-8 mb-6">
-            <button
-              onClick={onShare}
-              className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-medium text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
-            >
-              <Share2 className="h-4 w-4" />
-              Share This
-            </button>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              {hasNotes ? 'Your reasoning will be included' : 'Add your take above to share with context'}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -274,10 +182,10 @@ function SignalCard({ signal, expanded, onToggle }: {
   const relTime = formatRelative(new Date(signal.created_at));
 
   return (
-    <button
+    <div
       onClick={onToggle}
       className={cn(
-        'text-left rounded-lg border bg-card p-4 transition-all duration-200 overflow-hidden',
+        'text-left rounded-lg border bg-card p-4 transition-all duration-200 overflow-hidden cursor-pointer',
         expanded
           ? 'border-ring/40 bg-accent/5 md:col-span-2'
           : 'border-border hover:border-muted-foreground/30'
@@ -306,15 +214,40 @@ function SignalCard({ signal, expanded, onToggle }: {
       </div>
 
       {expanded && (
-        <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>
-          {signal.analysis_context}
-        </p>
+        <>
+          <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>
+            {signal.analysis_context}
+          </p>
+
+          {/* Source links */}
+          {signal.source_urls.length > 0 && (
+            <div className="mt-3 pt-2.5 border-t border-border/50">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sources</span>
+              <div className="mt-1.5 space-y-1">
+                {signal.source_urls.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="flex items-center gap-2 text-xs text-foreground/70 hover:text-foreground transition-colors group"
+                  >
+                    <span className="text-muted-foreground text-[10px] font-mono flex-shrink-0">{src.domain}</span>
+                    <span className="truncate">{src.title}</span>
+                    <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <p className={cn('text-xs text-muted-foreground italic', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>
         {signal.nb_relevance}
       </p>
-    </button>
+    </div>
   );
 }
 
