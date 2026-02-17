@@ -75,10 +75,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               key={p.id}
               onClick={() => setActiveProject(p.id)}
               className={cn(
-                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150',
                 activeProject === p.id
-                  ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
               )}
             >
               {p.name}
