@@ -1,5 +1,6 @@
 export interface MockInsight {
   id: string;
+  projectId: string;
   title: string;
   tier: 'breaking' | 'developing' | 'established';
   category: string;
@@ -52,6 +53,7 @@ export interface MockChatMessage {
 export const MOCK_INSIGHTS: MockInsight[] = [
   {
     id: '1',
+    projectId: 'p1',
     title: 'Supreme Court Tariff Ruling Forces Maine Expansion Decision Before FW26 BOM Lock',
     tier: 'breaking',
     category: 'VIETNAM MANUFACTURING SQUEEZE',
@@ -65,6 +67,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '2',
+    projectId: 'p1',
     title: 'Foot Locker Leadership Vacuum Opens 60-Day 880 v15 Shelf Lock Window',
     tier: 'breaking',
     category: 'RETAIL SHELF COMPETITION',
@@ -78,6 +81,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '3',
+    projectId: 'p1',
     title: 'Consumer Price Resistance Hits Before Tariffs Land; 880 v15 Faces Dual-Compression',
     tier: 'breaking',
     category: 'RETAIL SHELF COMPETITION',
@@ -90,6 +94,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '4',
+    projectId: 'p2',
     title: 'Vietnam FOB Inflation Plus Tariff Risk Compresses 880 v15 Margin by 8-12 Points',
     tier: 'developing',
     category: 'VIETNAM MANUFACTURING SQUEEZE',
@@ -102,6 +107,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '5',
+    projectId: 'p3',
     title: "On's Automation Cost Edge Collides with CloudMonster Quality Crisis",
     tier: 'developing',
     category: 'COMPETITIVE TECHNOLOGY',
@@ -114,6 +120,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '6',
+    projectId: 'p2',
     title: 'Brooks $1B Ghost 16 Milestone Resets Neutral Cushion Shelf Hierarchy',
     tier: 'developing',
     category: 'RETAIL SHELF COMPETITION',
@@ -126,6 +133,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '7',
+    projectId: 'p3',
     title: "Anta's $1.8B Puma Investment Creates 574-Line Threat in 6-9 Month Window",
     tier: 'developing',
     category: 'COMPETITIVE TECHNOLOGY',
@@ -138,6 +146,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '8',
+    projectId: 'p3',
     title: 'ASICS-Saucony Copy NB Collaboration Playbook at 990v6 Price Band',
     tier: 'established',
     category: 'COMPETITIVE TECHNOLOGY',
@@ -150,6 +159,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
   },
   {
     id: '9',
+    projectId: 'p2',
     title: 'Salomon and Arc\'teryx Squeeze 574/990 Lifestyle Positioning',
     tier: 'established',
     category: 'COMPETITIVE TECHNOLOGY',

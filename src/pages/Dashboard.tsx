@@ -157,6 +157,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               <InsightsView
                 onSelectInsight={goToSignalDetail}
                 selectedInsightId={primaryInsightId || undefined}
+                activeProject={activeProject}
               />
             )}
             {rightView === 'signal-detail' && selectedInsightIds.length > 0 && (
