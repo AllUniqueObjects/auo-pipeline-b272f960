@@ -1,116 +1,81 @@
 
 
-# Rebuild Briefing Screen -- Light Theme with Filters
+# Unified Flow: Signal to Share (Mock UI)
 
 ## Overview
 
-Redesign the Briefing screen to match the screenshot reference: light background, cluster filter chips, redesigned insight cards with category labels and decision questions, temporal grouping dividers, and a chat input bar. All changes are UI-only with hardcoded mock data.
+Implement the 3-step speed-first flow entirely with mock data and frontend UI. No backend changes. The goal: David taps an insight card, investigates it (with inline note-taking), and shares it -- all as one connected journey.
 
----
+## What Changes
 
-## Visual Changes
+### 1. Add "Your Take" panel to Signal Detail
 
-**Theme**: White/light background replacing `#13131a`. Cards on subtle gray (`#f8f8fa`). Text in dark grays.
+In `SignalDetailView.tsx`, add a collapsible section below the evidence area where David can write his reasoning inline while investigating signals.
 
-**Layout (top to bottom)**:
-1. Top navigation bar: "Briefing" (active) | "Radar" tabs
-2. Horizontal cluster filter chips with colored dots and signal counts
-3. Temporal grouping headers (e.g., "EARLIER TODAY", "YESTERDAY")
-4. Redesigned insight cards
-5. Bottom chat input bar ("Ask AUO anything...")
+- Collapsible "Your Take" section with:
+  - Textarea: "What's your read on this?" (free-text reasoning)
+  - Editable assumption bullets (hardcoded 2-3 starter assumptions with checkboxes)
+  - One-line "Recommended Action" text input
+- "Share This" button in the hero section (next to tier badge) that navigates to Share view
+- State stored in component-level `useState` (no persistence needed for mock)
 
----
+### 2. Create lightweight mock notes store
 
-## File Changes
+New file `src/data/mock-positions.ts`:
 
-### 1. `src/index.css` -- Switch to light theme
+- `InvestigationNote` interface: `{ insightId, userNotes, assumptions: {text, checked}[], recommendedAction }`
+- No pre-filled data -- just the type definition and a simple in-memory map helper
+- Export a `useInvestigationNote(insightId)` custom hook that returns `[note, setNote]` using `useState`
 
-Update CSS custom properties to a light color scheme:
-- `--background`: white
-- `--foreground`: dark gray (`#1a1a2e`)
-- `--card`: light gray (`#f8f8fa`)
-- Keep DM Sans font
+### 3. Wire Share Wizard to include user reasoning
 
-### 2. `src/components/signals/InsightCard.tsx` -- Redesign card layout
+Update `ShareWizardView.tsx`:
 
-New card structure matching the screenshot:
-- **Top row**: Category label (colored uppercase text like "COMPETITIVE INTELLIGENCE") + signal/reference counts on the right ("4 signals, 12 refs")
-- **Title**: Bold, dark text, 17-18px
-- **Decision question**: Italicized, slightly lighter color, prefixed or styled distinctly
-- **Description**: 1-2 line summary in medium gray
-- White/light card background with subtle border, no left color bar
-- Add `decisionQuestion` field to `InsightData` interface (hardcoded for now)
+- Accept optional `userNotes`, `assumptions`, `recommendedAction` props
+- In the Review step, the generated message text includes a "David's Take" section with the user's reasoning, checked assumptions, and recommended action (when provided)
+- If no notes were written, the message stays as-is (current behavior)
 
-### 3. `src/components/signals/BriefingView.tsx` -- Full rebuild
+### 4. Wire Thread to show user reasoning in right panel
 
-Replace the dark conversational layout with:
+Update `ThreadView.tsx`:
 
-**Top Nav Bar**:
-- "AUO" logo left, "Briefing" and "Radar" tab buttons center/right
-- "Briefing" shown as active (underlined or bold)
-- "Radar" clickable but non-functional for now
+- Accept optional `userNotes`, `assumptions`, `recommendedAction` props
+- Add a "Shared Position" card at the top of the right panel (above the existing decision title) showing David's reasoning, assumptions, and recommended action
+- If no notes exist, the right panel renders exactly as it does today
 
-**Cluster Filter Chips**:
-- Horizontal row of pill-shaped chips
-- Each chip: colored dot + cluster name + signal count
-- "All" chip selected by default
-- Clicking a chip filters the cards below
-- State managed with `useState<string | null>` (null = all)
+### 5. Update Dashboard navigation to pass notes through
 
-**Temporal Grouping**:
-- Group insights by time buckets: "EARLIER TODAY", "YESTERDAY", "THIS WEEK"
-- Small uppercase gray divider text
-- For now, use mock timestamps since we're not connecting to DB
+Update `Dashboard.tsx`:
 
-**Insight Cards**:
-- Render filtered `InsightCard` components under their time groups
+- Add `investigationNote` state at the Dashboard level
+- Pass `onUpdateNote` callback to `SignalDetailView` so notes are stored
+- Pass note data to `ShareWizardView` and `ThreadView`
+- Pass `onShare` callback to `SignalDetailView` that navigates to the Share view
 
-**Chat Input Bar**:
-- Fixed or sticky at bottom
-- Text input with placeholder "Ask AUO anything..."
-- Send button icon on right
-- Non-functional (visual only)
+### 6. Context-aware ChatBar
 
-### 4. `src/components/signals/HighlightedText.tsx` -- Update colors for light theme
+Update `ChatBar.tsx`:
 
-Adjust highlight and legend colors to be visible on a white background (darker/more saturated versions of coral, sage, etc.)
+- Accept optional `contextInsightId` prop
+- When set, update placeholder to reference the insight topic (e.g., "Ask about Vietnam FOB situation...")
+- No functional change to chat logic -- just a visual hint
 
-### 5. `src/lib/clusterColors.ts` -- Adjust for light theme
+## File Summary
 
-Update cluster color values so dots and labels are legible on white backgrounds. Increase saturation of `text` colors.
+| File | Action |
+|------|--------|
+| `src/data/mock-positions.ts` | Create -- `InvestigationNote` type |
+| `src/components/views/SignalDetailView.tsx` | Edit -- Add "Your Take" panel + "Share This" button |
+| `src/components/views/ShareWizardView.tsx` | Edit -- Include user notes in generated message |
+| `src/components/views/ThreadView.tsx` | Edit -- Show shared position card in right panel |
+| `src/pages/Dashboard.tsx` | Edit -- Manage note state, wire props between views |
+| `src/components/views/ChatBar.tsx` | Edit -- Context-aware placeholder |
 
-### 6. `src/pages/Signals.tsx` -- Add mock data fallback
+## What Stays the Same
 
-Since we're not connecting to DB yet, add hardcoded mock insights with fields like `decisionQuestion`, `category`, `referenceCount`, and `createdAt` timestamps for temporal grouping. Pass these to `BriefingView` when real data is empty.
-
----
-
-## Mock Data Structure
-
-Each insight card will use:
-
-```text
-{
-  id, title, description,
-  decisionQuestion: "Should we accelerate our timeline...?",
-  category: "competitive" | "market" | "technology" | ...,
-  signalCount: 4,
-  referenceCount: 12,
-  createdAt: Date (for temporal grouping),
-  color: cluster color,
-  urgentCount
-}
-```
-
-3-5 mock insights spread across "EARLIER TODAY" and "YESTERDAY" groups.
-
----
-
-## Technical Notes
-
-- The `BriefingView` component will manage its own filter state (`activeCluster`)
-- Temporal grouping uses a helper function that buckets `createdAt` into "EARLIER TODAY", "YESTERDAY", "THIS WEEK"
-- The chat input is a presentational `<input>` with no submit handler
-- The "Radar" tab will be a no-op button for now
-- All existing navigation callbacks (`onSelectInsight`, `onShowFullGraph`) remain wired so clicking a card still navigates to the Insight Graph view
+- InsightsView (no changes)
+- All mock data in `src/data/mock.ts` and `src/data/mock-threads.ts`
+- Light theme CSS
+- All existing signal detail layout and styling
+- Chat view (main AUO chat)
 
