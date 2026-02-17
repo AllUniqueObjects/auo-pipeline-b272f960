@@ -1,35 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown, ChevronUp, MessageSquare, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MOCK_CHAT_MESSAGES, MOCK_INSIGHTS, INSIGHT_RECOMMENDATIONS, MULTI_POSITION_BRIEFS, type MockChatMessage } from '@/data/mock';
+import { MOCK_CHAT_MESSAGES, MOCK_INSIGHTS, INSIGHT_RECOMMENDATIONS, MULTI_POSITION_BRIEFS, MOCK_POSITION_BRIEFS, PROACTIVE_BRIEFINGS, type MockChatMessage } from '@/data/mock';
 import { PositionCard, type PositionBrief } from '@/components/views/PositionCard';
-
-const CONTEXTUAL_PROMPTS: Record<string, string> = {
-  '1': "You're looking at the Vietnam FOB decision. What's your initial read — lock at $18.40 or wait?",
-  '2': "You're looking at the 880 v15 shelf window. Should you lock Dick's placement now during leadership churn, or wait for Nike clarity?",
-  '3': "880 v15 pricing is on the table. $150 and absorb margin hit, or $165 and risk volume loss?",
-};
-
-const MOCK_POSITION_BRIEFS: Record<string, PositionBrief> = {
-  '1': {
-    title: 'Vietnam FOB Lock',
-    call: 'Lock at $18.40/pair before BOM deadline',
-    why: 'Asymmetric tariff risk too high to wait for Supreme Court clarity',
-    assumptions: ['Tariffs land at 20%+', 'Maine not ready for FW26', 'Supreme Court ruling comes after BOM lock'],
-  },
-  '2': {
-    title: '880 v15 Shelf Lock',
-    call: "Lock Dick's-Foot Locker placement within 60 days",
-    why: 'Leadership vacuum creates negotiation window that closes with March vendor reviews',
-    assumptions: ['Foot Locker leadership churn persists through March', "Nike wholesale flood hits Q2, not Q1"],
-  },
-  '3': {
-    title: '880 v15 Pricing Hold',
-    call: 'Hold at $150 with FuelCell differentiation messaging',
-    why: 'Premium positioning defensible with technology story; $165 risks volume collapse',
-    assumptions: ['Consumer price resistance peaks pre-tariff', 'FuelCell tech justifies $10 premium over Ghost 16'],
-  },
-};
 
 const TIER_DOT_COLORS: Record<string, string> = {
   breaking: 'bg-tier-breaking',
@@ -58,32 +31,46 @@ export function ChatView({ activeInsightIds = [], onAddInsight, onShare, chatCol
   const primaryInsightId = activeInsightIds[0] || null;
   const contextKey = [...activeInsightIds].sort().join(',');
 
-  // When activeInsightIds changes, inject a contextual prompt
+  // When activeInsightIds changes, inject a proactive briefing
   useEffect(() => {
     if (primaryInsightId && contextKey !== lastContextKey) {
       setLastContextKey(contextKey);
       setUserMsgCount(0);
 
-      if (activeInsightIds.length > 1) {
+      const briefing = PROACTIVE_BRIEFINGS[contextKey];
+      if (briefing) {
+        // Use the proactive briefing (may contain __INSIGHT_RECS__ inline)
+        const contextMsg: MockChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: briefing,
+        };
+        setMessages(prev => [...prev, contextMsg]);
+      } else if (activeInsightIds.length > 1) {
+        // Fallback for combos without a specific briefing
         const titles = activeInsightIds
           .map(id => MOCK_INSIGHTS.find(i => i.id === id)?.title?.slice(0, 30))
           .filter(Boolean);
         const contextMsg: MockChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `You're combining ${titles.join(' with ')}. What's the unified call?`,
+          content: `Interesting combination — ${titles.join(' and ')}. Let me map how these connect...\n\nI see overlapping signals here. What's driving your interest in combining these?`,
         };
         setMessages(prev => [...prev, contextMsg]);
       } else {
-        const prompt = CONTEXTUAL_PROMPTS[primaryInsightId];
-        if (prompt) {
-          const contextMsg: MockChatMessage = {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: prompt,
-          };
-          setMessages(prev => [...prev, contextMsg]);
+        // Fallback for single insights without a briefing
+        const insight = MOCK_INSIGHTS.find(i => i.id === primaryInsightId);
+        const recs = INSIGHT_RECOMMENDATIONS[primaryInsightId];
+        let content = `A few things worth knowing about ${insight?.title?.slice(0, 40)}...`;
+        if (recs) {
+          content += `\n\n__INSIGHT_RECS__${recs.join(',')}`;
         }
+        const contextMsg: MockChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content,
+        };
+        setMessages(prev => [...prev, contextMsg]);
       }
     }
   }, [contextKey, primaryInsightId]);
@@ -131,14 +118,11 @@ export function ChatView({ activeInsightIds = [], onAddInsight, onShare, chatCol
     const newCount = userMsgCount + 1;
     setUserMsgCount(newCount);
 
-    // Determine which brief to use
+    // Position card after 1 user message (since AUO already briefed proactively)
     const sortedIds = [...activeInsightIds].sort().join(',');
     const multiBrief = MULTI_POSITION_BRIEFS[sortedIds];
     const singleBrief = primaryInsightId ? MOCK_POSITION_BRIEFS[primaryInsightId] : null;
-    const shouldGeneratePosition = primaryInsightId && newCount >= 2 && (multiBrief || singleBrief);
-
-    // Should we recommend insights? (first message in single-insight context)
-    const shouldRecommend = primaryInsightId && newCount === 1 && activeInsightIds.length === 1 && INSIGHT_RECOMMENDATIONS[primaryInsightId];
+    const shouldGeneratePosition = primaryInsightId && newCount >= 1 && (multiBrief || singleBrief);
 
     setTimeout(() => {
       if (shouldGeneratePosition) {
@@ -146,14 +130,6 @@ export function ChatView({ activeInsightIds = [], onAddInsight, onShare, chatCol
           id: crypto.randomUUID(),
           role: 'assistant',
           content: '__POSITION_CARD__' + sortedIds,
-        };
-        setMessages(prev => [...prev, reply]);
-      } else if (shouldRecommend) {
-        const recIds = INSIGHT_RECOMMENDATIONS[primaryInsightId!];
-        const reply: MockChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `Got it. That connects to ${recIds.length} other insight${recIds.length > 1 ? 's' : ''} you should consider:\n\n__INSIGHT_RECS__${recIds.join(',')}\n\nAdding these would strengthen your position with broader context. What assumptions are you making?`,
         };
         setMessages(prev => [...prev, reply]);
       } else {

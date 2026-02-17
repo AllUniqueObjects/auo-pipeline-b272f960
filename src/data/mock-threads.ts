@@ -158,23 +158,39 @@ export const MOCK_QUICK_QUESTIONS = [
 export function generateShareMessage(
   recipientLabel: string,
   intentLabel: string,
-  decisionTitle: string,
+  brief?: { title: string; sections: { label: string; content: string; items?: string[] }[] },
 ): string {
-  return `Subject: Decision thread: ${decisionTitle.slice(0, 50)}...
+  if (!brief) {
+    return `Hey ${recipientLabel},
+
+I've been working through a strategic decision and put together a recommendation I'd like to share with you.
+
+I'd love to get your take before we move forward.
+
+— David`;
+  }
+
+  let sectionsText = '';
+  for (const section of brief.sections) {
+    sectionsText += `\n${section.label.toUpperCase()}\n`;
+    if (section.content) {
+      sectionsText += `${section.content}\n`;
+    }
+    if (section.items && section.items.length > 0) {
+      for (const item of section.items) {
+        sectionsText += `• ${item}\n`;
+      }
+    }
+  }
+
+  return `Subject: Decision thread: ${brief.title}
 
 Hey ${recipientLabel},
 
 I've been working through a strategic decision and put together a recommendation I'd like to share with you.
 
-POSITION
-${decisionTitle}
-
-The thread includes:
-• Full evidence and sources backing the recommendation
-• Trade-offs we're accepting vs. deferring
-• Break conditions we should monitor
-• Space for us to discuss and align
-
+POSITION: ${brief.title}
+${sectionsText}
 I'd love to get your take before we move forward.
 
 — David`;
