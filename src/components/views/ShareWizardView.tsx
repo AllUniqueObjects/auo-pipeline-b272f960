@@ -22,9 +22,12 @@ interface ShareWizardViewProps {
   insightId: string;
   onBack: () => void;
   onOpenThread: () => void;
+  userNotes?: string;
+  assumptions?: { text: string; checked: boolean }[];
+  recommendedAction?: string;
 }
 
-export function ShareWizardView({ insightId, onBack, onOpenThread }: ShareWizardViewProps) {
+export function ShareWizardView({ insightId, onBack, onOpenThread, userNotes, assumptions, recommendedAction }: ShareWizardViewProps) {
   const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const [step, setStep] = useState<Step>('recipient');
   const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
@@ -39,7 +42,27 @@ export function ShareWizardView({ insightId, onBack, onOpenThread }: ShareWizard
   const intentLabel = INTENT_OPTIONS.find(i => i.id === selectedIntent)?.label || '';
   const decisionTitle = insight?.title || '';
 
-  const messageText = generateShareMessage(recipientLabel, intentLabel, decisionTitle);
+  let messageText = generateShareMessage(recipientLabel, intentLabel, decisionTitle);
+
+  // Append David's Take if notes exist
+  const hasUserContext = userNotes?.trim() || recommendedAction?.trim() || assumptions?.some(a => a.checked);
+  if (hasUserContext) {
+    let takeSection = '\n\n---\n**David\'s Take**\n';
+    if (userNotes?.trim()) {
+      takeSection += `\n${userNotes.trim()}\n`;
+    }
+    const checkedAssumptions = assumptions?.filter(a => a.checked);
+    if (checkedAssumptions && checkedAssumptions.length > 0) {
+      takeSection += '\nKey assumptions:\n';
+      checkedAssumptions.forEach(a => {
+        takeSection += `• ${a.text}\n`;
+      });
+    }
+    if (recommendedAction?.trim()) {
+      takeSection += `\nRecommended action: ${recommendedAction.trim()}`;
+    }
+    messageText += takeSection;
+  }
 
   const canProceed = () => {
     if (step === 'recipient') return !!selectedRecipient;

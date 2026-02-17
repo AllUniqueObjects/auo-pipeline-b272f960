@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Share2, Pencil, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOCK_INSIGHTS, MOCK_SIGNALS, MOCK_EVIDENCE_REFS } from '@/data/mock';
+import type { InvestigationNote, Assumption } from '@/data/mock-positions';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const TIER_COLORS: Record<string, { badge: string; bg: string; border: string }> = {
   breaking: {
@@ -24,13 +26,17 @@ const TIER_COLORS: Record<string, { badge: string; bg: string; border: string }>
 interface SignalDetailViewProps {
   insightId: string;
   onBack: () => void;
+  onShare?: () => void;
+  note?: InvestigationNote;
+  onUpdateNote?: (note: InvestigationNote) => void;
 }
 
-export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
+export function SignalDetailView({ insightId, onBack, onShare, note, onUpdateNote }: SignalDetailViewProps) {
   const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const [showConvergence, setShowConvergence] = useState(false);
   const [showTierReasoning, setShowTierReasoning] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  const [showYourTake, setShowYourTake] = useState(false);
   const [expandedSignalId, setExpandedSignalId] = useState<string | null>(null);
 
   const signals = useMemo(() => {
@@ -49,18 +55,31 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
   const tier = insight.tier;
   const colors = TIER_COLORS[tier] || TIER_COLORS.developing;
 
+  const hasNotes = note && (note.userNotes.trim() || note.recommendedAction.trim() || note.assumptions.some(a => a.checked));
+
   return (
     <div className="h-full overflow-y-auto px-4 py-6 pb-20">
       <div className="max-w-3xl mx-auto">
         {/* Hero */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize whitespace-nowrap', colors.badge)}>
-              {tier}
-            </span>
-            <span className="text-xs text-muted-foreground uppercase tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
-              {insight.category}
-            </span>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize whitespace-nowrap', colors.badge)}>
+                {tier}
+              </span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
+                {insight.category}
+              </span>
+            </div>
+            {onShare && (
+              <button
+                onClick={onShare}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors flex-shrink-0"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Share This
+              </button>
+            )}
           </div>
 
           <h1 className="text-xl font-bold text-foreground leading-tight mb-4 line-clamp-3">
@@ -140,6 +159,81 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
             ))}
           </div>
         </CollapsibleSection>
+
+        {/* Your Take panel */}
+        {note && onUpdateNote && (
+          <div className="mt-6 border-t border-border pt-6">
+            <button
+              onClick={() => setShowYourTake(!showYourTake)}
+              className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-foreground/80 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Your Take
+              {hasNotes && <Check className="h-3 w-3 text-primary" />}
+              <ChevronRight className={cn('h-3.5 w-3.5 transition-transform ml-1', showYourTake && 'rotate-90')} />
+            </button>
+
+            {showYourTake && (
+              <div className="mt-4 space-y-5">
+                {/* Free-text reasoning */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    What's your read on this?
+                  </label>
+                  <textarea
+                    value={note.userNotes}
+                    onChange={e => onUpdateNote({ ...note, userNotes: e.target.value })}
+                    placeholder="Your reasoning, context, or gut read..."
+                    rows={3}
+                    className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+                  />
+                </div>
+
+                {/* Assumptions */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Key Assumptions
+                  </label>
+                  <div className="mt-2 space-y-2">
+                    {note.assumptions.map((a, i) => (
+                      <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
+                        <Checkbox
+                          checked={a.checked}
+                          onCheckedChange={(checked) => {
+                            const updated = [...note.assumptions];
+                            updated[i] = { ...updated[i], checked: !!checked };
+                            onUpdateNote({ ...note, assumptions: updated });
+                          }}
+                          className="mt-0.5"
+                        />
+                        <span className={cn(
+                          'text-sm leading-snug transition-colors',
+                          a.checked ? 'text-foreground' : 'text-muted-foreground'
+                        )}>
+                          {a.text}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recommended Action */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Recommended Action
+                  </label>
+                  <input
+                    type="text"
+                    value={note.recommendedAction}
+                    onChange={e => onUpdateNote({ ...note, recommendedAction: e.target.value })}
+                    placeholder="What should we do?"
+                    className="mt-2 w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
