@@ -1,81 +1,104 @@
 
 
-# Unified Flow: Signal to Share (Mock UI)
+# Mock Frontend UI Flow -- Implementation Plan
 
-## Overview
+## What We're Building
 
-Implement the 3-step speed-first flow entirely with mock data and frontend UI. No backend changes. The goal: David taps an insight card, investigates it (with inline note-taking), and shares it -- all as one connected journey.
+A simple split layout with persistent chat on the left, dynamic content on the right, and a clean Read-Think-Act flow in Signal Detail.
 
-## What Changes
+## Layout
 
-### 1. Add "Your Take" panel to Signal Detail
+```text
++----------------------------------------------------------+
+|  [AUO]   [NB 880 Pipeline] [Q2 Strategy] [Competitive]   |
++-------------------+--------------------------------------+
+|                   |                                      |
+|  Chat with AUO    |  Insights / Signal Detail /          |
+|  (always here)    |  Share Wizard / Thread               |
+|                   |                                      |
+|  [expandable      |                                      |
+|   textarea input] |                                      |
++-------------------+--------------------------------------+
+```
 
-In `SignalDetailView.tsx`, add a collapsible section below the evidence area where David can write his reasoning inline while investigating signals.
+## Right Panel Flow
 
-- Collapsible "Your Take" section with:
-  - Textarea: "What's your read on this?" (free-text reasoning)
-  - Editable assumption bullets (hardcoded 2-3 starter assumptions with checkboxes)
-  - One-line "Recommended Action" text input
-- "Share This" button in the hero section (next to tier badge) that navigates to Share view
-- State stored in component-level `useState` (no persistence needed for mock)
+```text
+Insights --> Signal Detail --> Share Wizard --> Thread
+                (read)
+              (think: Your Take -- always visible)
+                (act: Share This button at bottom)
+```
 
-### 2. Create lightweight mock notes store
+Back button steps one level up at each stage.
 
-New file `src/data/mock-positions.ts`:
+## Changes by File
 
-- `InvestigationNote` interface: `{ insightId, userNotes, assumptions: {text, checked}[], recommendedAction }`
-- No pre-filled data -- just the type definition and a simple in-memory map helper
-- Export a `useInvestigationNote(insightId)` custom hook that returns `[note, setNote]` using `useState`
+### 1. Dashboard.tsx -- Rewrite to split layout
 
-### 3. Wire Share Wizard to include user reasoning
+- Left panel: `w-[340px] border-r`, always renders `ChatView`
+- Right panel: `flex-1`, controlled by `rightView` state (`'insights' | 'signal-detail' | 'share' | 'thread'`)
+- Default right panel view: Insights list
+- Header: AUO logo + 3 mock project pills + back button when deeper than insights
+- Mobile (`useIsMobile()`): single panel toggle between left and right
+- Keep existing `investigationNote` state management here, pass to child views
 
-Update `ShareWizardView.tsx`:
+### 2. ChatView.tsx -- Sidebar adaptation + expandable input
 
-- Accept optional `userNotes`, `assumptions`, `recommendedAction` props
-- In the Review step, the generated message text includes a "David's Take" section with the user's reasoning, checked assumptions, and recommended action (when provided)
-- If no notes were written, the message stays as-is (current behavior)
+- Remove `max-w-2xl mx-auto` from messages and input containers
+- Replace `<input>` with auto-expanding `<textarea>`:
+  - `rows={1}`, auto-grows via `scrollHeight` measurement up to ~120px (5 lines)
+  - Resets to single line on send
+  - Small collapse/expand toggle button (ChevronDown/ChevronUp) next to send
+  - `Shift+Enter` for newline, `Enter` to send
+  - `items-end` on the flex row so send button stays bottom-aligned
 
-### 4. Wire Thread to show user reasoning in right panel
+### 3. InsightsView.tsx -- Clean up for right panel
 
-Update `ThreadView.tsx`:
+- Remove `pb-14` (no more ChatBar overlay)
+- Remove `max-w-5xl mx-auto`
+- Add optional `selectedInsightId` prop with active card highlight (`bg-accent/50`)
 
-- Accept optional `userNotes`, `assumptions`, `recommendedAction` props
-- Add a "Shared Position" card at the top of the right panel (above the existing decision title) showing David's reasoning, assumptions, and recommended action
-- If no notes exist, the right panel renders exactly as it does today
+### 4. SignalDetailView.tsx -- Read-Think-Act flow
 
-### 5. Update Dashboard navigation to pass notes through
+- Remove "Share This" button from hero section (lines 74-82)
+- Remove `showYourTake` state and collapsible toggle -- Your Take section is always visible (no click to expand)
+- Keep Pencil icon + "Your Take" heading as a label, remove chevron
+- Add full-width primary "Share This" button at the very bottom, below Your Take
+- Dynamic subtitle: "Your reasoning will be included" vs "Add your take above to share with context"
+- Remove `pb-20` and `max-w-3xl mx-auto`
 
-Update `Dashboard.tsx`:
+### 5. ShareWizardView.tsx -- Minor cleanup
 
-- Add `investigationNote` state at the Dashboard level
-- Pass `onUpdateNote` callback to `SignalDetailView` so notes are stored
-- Pass note data to `ShareWizardView` and `ThreadView`
-- Pass `onShare` callback to `SignalDetailView` that navigates to the Share view
+- Remove `pb-20` and `max-w-2xl mx-auto`
 
-### 6. Context-aware ChatBar
+### 6. ThreadView.tsx -- Minor cleanup
 
-Update `ChatBar.tsx`:
+- Remove `pb-20` if present
+- Its existing internal split (400px discussion + flex-1 evidence) works inside the right panel
 
-- Accept optional `contextInsightId` prop
-- When set, update placeholder to reference the insight topic (e.g., "Ask about Vietnam FOB situation...")
-- No functional change to chat logic -- just a visual hint
+### 7. ChatBar.tsx -- Delete
 
-## File Summary
+No longer needed. Chat lives permanently in the left panel.
+
+### 8. mock.ts -- Add MOCK_PROJECTS
+
+```text
+3 items: "NB 880 Pipeline", "Q2 Strategy", "Competitive Intel"
+```
+
+## Files Summary
 
 | File | Action |
 |------|--------|
-| `src/data/mock-positions.ts` | Create -- `InvestigationNote` type |
-| `src/components/views/SignalDetailView.tsx` | Edit -- Add "Your Take" panel + "Share This" button |
-| `src/components/views/ShareWizardView.tsx` | Edit -- Include user notes in generated message |
-| `src/components/views/ThreadView.tsx` | Edit -- Show shared position card in right panel |
-| `src/pages/Dashboard.tsx` | Edit -- Manage note state, wire props between views |
-| `src/components/views/ChatBar.tsx` | Edit -- Context-aware placeholder |
+| `src/pages/Dashboard.tsx` | Rewrite to split layout |
+| `src/components/views/ChatView.tsx` | Remove centering, expandable textarea input |
+| `src/components/views/InsightsView.tsx` | Remove padding/max-width, add active state |
+| `src/components/views/SignalDetailView.tsx` | Always-visible Your Take, bottom Share CTA, remove top Share button |
+| `src/components/views/ShareWizardView.tsx` | Remove padding/max-width |
+| `src/components/views/ThreadView.tsx` | Remove padding if needed |
+| `src/components/views/ChatBar.tsx` | Delete |
+| `src/data/mock.ts` | Add MOCK_PROJECTS |
 
-## What Stays the Same
-
-- InsightsView (no changes)
-- All mock data in `src/data/mock.ts` and `src/data/mock-threads.ts`
-- Light theme CSS
-- All existing signal detail layout and styling
-- Chat view (main AUO chat)
+No new dependencies.
 
