@@ -18,15 +18,17 @@ interface DashboardProps {
 export default function Dashboard({ onLogout }: DashboardProps) {
   const isMobile = useIsMobile();
   const [rightView, setRightView] = useState<RightView>('insights');
-  const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
+  const [selectedInsightIds, setSelectedInsightIds] = useState<string[]>([]);
   const [activeProject, setActiveProject] = useState('p1');
   const [showChat, setShowChat] = useState(true);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [showPositions, setShowPositions] = useState(false);
 
+  const primaryInsightId = selectedInsightIds[0] || null;
+
   const goToInsights = () => setRightView('insights');
   const goToSignalDetail = (id: string) => {
-    setSelectedInsightId(id);
+    setSelectedInsightIds([id]);
     setRightView('signal-detail');
     if (isMobile) setShowChat(false);
   };
@@ -36,6 +38,20 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     if (rightView === 'thread') setRightView('share');
     else if (rightView === 'share') setRightView('signal-detail');
     else if (rightView === 'signal-detail') setRightView('insights');
+  };
+
+  const handleAddInsight = (id: string) => {
+    setSelectedInsightIds(prev => prev.includes(id) ? prev : [...prev, id]);
+  };
+
+  const handleRemoveInsight = (id: string) => {
+    setSelectedInsightIds(prev => {
+      const next = prev.filter(i => i !== id);
+      if (next.length === 0) {
+        setRightView('insights');
+      }
+      return next;
+    });
   };
 
   const showBackButton = rightView !== 'insights';
@@ -85,7 +101,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 <button
                   key={pos.id}
                   onClick={() => {
-                    goToSignalDetail(pos.insightId);
+                    setSelectedInsightIds(pos.insightIds || [pos.insightId]);
+                    setRightView('signal-detail');
                     setShowPositions(false);
                   }}
                   className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
@@ -124,7 +141,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             isMobile ? 'w-full' : chatCollapsed ? 'w-12 flex-shrink-0' : 'w-[340px] flex-shrink-0'
           )}>
             <ChatView
-              activeInsightId={rightView === 'signal-detail' ? selectedInsightId : null}
+              activeInsightIds={rightView === 'signal-detail' ? selectedInsightIds : []}
+              onAddInsight={handleAddInsight}
               onShare={goToShare}
               chatCollapsed={!isMobile && chatCollapsed}
               onToggleCollapse={!isMobile ? () => setChatCollapsed(!chatCollapsed) : undefined}
@@ -138,25 +156,27 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             {rightView === 'insights' && (
               <InsightsView
                 onSelectInsight={goToSignalDetail}
-                selectedInsightId={selectedInsightId || undefined}
+                selectedInsightId={primaryInsightId || undefined}
               />
             )}
-            {rightView === 'signal-detail' && selectedInsightId && (
+            {rightView === 'signal-detail' && selectedInsightIds.length > 0 && (
               <SignalDetailView
-                insightId={selectedInsightId}
+                insightIds={selectedInsightIds}
                 onBack={goBack}
+                onAddInsight={handleAddInsight}
+                onRemoveInsight={handleRemoveInsight}
               />
             )}
-            {rightView === 'share' && selectedInsightId && (
+            {rightView === 'share' && primaryInsightId && (
               <ShareWizardView
-                insightId={selectedInsightId}
+                insightIds={selectedInsightIds}
                 onBack={goBack}
                 onOpenThread={goToThread}
               />
             )}
-            {rightView === 'thread' && selectedInsightId && (
+            {rightView === 'thread' && primaryInsightId && (
               <ThreadView
-                insightId={selectedInsightId}
+                insightIds={selectedInsightIds}
                 onBack={goBack}
               />
             )}

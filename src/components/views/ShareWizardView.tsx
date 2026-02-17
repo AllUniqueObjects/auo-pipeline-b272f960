@@ -19,7 +19,7 @@ const STEPS: { key: Step; label: string; icon: React.ReactNode }[] = [
 ];
 
 interface ShareWizardViewProps {
-  insightId: string;
+  insightIds: string[];
   onBack: () => void;
   onOpenThread: () => void;
   userNotes?: string;
@@ -27,7 +27,8 @@ interface ShareWizardViewProps {
   recommendedAction?: string;
 }
 
-export function ShareWizardView({ insightId, onBack, onOpenThread, userNotes, assumptions, recommendedAction }: ShareWizardViewProps) {
+export function ShareWizardView({ insightIds, onBack, onOpenThread, userNotes, assumptions, recommendedAction }: ShareWizardViewProps) {
+  const insightId = insightIds[0];
   const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const [step, setStep] = useState<Step>('recipient');
   const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
