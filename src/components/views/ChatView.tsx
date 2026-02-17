@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown, ChevronUp, MessageSquare, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MOCK_CHAT_MESSAGES, MOCK_INSIGHTS, type MockChatMessage } from '@/data/mock';
+import { MOCK_CHAT_MESSAGES, MOCK_INSIGHTS, INSIGHT_RECOMMENDATIONS, MULTI_POSITION_BRIEFS, type MockChatMessage } from '@/data/mock';
 import { PositionCard, type PositionBrief } from '@/components/views/PositionCard';
 
-// Mock contextual prompts per insight
 const CONTEXTUAL_PROMPTS: Record<string, string> = {
   '1': "You're looking at the Vietnam FOB decision. What's your initial read — lock at $18.40 or wait?",
   '2': "You're looking at the 880 v15 shelf window. Should you lock Dick's placement now during leadership churn, or wait for Nike clarity?",
@@ -32,39 +31,62 @@ const MOCK_POSITION_BRIEFS: Record<string, PositionBrief> = {
   },
 };
 
+const TIER_DOT_COLORS: Record<string, string> = {
+  breaking: 'bg-tier-breaking',
+  developing: 'bg-tier-developing',
+  established: 'bg-tier-established',
+};
+
 interface ChatViewProps {
-  activeInsightId?: string | null;
+  activeInsightIds?: string[];
+  onAddInsight?: (id: string) => void;
   onShare?: () => void;
   chatCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
 
-export function ChatView({ activeInsightId, onShare, chatCollapsed, onToggleCollapse }: ChatViewProps) {
+export function ChatView({ activeInsightIds = [], onAddInsight, onShare, chatCollapsed, onToggleCollapse }: ChatViewProps) {
   const [messages, setMessages] = useState<MockChatMessage[]>(MOCK_CHAT_MESSAGES);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [inputExpanded, setInputExpanded] = useState(true);
   const [userMsgCount, setUserMsgCount] = useState(0);
-  const [lastContextInsightId, setLastContextInsightId] = useState<string | null>(null);
+  const [lastContextKey, setLastContextKey] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // When activeInsightId changes, inject a contextual prompt
+  const primaryInsightId = activeInsightIds[0] || null;
+  const contextKey = activeInsightIds.sort().join(',');
+
+  // When activeInsightIds changes, inject a contextual prompt
   useEffect(() => {
-    if (activeInsightId && activeInsightId !== lastContextInsightId) {
-      setLastContextInsightId(activeInsightId);
+    if (primaryInsightId && contextKey !== lastContextKey) {
+      setLastContextKey(contextKey);
       setUserMsgCount(0);
-      const prompt = CONTEXTUAL_PROMPTS[activeInsightId];
-      if (prompt) {
+
+      if (activeInsightIds.length > 1) {
+        const titles = activeInsightIds
+          .map(id => MOCK_INSIGHTS.find(i => i.id === id)?.title?.slice(0, 30))
+          .filter(Boolean);
         const contextMsg: MockChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: prompt,
+          content: `You're combining ${titles.join(' with ')}. What's the unified call?`,
         };
         setMessages(prev => [...prev, contextMsg]);
+      } else {
+        const prompt = CONTEXTUAL_PROMPTS[primaryInsightId];
+        if (prompt) {
+          const contextMsg: MockChatMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: prompt,
+          };
+          setMessages(prev => [...prev, contextMsg]);
+        }
       }
     }
-  }, [activeInsightId, lastContextInsightId]);
+  }, [contextKey, primaryInsightId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -109,22 +131,36 @@ export function ChatView({ activeInsightId, onShare, chatCollapsed, onToggleColl
     const newCount = userMsgCount + 1;
     setUserMsgCount(newCount);
 
-    // If we're in an active insight context and user has sent 2+ messages, generate position card
-    const shouldGeneratePosition = activeInsightId && newCount >= 2 && MOCK_POSITION_BRIEFS[activeInsightId];
+    // Determine which brief to use
+    const sortedIds = [...activeInsightIds].sort().join(',');
+    const multiBrief = MULTI_POSITION_BRIEFS[sortedIds];
+    const singleBrief = primaryInsightId ? MOCK_POSITION_BRIEFS[primaryInsightId] : null;
+    const shouldGeneratePosition = primaryInsightId && newCount >= 2 && (multiBrief || singleBrief);
+
+    // Should we recommend insights? (first message in single-insight context)
+    const shouldRecommend = primaryInsightId && newCount === 1 && activeInsightIds.length === 1 && INSIGHT_RECOMMENDATIONS[primaryInsightId];
 
     setTimeout(() => {
       if (shouldGeneratePosition) {
         const reply: MockChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: '__POSITION_CARD__' + activeInsightId,
+          content: '__POSITION_CARD__' + sortedIds,
+        };
+        setMessages(prev => [...prev, reply]);
+      } else if (shouldRecommend) {
+        const recIds = INSIGHT_RECOMMENDATIONS[primaryInsightId!];
+        const reply: MockChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Got it. That connects to ${recIds.length} other insight${recIds.length > 1 ? 's' : ''} you should consider:\n\n__INSIGHT_RECS__${recIds.join(',')}\n\nAdding these would strengthen your position with broader context. What assumptions are you making?`,
         };
         setMessages(prev => [...prev, reply]);
       } else {
         const reply: MockChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: activeInsightId
+          content: primaryInsightId
             ? "Got it. What assumptions are you making about this?"
             : "I'll pull the relevant signals on that. Give me a moment to cross-reference the latest data points.",
         };
@@ -141,16 +177,12 @@ export function ChatView({ activeInsightId, onShare, chatCollapsed, onToggleColl
     }
   };
 
-  const placeholder = activeInsightId ? "What's your read on this?" : 'Ask AUO anything...';
+  const placeholder = primaryInsightId ? "What's your read on this?" : 'Ask AUO anything...';
 
-  // Collapsed state
   if (chatCollapsed) {
     return (
       <div className="flex flex-col items-center py-4 w-12">
-        <button
-          onClick={onToggleCollapse}
-          className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-        >
+        <button onClick={onToggleCollapse} className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors">
           <ChevronRightIcon className="h-4 w-4" />
         </button>
         <div className="mt-4 flex flex-col items-center">
@@ -160,47 +192,93 @@ export function ChatView({ activeInsightId, onShare, chatCollapsed, onToggleColl
     );
   }
 
+  const renderMessageContent = (msg: MockChatMessage) => {
+    if (msg.role !== 'assistant') return <MessageBubble key={msg.id} message={msg} />;
+
+    // Position card
+    if (msg.content.startsWith('__POSITION_CARD__')) {
+      const idsKey = msg.content.replace('__POSITION_CARD__', '');
+      const brief = MULTI_POSITION_BRIEFS[idsKey] || MOCK_POSITION_BRIEFS[idsKey];
+      if (brief) {
+        const briefWithBasedOn: PositionBrief = {
+          ...brief,
+          basedOn: idsKey.includes(',') ? idsKey.split(',') : [idsKey],
+        };
+        return (
+          <div key={msg.id} className="flex justify-start">
+            <div className="max-w-[95%]">
+              <p className="text-xs text-muted-foreground mb-2">Clear. Here's your position brief:</p>
+              <PositionCard brief={briefWithBasedOn} onShare={onShare} />
+            </div>
+          </div>
+        );
+      }
+    }
+
+    // Insight recommendations
+    if (msg.content.includes('__INSIGHT_RECS__')) {
+      const parts = msg.content.split('__INSIGHT_RECS__');
+      const beforeText = parts[0];
+      const afterParts = parts[1].split('\n\n');
+      const recIdsStr = afterParts[0];
+      const afterText = afterParts.slice(1).join('\n\n');
+      const recIds = recIdsStr.split(',');
+
+      return (
+        <div key={msg.id} className="flex justify-start">
+          <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed bg-card border border-border text-card-foreground">
+            <MarkdownLite text={beforeText} />
+            <div className="flex flex-wrap gap-2 my-3">
+              {recIds.map(id => {
+                const insight = MOCK_INSIGHTS.find(i => i.id === id);
+                if (!insight) return null;
+                const alreadyAdded = activeInsightIds.includes(id);
+                return (
+                  <button
+                    key={id}
+                    onClick={() => !alreadyAdded && onAddInsight?.(id)}
+                    disabled={alreadyAdded}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all text-xs',
+                      alreadyAdded
+                        ? 'border-primary/30 bg-primary/5 opacity-60 cursor-default'
+                        : 'border-border hover:border-ring/40 hover:bg-accent/50 cursor-pointer'
+                    )}
+                  >
+                    <span className={cn('h-2 w-2 rounded-full flex-shrink-0', TIER_DOT_COLORS[insight.tier] || 'bg-muted-foreground')} />
+                    <span className="text-card-foreground line-clamp-1">{insight.title.slice(0, 40)}...</span>
+                    {alreadyAdded && <span className="text-[10px] text-primary">Added</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {afterText && <MarkdownLite text={afterText} />}
+          </div>
+        </div>
+      );
+    }
+
+    return <MessageBubble key={msg.id} message={msg} />;
+  };
+
   return (
     <div className="flex flex-col h-full">
-      {/* Collapse toggle */}
       {onToggleCollapse && (
         <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Chat</span>
-          <button
-            onClick={onToggleCollapse}
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-          >
+          <button onClick={onToggleCollapse} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors">
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="space-y-4">
-          {messages.map(msg => {
-            // Check for position card marker
-            if (msg.role === 'assistant' && msg.content.startsWith('__POSITION_CARD__')) {
-              const insightId = msg.content.replace('__POSITION_CARD__', '');
-              const brief = MOCK_POSITION_BRIEFS[insightId];
-              if (brief) {
-                return (
-                  <div key={msg.id} className="flex justify-start">
-                    <div className="max-w-[95%]">
-                      <p className="text-xs text-muted-foreground mb-2">Clear. Here's your position brief:</p>
-                      <PositionCard brief={brief} onShare={onShare} />
-                    </div>
-                  </div>
-                );
-              }
-            }
-            return <MessageBubble key={msg.id} message={msg} />;
-          })}
+          {messages.map(msg => renderMessageContent(msg))}
           {typing && <TypingIndicator />}
         </div>
       </div>
 
-      {/* Input */}
       <div className="flex-shrink-0 border-t border-border px-4 py-3">
         <div className="flex items-end gap-2">
           <textarea
@@ -213,17 +291,10 @@ export function ChatView({ activeInsightId, onShare, chatCollapsed, onToggleColl
             className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none overflow-y-auto"
             style={{ maxHeight: inputExpanded ? '120px' : '38px' }}
           />
-          <button
-            onClick={() => setInputExpanded(!inputExpanded)}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-          >
+          <button onClick={() => setInputExpanded(!inputExpanded)} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors">
             {inputExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </button>
-          <button
-            onClick={handleSend}
-            disabled={!input.trim()}
-            className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40"
-          >
+          <button onClick={handleSend} disabled={!input.trim()} className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40">
             <Send className="h-4 w-4" />
           </button>
         </div>
@@ -234,17 +305,12 @@ export function ChatView({ activeInsightId, onShare, chatCollapsed, onToggleColl
 
 function MessageBubble({ message }: { message: MockChatMessage }) {
   const isUser = message.role === 'user';
-
   return (
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
-      <div
-        className={cn(
-          'max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words',
-          isUser
-            ? 'bg-accent text-accent-foreground'
-            : 'bg-card border border-border text-card-foreground'
-        )}
-      >
+      <div className={cn(
+        'max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words',
+        isUser ? 'bg-accent text-accent-foreground' : 'bg-card border border-border text-card-foreground'
+      )}>
         <MarkdownLite text={message.content} />
       </div>
     </div>
@@ -264,14 +330,8 @@ export function MarkdownLite({ text }: { text: string }) {
           }
           return <span key={j}>{part}</span>;
         });
-
         if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
-          return (
-            <div key={i} className="flex gap-2 pl-1">
-              <span className="text-muted-foreground">•</span>
-              <span>{rendered}</span>
-            </div>
-          );
+          return (<div key={i} className="flex gap-2 pl-1"><span className="text-muted-foreground">•</span><span>{rendered}</span></div>);
         }
         if (!line.trim()) return <div key={i} className="h-2" />;
         return <p key={i}>{rendered}</p>;

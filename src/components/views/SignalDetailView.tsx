@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronRight, ExternalLink } from 'lucide-react';
+import { ChevronRight, ExternalLink, X, Plus, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOCK_INSIGHTS, MOCK_SIGNALS, MOCK_EVIDENCE_REFS } from '@/data/mock';
 
@@ -22,23 +22,34 @@ const TIER_COLORS: Record<string, { badge: string; bg: string; border: string }>
 };
 
 interface SignalDetailViewProps {
-  insightId: string;
+  insightIds: string[];
   onBack: () => void;
+  onAddInsight: (id: string) => void;
+  onRemoveInsight: (id: string) => void;
 }
 
-export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
-  const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
+export function SignalDetailView({ insightIds, onBack, onAddInsight, onRemoveInsight }: SignalDetailViewProps) {
+  const primaryInsight = MOCK_INSIGHTS.find(i => i.id === insightIds[0]);
+  const selectedInsights = insightIds.map(id => MOCK_INSIGHTS.find(i => i.id === id)).filter(Boolean);
   const [showConvergence, setShowConvergence] = useState(false);
   const [showTierReasoning, setShowTierReasoning] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
   const [expandedSignalId, setExpandedSignalId] = useState<string | null>(null);
+  const [showAddDropdown, setShowAddDropdown] = useState(false);
 
+  // Merge signals from all selected insights, deduplicated
   const signals = useMemo(() => {
-    if (!insight?.signal_ids) return MOCK_SIGNALS;
-    return MOCK_SIGNALS.filter(s => insight.signal_ids!.includes(s.id));
-  }, [insight]);
+    const allSignalIds = new Set<string>();
+    selectedInsights.forEach(insight => {
+      insight?.signal_ids?.forEach(id => allSignalIds.add(id));
+    });
+    if (allSignalIds.size === 0) return MOCK_SIGNALS;
+    return MOCK_SIGNALS.filter(s => allSignalIds.has(s.id));
+  }, [insightIds]);
 
-  if (!insight) {
+  const unselectedInsights = MOCK_INSIGHTS.filter(i => !insightIds.includes(i.id));
+
+  if (!primaryInsight) {
     return (
       <div className="flex items-center justify-center h-full">
         <span className="text-sm text-muted-foreground">Insight not found</span>
@@ -46,12 +57,71 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
     );
   }
 
-  const tier = insight.tier;
+  const tier = primaryInsight.tier;
   const colors = TIER_COLORS[tier] || TIER_COLORS.developing;
 
   return (
     <div className="h-full overflow-y-auto px-4 py-6">
       <div>
+        {/* Multi-insight pills */}
+        {insightIds.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {selectedInsights.map(insight => {
+              if (!insight) return null;
+              const tc = TIER_COLORS[insight.tier] || TIER_COLORS.developing;
+              return (
+                <span
+                  key={insight.id}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border',
+                    tc.border, tc.bg
+                  )}
+                >
+                  <span className="truncate max-w-[160px]">{insight.title.slice(0, 30)}...</span>
+                  {insightIds.length > 1 && (
+                    <button
+                      onClick={() => onRemoveInsight(insight.id)}
+                      className="p-0.5 rounded-full hover:bg-foreground/10 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+            {/* Add Insight button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAddDropdown(!showAddDropdown)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                Add Insight
+              </button>
+              {showAddDropdown && unselectedInsights.length > 0 && (
+                <div className="absolute left-0 top-full mt-1 w-72 bg-card border border-border rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto">
+                  {unselectedInsights.map(insight => {
+                    const tc = TIER_COLORS[insight.tier] || TIER_COLORS.developing;
+                    return (
+                      <button
+                        key={insight.id}
+                        onClick={() => {
+                          onAddInsight(insight.id);
+                          setShowAddDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors flex items-center gap-2"
+                      >
+                        <span className={cn('h-2 w-2 rounded-full flex-shrink-0', tc.badge.split(' ')[0])} />
+                        <span className="text-sm text-card-foreground truncate">{insight.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Hero */}
         <div className="mb-8">
           <div className="flex items-center justify-between gap-3 mb-4">
@@ -60,25 +130,31 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
                 {tier}
               </span>
               <span className="text-xs text-muted-foreground uppercase tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
-                {insight.category}
+                {primaryInsight.category}
               </span>
             </div>
           </div>
 
-          <h1 className="text-xl font-bold text-foreground leading-tight mb-4 line-clamp-3">
-            {insight.title}
+          <h1 className="text-xl font-bold text-foreground leading-tight mb-2 line-clamp-3">
+            {primaryInsight.title}
           </h1>
+
+          {insightIds.length > 1 && (
+            <p className="text-xs text-muted-foreground mb-4">
+              Combined with {insightIds.length - 1} other insight{insightIds.length > 2 ? 's' : ''}
+            </p>
+          )}
 
           {/* Decision question callout */}
           <div className={cn('p-4 rounded-lg border-l-[3px] mb-4', colors.border, colors.bg)}>
             <p className="text-sm text-foreground/80 leading-relaxed italic">
-              {insight.decision_question}
+              {primaryInsight.decision_question}
             </p>
           </div>
 
           {/* User relevance */}
           <p className="text-sm text-muted-foreground leading-relaxed">
-            {insight.user_relevance}
+            {primaryInsight.user_relevance}
           </p>
         </div>
 
@@ -99,45 +175,23 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
           </div>
         </div>
 
-        {/* Collapsible: How these signals connect */}
-        {insight.convergence_reasoning && (
-          <CollapsibleSection
-            label="How these signals connect"
-            open={showConvergence}
-            onToggle={() => setShowConvergence(!showConvergence)}
-          >
-            <p className="text-sm text-foreground/70 leading-relaxed">
-              {insight.convergence_reasoning}
-            </p>
+        {/* Collapsible sections */}
+        {primaryInsight.convergence_reasoning && (
+          <CollapsibleSection label="How these signals connect" open={showConvergence} onToggle={() => setShowConvergence(!showConvergence)}>
+            <p className="text-sm text-foreground/70 leading-relaxed">{primaryInsight.convergence_reasoning}</p>
           </CollapsibleSection>
         )}
 
-        {/* Collapsible: Why this tier */}
-        <CollapsibleSection
-          label="Why this tier"
-          open={showTierReasoning}
-          onToggle={() => setShowTierReasoning(!showTierReasoning)}
-        >
-          <p className="text-sm text-foreground/70 leading-relaxed">
-            {insight.tier_reasoning}
-          </p>
+        <CollapsibleSection label="Why this tier" open={showTierReasoning} onToggle={() => setShowTierReasoning(!showTierReasoning)}>
+          <p className="text-sm text-foreground/70 leading-relaxed">{primaryInsight.tier_reasoning}</p>
         </CollapsibleSection>
 
-        {/* Evidence */}
-        <CollapsibleSection
-          label={`${MOCK_EVIDENCE_REFS.length} citations`}
-          open={showEvidence}
-          onToggle={() => setShowEvidence(!showEvidence)}
-        >
+        <CollapsibleSection label={`${MOCK_EVIDENCE_REFS.length} citations`} open={showEvidence} onToggle={() => setShowEvidence(!showEvidence)}>
           <div className="space-y-1">
             {MOCK_EVIDENCE_REFS.map((ref, i) => (
               <div key={i} className="flex gap-3 text-sm py-2 px-3 rounded bg-muted/30">
-                <span className="text-xs font-mono text-muted-foreground flex-shrink-0 mt-0.5">
-                  [{ref.number}]
-                </span>
-                <p className="text-foreground/70 text-xs leading-relaxed overflow-hidden text-ellipsis">
-                  {ref.signal_excerpt}
-                </p>
+                <span className="text-xs font-mono text-muted-foreground flex-shrink-0 mt-0.5">[{ref.number}]</span>
+                <p className="text-foreground/70 text-xs leading-relaxed overflow-hidden text-ellipsis">{ref.signal_excerpt}</p>
               </div>
             ))}
           </div>
@@ -147,23 +201,10 @@ export function SignalDetailView({ insightId, onBack }: SignalDetailViewProps) {
   );
 }
 
-function CollapsibleSection({
-  label,
-  open,
-  onToggle,
-  children,
-}: {
-  label: string;
-  open: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
+function CollapsibleSection({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
+      <button onClick={onToggle} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
         <ChevronRight className={cn('h-3 w-3 transition-transform', open && 'rotate-90')} />
         {label}
       </button>
@@ -172,11 +213,7 @@ function CollapsibleSection({
   );
 }
 
-function SignalCard({ signal, expanded, onToggle }: {
-  signal: typeof MOCK_SIGNALS[number];
-  expanded: boolean;
-  onToggle: () => void;
-}) {
+function SignalCard({ signal, expanded, onToggle }: { signal: typeof MOCK_SIGNALS[number]; expanded: boolean; onToggle: () => void }) {
   const credPct = Math.round(signal.credibility * 100);
   const barColor = credPct > 50 ? 'bg-ring' : credPct > 30 ? 'bg-tier-developing' : 'bg-tier-breaking';
   const relTime = formatRelative(new Date(signal.created_at));
@@ -186,53 +223,34 @@ function SignalCard({ signal, expanded, onToggle }: {
       onClick={onToggle}
       className={cn(
         'text-left rounded-lg border bg-card p-4 transition-all duration-200 overflow-hidden cursor-pointer',
-        expanded
-          ? 'border-ring/40 bg-accent/5 md:col-span-2'
-          : 'border-border hover:border-muted-foreground/30'
+        expanded ? 'border-ring/40 bg-accent/5 md:col-span-2' : 'border-border hover:border-muted-foreground/30'
       )}
       style={{ overflowWrap: 'break-word' }}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <h3 className={cn('text-sm font-medium text-card-foreground leading-snug', !expanded && 'line-clamp-2')}>
-          {signal.title}
-        </h3>
+        <h3 className={cn('text-sm font-medium text-card-foreground leading-snug', !expanded && 'line-clamp-2')}>{signal.title}</h3>
         <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">{relTime}</span>
       </div>
-
       <div className="flex items-center gap-4 mb-1.5 text-xs text-muted-foreground whitespace-nowrap">
         <span>{signal.sources} sources</span>
         <span className="flex items-center gap-1.5">
           Credibility
           <span className="inline-block w-12 h-1.5 rounded-full bg-muted overflow-hidden">
-            <span
-              className={cn('block h-full rounded-full', barColor)}
-              style={{ width: `${Math.max(credPct, 5)}%` }}
-            />
+            <span className={cn('block h-full rounded-full', barColor)} style={{ width: `${Math.max(credPct, 5)}%` }} />
           </span>
           <span className="text-[10px]">{credPct}%</span>
         </span>
       </div>
-
       {expanded && (
         <>
-          <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>
-            {signal.analysis_context}
-          </p>
-
-          {/* Source links */}
+          <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>{signal.analysis_context}</p>
           {signal.source_urls.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-border/50">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sources</span>
               <div className="mt-1.5 space-y-1">
                 {signal.source_urls.map((src, i) => (
-                  <a
-                    key={i}
-                    href={src.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className="flex items-center gap-2 text-xs text-foreground/70 hover:text-foreground transition-colors group"
-                  >
+                  <a key={i} href={src.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    className="flex items-center gap-2 text-xs text-foreground/70 hover:text-foreground transition-colors group">
                     <span className="text-muted-foreground text-[10px] font-mono flex-shrink-0">{src.domain}</span>
                     <span className="truncate">{src.title}</span>
                     <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -243,10 +261,7 @@ function SignalCard({ signal, expanded, onToggle }: {
           )}
         </>
       )}
-
-      <p className={cn('text-xs text-muted-foreground italic', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>
-        {signal.nb_relevance}
-      </p>
+      <p className={cn('text-xs text-muted-foreground italic', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>{signal.nb_relevance}</p>
     </div>
   );
 }

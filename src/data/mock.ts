@@ -32,6 +32,7 @@ export interface MockSignal {
 export interface MockPosition {
   id: string;
   insightId: string;
+  insightIds: string[];
   title: string;
   status: 'draft' | 'shared';
   createdAt: string;
@@ -218,10 +219,45 @@ export const MOCK_SIGNALS: MockSignal[] = [
 ];
 
 export const MOCK_POSITIONS: MockPosition[] = [
-  { id: 'pos-1', insightId: '1', title: 'Vietnam FOB Lock', status: 'draft', createdAt: '2026-02-15T10:00:00Z' },
-  { id: 'pos-2', insightId: '2', title: '880 v15 Shelf Lock', status: 'shared', createdAt: '2026-02-14T14:30:00Z' },
-  { id: 'pos-3', insightId: '3', title: '880 v15 Pricing at $150', status: 'draft', createdAt: '2026-02-13T09:00:00Z' },
+  { id: 'pos-1', insightId: '1', insightIds: ['1'], title: 'Vietnam FOB Lock', status: 'draft', createdAt: '2026-02-15T10:00:00Z' },
+  { id: 'pos-2', insightId: '2', insightIds: ['2'], title: '880 v15 Shelf Lock', status: 'shared', createdAt: '2026-02-14T14:30:00Z' },
+  { id: 'pos-3', insightId: '3', insightIds: ['3'], title: '880 v15 Pricing at $150', status: 'draft', createdAt: '2026-02-13T09:00:00Z' },
 ];
+
+// AUO insight recommendations: for each insight, related insights to suggest
+export const INSIGHT_RECOMMENDATIONS: Record<string, string[]> = {
+  '1': ['4', '3'],
+  '2': ['6', '5'],
+  '3': ['1', '6'],
+  '4': ['1'],
+  '5': ['2', '7'],
+  '6': ['3', '2'],
+  '7': ['5'],
+  '8': ['9'],
+  '9': ['8'],
+};
+
+// Combined position briefs keyed by sorted insight ID combos
+export const MULTI_POSITION_BRIEFS: Record<string, { title: string; call: string; why: string; assumptions: string[] }> = {
+  '1,4': {
+    title: 'Vietnam Supply Chain Lock',
+    call: 'Lock FOB at $18.40 + accelerate Maine expansion timeline',
+    why: 'Double compression from tariff risk and Vietnam labor inflation demands immediate dual-track hedge',
+    assumptions: ['Tariffs land at 20%+', 'Maine reaches 35-40% capacity by FW27', 'Vietnam labor inflation holds at 7-8%'],
+  },
+  '1,3': {
+    title: 'Vietnam FOB + Pricing Hedge',
+    call: 'Lock FOB at $18.40 and hold 880 v15 at $150 with FuelCell messaging',
+    why: 'Absorb upstream cost risk while defending consumer price point — margin compression is temporary',
+    assumptions: ['Tariffs land at 20%+', 'Consumer price resistance peaks pre-tariff', 'FuelCell differentiates at $150'],
+  },
+  '2,6': {
+    title: 'Shelf Defense Strategy',
+    call: "Lock Dick's placement for 880 v15 + counter Brooks Ghost 16 with FuelCell differentiation",
+    why: "Leadership vacuum + Brooks $1B milestone create converging shelf threats — act before March vendor reviews",
+    assumptions: ['Foot Locker churn persists through March', 'Ghost 16 momentum plateaus at $140', "Dick's consolidation favors NB relationship"],
+  },
+};
 
 export const MOCK_EVIDENCE_REFS: MockEvidenceRef[] = [
   { number: '2,200+ door', signal_excerpt: "Dick's integrating Foot Locker operations creates 2,200+ door consolidated buyer" },

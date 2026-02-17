@@ -6,14 +6,15 @@ import { MOCK_INSIGHTS, MOCK_SIGNALS, MOCK_EVIDENCE_REFS } from '@/data/mock';
 import { MarkdownLite } from '@/components/views/ChatView';
 
 interface ThreadViewProps {
-  insightId: string;
+  insightIds: string[];
   onBack: () => void;
   userNotes?: string;
   assumptions?: { text: string; checked: boolean }[];
   recommendedAction?: string;
 }
 
-export function ThreadView({ insightId, onBack, userNotes, assumptions, recommendedAction }: ThreadViewProps) {
+export function ThreadView({ insightIds, onBack, userNotes, assumptions, recommendedAction }: ThreadViewProps) {
+  const insightId = insightIds[0];
   const thread = MOCK_THREAD;
   const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const signals = useMemo(() => {
