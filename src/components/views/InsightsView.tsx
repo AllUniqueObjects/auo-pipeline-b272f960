@@ -19,20 +19,26 @@ const TIER_DOT: Record<string, string> = {
 interface InsightsViewProps {
   onSelectInsight: (insightId: string) => void;
   selectedInsightId?: string;
+  activeProject?: string;
 }
 
-export function InsightsView({ onSelectInsight, selectedInsightId }: InsightsViewProps) {
+export function InsightsView({ onSelectInsight, selectedInsightId, activeProject }: InsightsViewProps) {
   const [activeTab, setActiveTab] = useState<TierTab>('all');
 
+  const projectInsights = useMemo(() =>
+    activeProject ? MOCK_INSIGHTS.filter(i => i.projectId === activeProject) : MOCK_INSIGHTS,
+    [activeProject]
+  );
+
   const counts = useMemo(() => ({
-    breaking: MOCK_INSIGHTS.filter(i => i.tier === 'breaking').length,
-    developing: MOCK_INSIGHTS.filter(i => i.tier === 'developing').length,
-    established: MOCK_INSIGHTS.filter(i => i.tier === 'established').length,
-  }), []);
+    breaking: projectInsights.filter(i => i.tier === 'breaking').length,
+    developing: projectInsights.filter(i => i.tier === 'developing').length,
+    established: projectInsights.filter(i => i.tier === 'established').length,
+  }), [projectInsights]);
 
   const filtered = useMemo(() =>
-    activeTab === 'all' ? MOCK_INSIGHTS : MOCK_INSIGHTS.filter(i => i.tier === activeTab),
-    [activeTab]
+    activeTab === 'all' ? projectInsights : projectInsights.filter(i => i.tier === activeTab),
+    [activeTab, projectInsights]
   );
 
   // Group by category
