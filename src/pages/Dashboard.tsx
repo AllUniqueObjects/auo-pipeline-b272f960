@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, ChevronDown, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ChatView } from '@/components/views/ChatView';
@@ -7,7 +7,9 @@ import { InsightsView } from '@/components/views/InsightsView';
 import { SignalDetailView } from '@/components/views/SignalDetailView';
 import { ShareWizardView } from '@/components/views/ShareWizardView';
 import { ThreadView } from '@/components/views/ThreadView';
+import { PositionPanel, type PositionState } from '@/components/views/PositionPanel';
 import { MOCK_PROJECTS, MOCK_POSITIONS } from '@/data/mock';
+import { mockPosition } from '@/data/mock-position';
 
 type RightView = 'insights' | 'signal-detail' | 'share' | 'thread';
 
@@ -23,6 +25,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [showChat, setShowChat] = useState(true);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [showPositions, setShowPositions] = useState(false);
+
+  // Position panel state
+  const [positionState, setPositionState] = useState<PositionState>('active');
+  const [positionCollapsed, setPositionCollapsed] = useState(false);
 
   const primaryInsightId = selectedInsightIds[0] || null;
 
@@ -54,7 +60,27 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     });
   };
 
+  // Dev button: cycle position states
+  const cyclePositionState = () => {
+    setPositionState(prev => {
+      if (prev === 'empty') return 'generating';
+      if (prev === 'generating') return 'active';
+      return 'empty';
+    });
+  };
+
+  // Auto-transition generating -> active after 2s
+  useEffect(() => {
+    if (positionState === 'generating') {
+      const timer = setTimeout(() => setPositionState('active'), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [positionState]);
+
   const showBackButton = rightView !== 'insights';
+
+  // Mobile: tabs for Chat vs Position
+  const [mobileTab, setMobileTab] = useState<'chat' | 'position'>('chat');
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -122,66 +148,94 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           )}
         </div>
 
+        {/* Dev button */}
+        <button
+          onClick={cyclePositionState}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors border border-dashed border-border"
+          title={`Position: ${positionState} → click to cycle`}
+        >
+          <Zap className="h-3 w-3" />
+          {positionState}
+        </button>
+
         {isMobile && (
-          <button
-            onClick={() => setShowChat(!showChat)}
-            className="px-3 py-1 rounded-full text-xs font-medium bg-accent text-foreground"
-          >
-            {showChat ? 'Content' : 'Chat'}
-          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setMobileTab('chat')}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium',
+                mobileTab === 'chat' ? 'bg-foreground text-background' : 'text-muted-foreground'
+              )}
+            >
+              Chat
+            </button>
+            <button
+              onClick={() => setMobileTab('position')}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium',
+                mobileTab === 'position' ? 'bg-foreground text-background' : 'text-muted-foreground'
+              )}
+            >
+              Position
+            </button>
+          </div>
         )}
       </header>
 
-      {/* Split layout */}
+      {/* Split layout: Left 55% Chat + Right 45% Position */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Chat */}
-        {(!isMobile || showChat) && (
-          <div className={cn(
-            'flex flex-col border-r border-border transition-all duration-200',
-            isMobile ? 'w-full' : chatCollapsed ? 'w-12 flex-shrink-0' : 'w-[340px] flex-shrink-0'
-          )}>
-            <ChatView
-              activeInsightIds={rightView === 'signal-detail' ? selectedInsightIds : []}
-              onAddInsight={handleAddInsight}
-              onShare={goToShare}
-              chatCollapsed={!isMobile && chatCollapsed}
-              onToggleCollapse={!isMobile ? () => setChatCollapsed(!chatCollapsed) : undefined}
-            />
-          </div>
-        )}
-
-        {/* Right: Dynamic content */}
-        {(!isMobile || !showChat) && (
-          <div className="flex-1 overflow-hidden">
-            {rightView === 'insights' && (
+        {/* Left panel: Chat + existing content views */}
+        {(!isMobile || mobileTab === 'chat') && (
+          <div
+            className={cn(
+              'flex flex-col overflow-hidden transition-all duration-200',
+              isMobile ? 'w-full' : positionCollapsed ? 'flex-1' : 'w-[55%] flex-shrink-0'
+            )}
+          >
+            {/* Inner: chat or content views based on rightView */}
+            {rightView === 'insights' ? (
               <InsightsView
                 onSelectInsight={goToSignalDetail}
                 selectedInsightId={primaryInsightId || undefined}
                 activeProject={activeProject}
               />
-            )}
-            {rightView === 'signal-detail' && selectedInsightIds.length > 0 && (
+            ) : rightView === 'signal-detail' && selectedInsightIds.length > 0 ? (
               <SignalDetailView
                 insightIds={selectedInsightIds}
                 onBack={goBack}
                 onAddInsight={handleAddInsight}
                 onRemoveInsight={handleRemoveInsight}
               />
-            )}
-            {rightView === 'share' && primaryInsightId && (
+            ) : rightView === 'share' && primaryInsightId ? (
               <ShareWizardView
                 insightIds={selectedInsightIds}
                 onBack={goBack}
                 onOpenThread={goToThread}
               />
-            )}
-            {rightView === 'thread' && primaryInsightId && (
+            ) : rightView === 'thread' && primaryInsightId ? (
               <ThreadView
                 insightIds={selectedInsightIds}
                 onBack={goBack}
               />
+            ) : (
+              <ChatView
+                activeInsightIds={rightView === 'signal-detail' ? selectedInsightIds : []}
+                onAddInsight={handleAddInsight}
+                onShare={goToShare}
+                chatCollapsed={false}
+              />
             )}
           </div>
+        )}
+
+        {/* Right panel: Position */}
+        {(!isMobile || mobileTab === 'position') && (
+          <PositionPanel
+            state={positionState}
+            position={positionState === 'active' ? mockPosition : null}
+            collapsed={!isMobile && positionCollapsed}
+            onToggleCollapse={() => setPositionCollapsed(!positionCollapsed)}
+          />
         )}
       </div>
     </div>
