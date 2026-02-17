@@ -1,185 +1,182 @@
 
 
-# Multi-Insight Position Building with AUO Agent Recommendations
+# Proactive AUO Agent + Fluid Position Brief
 
-## What We're Building
+## Core Behavior Change
 
-Two connected features:
+AUO shifts from a reactive chatbot ("What's your read?") to a **proactive briefing agent** that surfaces connections the moment the user selects insights or signals -- before they type anything.
 
-1. **Multi-select insights** to build a combined position through conversation
-2. **AUO proactively recommends related insights** based on what the user is thinking about
+## How It Works
 
-## User Flow
+### 1. First Insight Selected -- AUO Opens with a Briefing
 
-```text
-1. User is on Insights list
-2. Clicks an insight card -> enters Signal Detail (current behavior)
-3. Chat scopes to that insight, AUO asks for their read
-4. User shares their thinking: "I think we lock Vietnam FOB now"
-5. AUO responds: "That connects to 2 other insights you should consider"
-   -> Renders clickable InsightChip cards inline in chat
-6. User clicks a chip -> that insight gets ADDED to a selected set
-   -> Signal Detail view updates to show combined signals from all selected insights
-7. After 2+ messages, AUO generates a PositionCard that references all selected insights
-8. User can also manually add/remove insights via pills at the top of Signal Detail
+Instead of the current "What's your read -- lock at $18.40 or wait?", AUO opens with substance:
+
+```
+"A few things worth knowing here...
+
+Vietnam FOB is sitting at $18.40, but that number hides two converging
+pressures: labor inflation running 7-8% annually AND a Supreme Court
+tariff ruling that lands 8-12 weeks after your BOM lock deadline.
+
+The timing mismatch is the real issue — you're deciding blind.
+
+There's also a margin compression angle I'm tracking that connects to this:"
+
+  [Vietnam FOB Inflation + Margin...]  <- clickable chip
+
+"Want me to pull those threads together?"
 ```
 
-## Layout Changes
+This is **not** a question asking for the user's take. It's AUO doing its job -- surfacing what matters and why, then recommending related context.
 
-### Signal Detail View -- Multi-Insight Header
+### 2. Second Insight Added -- AUO Synthesizes Immediately
 
-Top of Signal Detail gets a row of selected insight pills:
+When the user clicks a recommended chip or adds an insight via the pill header, AUO fires a new proactive message without waiting for user input:
 
-```text
-+--------------------------------------------------+
-| [Vietnam FOB Lock x] [880 v15 Shelf Lock x]      |
-| [+ Add Insight]                                   |
-+--------------------------------------------------+
-| (merged signals from all selected insights)       |
+```
+"Interesting combination. Here's what connects these two:
+
+Vietnam FOB lock at $18.40 + the margin compression story are two sides
+of the same squeeze. If tariffs land at 20%+, you're looking at 8-12
+points of margin erosion unless Maine expansion accelerates.
+
+The hedge: lock FOB now AND pull Maine timeline forward. One without
+the other leaves a gap.
+
+I also see a thread to pricing:"
+
+  [880 v15 Pricing Hold...]  <- clickable chip
 ```
 
-- Each pill shows truncated insight title with an "x" to remove
-- "+ Add Insight" opens a small dropdown of remaining insights
-- Signals section merges signals from all selected insight IDs (deduplicated)
-- Hero section shows the PRIMARY insight (first selected), with a note like "Combined with 1 other insight"
+### 3. Position Brief Emerges Fluidly
 
-### Chat View -- AUO Recommends Insights
+Instead of generating a fixed-template position card after N messages, the position **evolves** as context builds:
 
-After the user's first message in a signal-detail context, AUO's mock reply includes an `InsightRecommendation` component -- small clickable cards rendered inline in chat:
+- After the proactive briefing + 1 user message: AUO generates a **lean draft** (3 sections)
+- As more insights are added: the draft expands with new sections that reflect the added context
+- The sections themselves are fluid -- labels and content change based on the insight combination
 
-```text
-AUO: "Locking FOB at $18.40 makes sense if you believe tariffs 
-      land above 20%. Two related insights to consider:"
+### 4. Fluid Position Data Model
 
-  [Vietnam FOB Inflation...]    <- clickable chip
-  [880 v15 Pricing Hold...]     <- clickable chip
+Replace the rigid `PositionBrief` (title/call/why/assumptions) with:
 
-"Adding these would strengthen your position with 
- margin compression context."
-```
+```typescript
+interface PositionSection {
+  label: string;     // "Strategic call", "What connects these", "Risk if wrong", etc.
+  content: string;
+  items?: string[];
+}
 
-Clicking a chip calls a new `onAddInsight(insightId)` callback that adds the insight to the selected set in Dashboard.
-
-### Chat View -- Position Card Update
-
-The `PositionCard` mock brief updates to list contributing insights:
-
-```text
-+------------------------------------------+
-| POSITION: Vietnam Supply Chain Lock      |
-| Based on: Insight #1, #4                 |
-| Call: Lock FOB + accelerate Maine        |
-| Why: ...                                 |
-| Assumptions: ...                         |
-| [Edit] [Share This]                      |
-+------------------------------------------+
-```
-
-## File Changes
-
-### 1. `src/data/mock.ts`
-
-- Add `INSIGHT_RECOMMENDATIONS` map: for each insight ID, list 1-2 related insight IDs that AUO would recommend
-- Add `MULTI_POSITION_BRIEFS` map: keyed by sorted insight ID combos (e.g., `"1,4"`), containing combined position briefs
-- Update `MockPosition` to support `insightIds: string[]` (array instead of single `insightId`)
-
-### 2. `src/pages/Dashboard.tsx`
-
-- Change `selectedInsightId: string | null` to `selectedInsightIds: string[]`
-- First entry in the array is the "primary" insight
-- Add `handleAddInsight(id)` and `handleRemoveInsight(id)` functions
-- Pass `selectedInsightIds`, `onAddInsight`, `onRemoveInsight` to both `ChatView` and `SignalDetailView`
-- Update position dropdown and navigation to work with arrays
-
-### 3. `src/components/views/ChatView.tsx`
-
-- Accept new props: `activeInsightIds: string[]`, `onAddInsight: (id: string) => void`
-- After user's first message in insight context, AUO's mock reply includes recommended insight IDs
-- New `InsightChip` sub-component: small clickable card showing insight title + tier dot, calls `onAddInsight` on click
-- Render `InsightChip` components inline in specific mock assistant messages using a `__INSIGHT_RECS__` content marker (similar to `__POSITION_CARD__`)
-- Update position card generation to use combined insight IDs key
-- Contextual prompt updates when multiple insights are selected: "You're combining Vietnam FOB with margin compression. What's the unified call?"
-
-### 4. `src/components/views/SignalDetailView.tsx`
-
-- Accept `insightIds: string[]` instead of single `insightId`
-- Add `onAddInsight` and `onRemoveInsight` props
-- Render selected insight pills at the top (truncated title + "x" button)
-- Render "+ Add Insight" button that opens a dropdown of unselected insights
-- Merge signals from all selected insights (deduplicate by signal ID)
-- Hero shows primary insight title; if multiple, add subtitle: "Combined with N other insights"
-- Decision question shows primary insight's question
-
-### 5. `src/components/views/PositionCard.tsx`
-
-- Add optional `basedOn?: string[]` field to `PositionBrief` interface
-- Render "Based on: ..." line showing contributing insight titles
-
-### 6. `src/components/views/ShareWizardView.tsx` and `ThreadView.tsx`
-
-- Update to accept `insightIds: string[]` instead of single `insightId`
-- Minor prop threading, no major logic changes
-
-## Mock Data Details
-
-### Insight Recommendations Map
-
-```text
-INSIGHT_RECOMMENDATIONS = {
-  '1': ['4', '3'],     // Vietnam FOB -> margin compression, pricing
-  '2': ['6', '5'],     // Shelf lock -> Brooks competition, On's quality
-  '3': ['1', '6'],     // Pricing -> Vietnam FOB, Brooks
-  '4': ['1'],          // Margin compression -> Vietnam FOB
-  '5': ['2', '7'],     // On's quality -> shelf lock, Anta
-  '6': ['3', '2'],     // Brooks -> pricing, shelf lock
+interface PositionBrief {
+  title: string;
+  sections: PositionSection[];
+  basedOn?: string[];
 }
 ```
 
-### Combined Position Briefs
+Single-insight positions are lean (2-3 sections). Multi-insight syntheses are richer (4-6 sections) with different labels reflecting the combined context.
 
-A few pre-built combos:
+## Mock Data Changes
 
-- `"1,4"`: "Vietnam Supply Chain Lock" -- combined FOB + Maine acceleration
-- `"1,3"`: "Vietnam FOB + Pricing Hedge" -- lock FOB and hold $150
-- `"2,6"`: "Shelf Defense Strategy" -- lock placement + counter Brooks
+### Proactive Briefings (`src/data/mock.ts`)
 
-Fallback: if no pre-built combo exists, use the primary insight's brief with a note about combined signals.
+New `PROACTIVE_BRIEFINGS` map replaces `CONTEXTUAL_PROMPTS`. Each entry is a longer, substantive message that AUO sends on insight selection:
 
-## State Flow
+| Key | Content Theme |
+|-----|---------------|
+| `'1'` | Vietnam FOB timing mismatch + labor inflation convergence |
+| `'2'` | Foot Locker leadership vacuum + Nike wholesale flood timing |
+| `'3'` | Price resistance hitting before tariff clarity arrives |
+| `'1,4'` | Same-squeeze synthesis: FOB + margin = dual-track hedge needed |
+| `'1,3'` | Upstream cost risk vs consumer price defense connection |
+| `'2,6'` | Shelf threat convergence: leadership churn + Brooks milestone |
 
-```text
+Each briefing ends with recommendation chips (using existing `__INSIGHT_RECS__` marker).
+
+### Fluid Position Briefs
+
+`MOCK_POSITION_BRIEFS` and `MULTI_POSITION_BRIEFS` switch to the sections-based format. Examples:
+
+**Single insight '1' (lean, 3 sections):**
+- "Call" -- Lock at $18.40/pair before BOM deadline
+- "Why this matters" -- Asymmetric tariff risk; deciding blind on 8-12 week gap
+- "Key assumptions" -- [bullet list]
+
+**Multi-insight '1,4' (rich, 6 sections):**
+- "Strategic call" -- Lock FOB + accelerate Maine
+- "What connects these" -- Double compression from tariff + labor inflation
+- "What must be true" -- [bullet list]
+- "Evidence" -- [signal excerpts]
+- "Risk if wrong" -- Overpay 7-8% vs spot
+- "Decision window" -- 8-12 weeks before Supreme Court ruling
+
+## File Changes
+
+### `src/data/mock.ts`
+- Add `PROACTIVE_BRIEFINGS: Record<string, string>` -- keyed by single insight IDs and sorted combo keys
+- Each briefing is a multi-paragraph string with embedded `__INSIGHT_RECS__` markers
+- Update `MULTI_POSITION_BRIEFS` and add single-insight briefs to use the `PositionSection[]` format
+- Export the new map
+
+### `src/components/views/PositionCard.tsx`
+- Change `PositionBrief` interface to use `sections: PositionSection[]` instead of fixed `call`/`why`/`assumptions`
+- Render sections dynamically: loop through `brief.sections`, show label as uppercase heading, content as paragraph, items as bullet list
+- Keep "Edit" and "Share This" buttons
+- Keep "Based on" line
+
+### `src/components/views/ChatView.tsx`
+- Replace `CONTEXTUAL_PROMPTS` with import of `PROACTIVE_BRIEFINGS`
+- Update the `useEffect` that fires on `contextKey` change:
+  - For single insight: use `PROACTIVE_BRIEFINGS[id]` which includes inline `__INSIGHT_RECS__`
+  - For multi-insight combos: use `PROACTIVE_BRIEFINGS[sortedKey]` for synthesis message, also with recs
+  - These fire immediately on selection -- no user input needed
+- Position card generation after 1 user message (down from 2) since AUO already briefed proactively
+- The brief object uses the new sections format
+
+### `src/components/views/ShareWizardView.tsx`
+- Update to accept the new `PositionBrief` with sections
+- `generateShareMessage` iterates through sections to build the share text
+
+### `src/data/mock-threads.ts`
+- Update `generateShareMessage` to format sections dynamically
+
+### `src/pages/Dashboard.tsx`
+- No structural changes needed -- already passes `selectedInsightIds` and handlers
+- Thread position brief to share wizard if stored
+
+## Interaction Flow
+
+```
 User clicks Insight #1
-  -> selectedInsightIds = ['1']
-  -> Chat shows contextual prompt for #1
-  -> Signal Detail shows #1 signals
-
-User sends message
-  -> AUO replies with recommendation chips for #4, #3
+  -> AUO immediately sends proactive briefing about Vietnam FOB
+  -> Briefing includes recommendation chips for insights #4, #3
+  -> No user input required yet
 
 User clicks chip for #4
   -> selectedInsightIds = ['1', '4']
-  -> Signal Detail merges signals from #1 and #4
-  -> Chat prompt updates to reference combined context
+  -> AUO immediately sends synthesis message connecting FOB + margin
+  -> Includes chip for pricing insight #3
 
-User sends 2nd message
-  -> AUO generates PositionCard for combo "1,4"
+User types "I think we lock now and accelerate Maine"
+  -> AUO generates fluid PositionCard with 5-6 sections
+  -> Sections reflect the combined context (not a fixed template)
 
-User clicks "x" on #4 pill
+User removes #4 via pill
   -> selectedInsightIds = ['1']
-  -> Back to single-insight view
+  -> AUO notes the change: "Noted, focusing back on Vietnam FOB alone"
+  -> Position card would regenerate leaner on next message
 ```
 
 ## Files Summary
 
-| File | Action |
+| File | Change |
 |------|--------|
-| `src/data/mock.ts` | Add recommendation map, combined briefs, update MockPosition |
-| `src/pages/Dashboard.tsx` | selectedInsightIds array, add/remove handlers |
-| `src/components/views/ChatView.tsx` | InsightChip component, recommendation rendering, multi-insight context |
-| `src/components/views/SignalDetailView.tsx` | Multi-insight pills, merged signals, add/remove UI |
-| `src/components/views/PositionCard.tsx` | "Based on" field |
-| `src/components/views/ShareWizardView.tsx` | Accept insightIds array |
-| `src/components/views/ThreadView.tsx` | Accept insightIds array |
+| `src/data/mock.ts` | Add `PROACTIVE_BRIEFINGS`, update briefs to sections format |
+| `src/components/views/PositionCard.tsx` | Fluid sections renderer, new `PositionSection` interface |
+| `src/components/views/ChatView.tsx` | Proactive briefing on selection, position after 1 msg, sections format |
+| `src/components/views/ShareWizardView.tsx` | Accept sections-based brief |
+| `src/data/mock-threads.ts` | Format sections in share message |
 
 No new dependencies.
 
