@@ -547,92 +547,94 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           )}
         >
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
-            {messages.map(msg =>
-              msg.role === 'assistant' ? (
-                <AuoBubble
-                  key={msg.id}
-                  content={msg.content}
-                  animate={animatingId === msg.id}
-                />
-              ) : (
-                <UserBubble key={msg.id} content={msg.content} />
-              )
-            )}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
+            <div className={cn('mx-auto space-y-5', rightPanel === 'empty' ? 'max-w-xl px-8' : 'max-w-none px-6')}>
+              {messages.map(msg =>
+                msg.role === 'assistant' ? (
+                  <AuoBubble
+                    key={msg.id}
+                    content={msg.content}
+                    animate={animatingId === msg.id}
+                  />
+                ) : (
+                  <UserBubble key={msg.id} content={msg.content} />
+                )
+              )}
 
-            {/* Priority selector — inline, after AUO asks */}
-            {showPrioritySelector && (
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  {SCAN_ITEMS.map(item => (
-                    <button
-                      key={item.category}
-                      onClick={() => togglePriority(item.category)}
-                      className={cn(
-                        'text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150',
-                        selectedPriorities.includes(item.category)
-                          ? 'border-emerging bg-emerging/10 text-foreground'
-                          : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30'
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            'w-1.5 h-1.5 rounded-full flex-shrink-0',
-                            selectedPriorities.includes(item.category)
-                              ? 'bg-emerging'
-                              : 'bg-muted-foreground/30'
-                          )}
-                        />
-                        {item.category}
-                        {item.urgent && (
-                          <span className="ml-auto text-[8px] font-bold text-tier-breaking">↑</span>
+              {/* Beat 1: Let's go — inline, right below the bubble */}
+              {beat === 'beat1' && (
+                <button
+                  onClick={handleLetsGo}
+                  className="w-full py-3 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/85 transition-colors tracking-wide mt-1"
+                >
+                  Let's go →
+                </button>
+              )}
+
+              {/* Priority selector — inline, after AUO asks */}
+              {showPrioritySelector && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {SCAN_ITEMS.map(item => (
+                      <button
+                        key={item.category}
+                        onClick={() => togglePriority(item.category)}
+                        className={cn(
+                          'text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150',
+                          selectedPriorities.includes(item.category)
+                            ? 'border-emerging bg-emerging/10 text-foreground'
+                            : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30'
                         )}
-                      </div>
-                    </button>
-                  ))}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              'w-1.5 h-1.5 rounded-full flex-shrink-0',
+                              selectedPriorities.includes(item.category)
+                                ? 'bg-emerging'
+                                : 'bg-muted-foreground/30'
+                            )}
+                          />
+                          {item.category}
+                          {item.urgent && (
+                            <span className="ml-auto text-[8px] font-bold text-tier-breaking">↑</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handlePriorityConfirm}
+                    disabled={selectedPriorities.length === 0}
+                    className="w-full py-2 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors disabled:opacity-40"
+                  >
+                    Confirm →
+                  </button>
                 </div>
-                <button
-                  onClick={handlePriorityConfirm}
-                  disabled={selectedPriorities.length === 0}
-                  className="w-full py-2 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors disabled:opacity-40"
-                >
-                  Confirm →
-                </button>
-              </div>
-            )}
+              )}
 
-            {/* Beat 4: confirm / missing buttons */}
-            {showConfirmButtons && (
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={handleConfirm}
-                  className="flex-1 py-2.5 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors"
-                >
-                  This looks right →
-                </button>
-                <button
-                  onClick={handleMissing}
-                  className="flex-1 py-2.5 rounded-lg border border-border bg-card text-foreground text-xs font-medium hover:bg-accent/40 transition-colors"
-                >
-                  Something's off
-                </button>
-              </div>
-            )}
+              {/* Beat 4: confirm / missing buttons */}
+              {showConfirmButtons && (
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleConfirm}
+                    className="flex-1 py-2.5 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors"
+                  >
+                    This looks right →
+                  </button>
+                  <button
+                    onClick={handleMissing}
+                    className="flex-1 py-2.5 rounded-lg border border-border bg-card text-foreground text-xs font-medium hover:bg-accent/40 transition-colors"
+                  >
+                    Something's off
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Bottom area */}
-          <div className="flex-shrink-0 px-5 pb-5 space-y-3">
-            {/* Beat 1: Let's go CTA — always visible in beat1 */}
-            {beat === 'beat1' && (
-              <button
-                onClick={handleLetsGo}
-                className="w-full py-3 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/85 transition-colors tracking-wide"
-              >
-                Let's go →
-              </button>
-            )}
-
+          {/* Bottom area — chat input only */}
+          <div className={cn('flex-shrink-0 pb-5 pt-3 border-t border-border', rightPanel === 'empty' ? 'max-w-xl mx-auto w-full px-8' : 'px-6')}>
             {/* Chat input */}
             {inputVisible && (
               <div className="animate-in slide-in-from-bottom-2 duration-300">
@@ -661,6 +663,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </div>
             )}
           </div>
+
         </div>
 
         {/* ── Right panel — only shown when content is available ── */}
