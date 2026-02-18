@@ -84,9 +84,9 @@
     width: 3px;
     height: 3px;
   }
-  ::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
     background: transparent;
-    margin-block: 80%;
+    margin-block: 85%;
   }
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
