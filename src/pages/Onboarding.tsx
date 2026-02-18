@@ -156,7 +156,7 @@ function UserBubble({ content }: { content: string }) {
       <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/70 px-0.5">
         You
       </span>
-      <div className="max-w-[88%] rounded-2xl bg-secondary border border-border/40 px-5 py-4 text-[15px] leading-[1.7] text-foreground">
+      <div className="max-w-[88%] rounded-2xl border border-border/40 px-5 py-4 text-[15px] leading-[1.7] text-foreground" style={{ background: 'hsl(40 10% 91%)' }}>
         {content}
       </div>
     </div>
