@@ -13,7 +13,9 @@ const App = () => {
   });
 
   const [initialLens, setInitialLens] = useState<LensType>(() => {
-    return (localStorage.getItem('activeLens') as LensType) || 'balanced';
+    const stored = localStorage.getItem('activeLens') as LensType;
+    const valid: LensType[] = ['strategic', 'balanced', 'operational'];
+    return valid.includes(stored) ? stored : 'balanced';
   });
 
   const [justCompletedOnboarding, setJustCompletedOnboarding] = useState(false);

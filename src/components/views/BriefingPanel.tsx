@@ -129,7 +129,7 @@ function dominantTier(insights: TopicInsight[]): string {
 
 // Sort topics for lens
 function sortTopicsForLens(topics: MockTopic[], lens: LensType): MockTopic[] {
-  const priority = LENS_CATEGORY_ORDER[lens];
+  const priority = LENS_CATEGORY_ORDER[lens] ?? LENS_CATEGORY_ORDER['balanced'];
   return [...topics].sort((a, b) => {
     const ia = priority.indexOf(a.name);
     const ib = priority.indexOf(b.name);
