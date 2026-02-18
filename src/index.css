@@ -86,7 +86,7 @@
   }
   ::-webkit-scrollbar-track {
     background: transparent;
-    margin-block: 10%;
+    margin-block: 30%;
   }
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
