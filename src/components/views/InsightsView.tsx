@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { MOCK_INSIGHTS, type MockInsight } from '@/data/mock';
 
 type TierTab = 'all' | 'breaking' | 'developing' | 'established';
+type LensType = 'executive' | 'leader' | 'ic';
 
 const TIER_BORDER: Record<string, string> = {
   breaking: 'border-l-tier-breaking',
@@ -16,13 +17,29 @@ const TIER_DOT: Record<string, string> = {
   established: 'bg-tier-established',
 };
 
+// Lens-aware category sort weights (lower = higher priority)
+const LENS_CATEGORY_WEIGHT: Record<string, Record<string, number>> = {
+  executive: {
+    'RETAIL SHELF COMPETITION': 0,
+    'VIETNAM MANUFACTURING SQUEEZE': 1,
+    'COMPETITIVE TECHNOLOGY': 2,
+  },
+  ic: {
+    'COMPETITIVE TECHNOLOGY': 0,
+    'VIETNAM MANUFACTURING SQUEEZE': 1,
+    'RETAIL SHELF COMPETITION': 2,
+  },
+  leader: {}, // equal — fall back to tier-based sort
+};
+
 interface InsightsViewProps {
   onSelectInsight: (insightId: string) => void;
   selectedInsightId?: string;
   activeProject?: string;
+  activeLens?: LensType;
 }
 
-export function InsightsView({ onSelectInsight, selectedInsightId, activeProject }: InsightsViewProps) {
+export function InsightsView({ onSelectInsight, selectedInsightId, activeProject, activeLens = 'leader' }: InsightsViewProps) {
   const [activeTab, setActiveTab] = useState<TierTab>('all');
 
   const projectInsights = useMemo(() =>
@@ -49,14 +66,24 @@ export function InsightsView({ onSelectInsight, selectedInsightId, activeProject
       group.push(insight);
       map.set(insight.category, group);
     }
-    // Sort groups: breaking-containing first, then developing, then established
+
+    const lensWeights = LENS_CATEGORY_WEIGHT[activeLens] || {};
+
     const tierPriority = (items: MockInsight[]) => {
       if (items.some(i => i.tier === 'breaking')) return 0;
       if (items.some(i => i.tier === 'developing')) return 1;
       return 2;
     };
-    return [...map.entries()].sort((a, b) => tierPriority(a[1]) - tierPriority(b[1]));
-  }, [filtered]);
+
+    return [...map.entries()].sort((a, b) => {
+      const tierDiff = tierPriority(a[1]) - tierPriority(b[1]);
+      if (tierDiff !== 0) return tierDiff;
+      // Tiebreak by lens weight
+      const weightA = lensWeights[a[0]] ?? 99;
+      const weightB = lensWeights[b[0]] ?? 99;
+      return weightA - weightB;
+    });
+  }, [filtered, activeLens]);
 
   const tabs: { key: TierTab; label: string; count?: number }[] = [
     { key: 'all', label: 'All' },
@@ -134,6 +161,11 @@ export function InsightsView({ onSelectInsight, selectedInsightId, activeProject
                       <span>·</span>
                       <span>{insight.evidence_count} refs</span>
                     </div>
+                    {insight.momentum && (
+                      <span className="text-[10px] font-medium text-tier-breaking flex items-center gap-0.5 mt-0.5">
+                        {insight.momentum}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
