@@ -1,17 +1,12 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronDown, Zap } from 'lucide-react';
+import { ChevronDown, Zap, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ChatView } from '@/components/views/ChatView';
 import { InsightsView } from '@/components/views/InsightsView';
-import { SignalDetailView } from '@/components/views/SignalDetailView';
-import { ShareWizardView } from '@/components/views/ShareWizardView';
-import { ThreadView } from '@/components/views/ThreadView';
 import { PositionPanel, type PositionState } from '@/components/views/PositionPanel';
 import { MOCK_PROJECTS, MOCK_POSITIONS } from '@/data/mock';
 import { mockPosition } from '@/data/mock-position';
-
-type RightView = 'insights' | 'signal-detail' | 'share' | 'thread';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -19,46 +14,13 @@ interface DashboardProps {
 
 export default function Dashboard({ onLogout }: DashboardProps) {
   const isMobile = useIsMobile();
-  const [rightView, setRightView] = useState<RightView>('insights');
-  const [selectedInsightIds, setSelectedInsightIds] = useState<string[]>([]);
   const [activeProject, setActiveProject] = useState('p1');
-  const [showChat, setShowChat] = useState(true);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
   const [showPositions, setShowPositions] = useState(false);
+  const [signalsOpen, setSignalsOpen] = useState(false);
 
   // Position panel state
   const [positionState, setPositionState] = useState<PositionState>('active');
   const [positionCollapsed, setPositionCollapsed] = useState(false);
-
-  const primaryInsightId = selectedInsightIds[0] || null;
-
-  const goToInsights = () => setRightView('insights');
-  const goToSignalDetail = (id: string) => {
-    setSelectedInsightIds([id]);
-    setRightView('signal-detail');
-    if (isMobile) setShowChat(false);
-  };
-  const goToShare = () => setRightView('share');
-  const goToThread = () => setRightView('thread');
-  const goBack = () => {
-    if (rightView === 'thread') setRightView('share');
-    else if (rightView === 'share') setRightView('signal-detail');
-    else if (rightView === 'signal-detail') setRightView('insights');
-  };
-
-  const handleAddInsight = (id: string) => {
-    setSelectedInsightIds(prev => prev.includes(id) ? prev : [...prev, id]);
-  };
-
-  const handleRemoveInsight = (id: string) => {
-    setSelectedInsightIds(prev => {
-      const next = prev.filter(i => i !== id);
-      if (next.length === 0) {
-        setRightView('insights');
-      }
-      return next;
-    });
-  };
 
   // Dev button: cycle position states
   const cyclePositionState = () => {
@@ -77,23 +39,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }, [positionState]);
 
-  const showBackButton = rightView !== 'insights';
-
-  // Mobile: tabs for Chat vs Position
+  // Mobile tabs
   const [mobileTab, setMobileTab] = useState<'chat' | 'position'>('chat');
 
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
       <header className="flex-shrink-0 flex items-center gap-3 px-5 py-2.5 border-b border-border">
-        {showBackButton && (
-          <button
-            onClick={goBack}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        )}
         <span className="text-base font-semibold tracking-[0.2em] text-foreground">AUO</span>
         <div className="flex items-center gap-1.5 ml-4">
           {MOCK_PROJECTS.map(p => (
@@ -126,11 +78,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               {MOCK_POSITIONS.map(pos => (
                 <button
                   key={pos.id}
-                  onClick={() => {
-                    setSelectedInsightIds(pos.insightIds || [pos.insightId]);
-                    setRightView('signal-detail');
-                    setShowPositions(false);
-                  }}
+                  onClick={() => setShowPositions(false)}
                   className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
                 >
                   <div className="text-sm text-card-foreground">{pos.title}</div>
@@ -182,9 +130,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         )}
       </header>
 
-      {/* Split layout: Left 55% Chat + Right 45% Position */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left panel: Chat + existing content views */}
+      {/* Main content */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left panel: Chat */}
         {(!isMobile || mobileTab === 'chat') && (
           <div
             className={cn(
@@ -192,39 +140,28 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               isMobile ? 'w-full' : positionCollapsed ? 'flex-1' : 'w-[55%] flex-shrink-0'
             )}
           >
-            {/* Inner: chat or content views based on rightView */}
-            {rightView === 'insights' ? (
+            <ChatView onOpenSignals={() => setSignalsOpen(true)} />
+          </div>
+        )}
+
+        {/* Signals overlay */}
+        {signalsOpen && (
+          <div className="absolute inset-0 z-40 bg-background flex flex-col">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <span className="text-sm font-semibold text-foreground">Signals</span>
+              <button
+                onClick={() => setSignalsOpen(false)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
               <InsightsView
-                onSelectInsight={goToSignalDetail}
-                selectedInsightId={primaryInsightId || undefined}
+                onSelectInsight={() => {}}
                 activeProject={activeProject}
               />
-            ) : rightView === 'signal-detail' && selectedInsightIds.length > 0 ? (
-              <SignalDetailView
-                insightIds={selectedInsightIds}
-                onBack={goBack}
-                onAddInsight={handleAddInsight}
-                onRemoveInsight={handleRemoveInsight}
-              />
-            ) : rightView === 'share' && primaryInsightId ? (
-              <ShareWizardView
-                insightIds={selectedInsightIds}
-                onBack={goBack}
-                onOpenThread={goToThread}
-              />
-            ) : rightView === 'thread' && primaryInsightId ? (
-              <ThreadView
-                insightIds={selectedInsightIds}
-                onBack={goBack}
-              />
-            ) : (
-              <ChatView
-                activeInsightIds={rightView === 'signal-detail' ? selectedInsightIds : []}
-                onAddInsight={handleAddInsight}
-                onShare={goToShare}
-                chatCollapsed={false}
-              />
-            )}
+            </div>
           </div>
         )}
 

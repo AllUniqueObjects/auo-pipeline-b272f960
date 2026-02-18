@@ -445,18 +445,23 @@ export const MOCK_PROJECTS = [
 
 export const MOCK_CHAT_MESSAGES: MockChatMessage[] = [
   {
-    id: '1',
+    id: 'ctx-1',
     role: 'assistant',
-    content: "Good morning. Three things need your attention today:\n\n**1. 880 v15 shelf window closing** — Foot Locker leadership churn gives you 60 days to lock Dick's placement before Nike wholesale floods the channel.\n\n**2. Vietnam FOB decision** — BOM lock deadline is 8-12 weeks before Supreme Court tariff clarity. You're deciding blind on $18.40/pair.\n\n**3. Brooks Ghost 16 hit $1B** — resets the neutral cushion hierarchy at $140. Your $150 price point needs justification.\n\nWhich one do you want to dig into?",
+    content: "Morning David. Breaking signal just came in — Supreme Court set April hearing date for the tariff case. This directly affects your Vietnam FOB timing.",
   },
   {
-    id: '2',
+    id: 'ctx-2',
     role: 'user',
-    content: 'Tell me more about the Vietnam FOB situation',
+    content: "How certain is the April timeline?",
   },
   {
-    id: '3',
+    id: 'ctx-3',
     role: 'assistant',
-    content: "Here's the convergence: Vietnam FOB is at $18.40/pair today. If the Supreme Court upholds the 20-25% tariff, landed cost jumps to $22-23. But your FW26 BOM locks 8-12 weeks *before* that ruling.\n\nThree signals driving this:\n- **Tariff overhang**: 57 sources tracking the Supreme Court timeline\n- **Vietnam labor**: Wages rising 7-8% annually independent of tariffs\n- **Maine capacity**: Your $8-12M expansion could reach 35-40% domestic by FW27\n\nThe decision: Lock Vietnam FOB at $18.40 now and accept inflation risk, or wait for clarity and risk the tariff hit. Maine expansion becomes your hedge either way.\n\nWant me to pull the specific signals?",
+    content: "High confidence — 3 Tier 1 sources including Reuters. The 6-week window before factory allocation closes is real. Nike already moved their commitment up.",
+  },
+  {
+    id: 'ctx-4',
+    role: 'user',
+    content: "Lock it. Vietnam FOB at $18.40. Maine accelerates in parallel.",
   },
 ];
