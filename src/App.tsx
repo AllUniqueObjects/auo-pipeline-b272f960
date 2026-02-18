@@ -3,9 +3,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
+import { type LensType } from '@/data/mock';
 
 type AppState = 'onboarding' | 'dashboard';
-type LensType = 'executive' | 'leader' | 'ic';
 
 const App = () => {
   const [appState, setAppState] = useState<AppState>(() => {
@@ -13,7 +13,7 @@ const App = () => {
   });
 
   const [initialLens, setInitialLens] = useState<LensType>(() => {
-    return (localStorage.getItem('activeLens') as LensType) || 'executive';
+    return (localStorage.getItem('activeLens') as LensType) || 'balanced';
   });
 
   const [justCompletedOnboarding, setJustCompletedOnboarding] = useState(false);

@@ -718,6 +718,32 @@ export const MOCK_TOPIC_INSIGHTS: MockTopic[] = [
   },
 ];
 
+export type LensType = 'strategic' | 'balanced' | 'operational';
+
+export const LENS_LABELS: Record<LensType, string> = {
+  strategic: 'Strategic',
+  balanced: 'Balanced',
+  operational: 'Operational',
+};
+
+export const LENS_DESCRIPTIONS: Record<LensType, string> = {
+  strategic: 'Weights market dynamics + macro signals first',
+  balanced: 'Equal weighting across all signal categories',
+  operational: 'Weights innovation + supply chain signals first',
+};
+
+export const LENS_MESSAGE: Record<LensType, string> = {
+  strategic: 'Switched to Strategic lens. Market Dynamics and Macroeconomics signals are weighted first.',
+  balanced: "Switched to Balanced lens. Signals are reweighted — equal coverage across all categories now.",
+  operational: 'Switched to Operational lens. Innovation and supply chain signals are weighted first.',
+};
+
+export const LENS_CATEGORY_ORDER: Record<LensType, string[]> = {
+  strategic: ['RETAIL SHELF COMPETITION', 'VIETNAM MANUFACTURING SQUEEZE', 'COMPETITIVE TECHNOLOGY'],
+  balanced: ['VIETNAM MANUFACTURING SQUEEZE', 'RETAIL SHELF COMPETITION', 'COMPETITIVE TECHNOLOGY'],
+  operational: ['COMPETITIVE TECHNOLOGY', 'VIETNAM MANUFACTURING SQUEEZE', 'RETAIL SHELF COMPETITION'],
+};
+
 export const SESSION_OPENER_MESSAGE: MockChatMessage = {
   id: 'session-opener',
   role: 'assistant',

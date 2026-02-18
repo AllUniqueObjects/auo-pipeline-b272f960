@@ -5,24 +5,29 @@ import { type MockTopic, type TopicInsight } from '@/data/mock';
 
 type TierFilter = 'all' | 'breaking' | 'developing' | 'established';
 
+const TIER_PILL: Record<string, string> = {
+  breaking: 'bg-tier-breaking/10 text-tier-breaking',
+  developing: 'bg-tier-developing/10 text-tier-developing',
+  established: 'bg-muted text-muted-foreground',
+};
+
 const TIER_DOT: Record<string, string> = {
   breaking: 'bg-tier-breaking',
   developing: 'bg-tier-developing',
   established: 'bg-tier-established',
 };
 
-const TIER_TEXT: Record<string, string> = {
-  breaking: 'text-tier-breaking',
-  developing: 'text-tier-developing',
-  established: 'text-tier-established',
-};
-
 function CredBar({ value }: { value: number }) {
   const pct = Math.round(value * 100);
-  const color = pct >= 80 ? 'bg-tier-established' : pct >= 60 ? 'bg-tier-developing' : 'bg-tier-breaking';
+  const color =
+    pct >= 80
+      ? 'bg-tier-established'
+      : pct >= 60
+      ? 'bg-tier-developing'
+      : 'bg-tier-breaking';
   return (
-    <span className="inline-flex items-center gap-1">
-      <span className="inline-block w-10 h-1 rounded-full bg-muted overflow-hidden">
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-block w-20 h-1.5 rounded-full bg-muted overflow-hidden">
         <span className={cn('block h-full rounded-full', color)} style={{ width: `${pct}%` }} />
       </span>
       <span className="text-[10px] text-muted-foreground">{pct}%</span>
@@ -30,58 +35,72 @@ function CredBar({ value }: { value: number }) {
   );
 }
 
-interface InsightRowProps {
+interface InsightCardProps {
   insight: TopicInsight;
   onOpen: (id: string) => void;
+  onDiscuss?: (insight: TopicInsight) => void;
 }
 
-function InsightRow({ insight, onOpen }: InsightRowProps) {
+function InsightCard({ insight, onOpen, onDiscuss }: InsightCardProps) {
   return (
     <div
       onClick={() => onOpen(insight.id)}
-      className="group flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/40 transition-colors cursor-pointer border border-transparent hover:border-border"
+      className={cn(
+        'group rounded-xl border border-border hover:border-muted-foreground/30 transition-all duration-150 cursor-pointer overflow-hidden',
+        insight.tier === 'breaking' ? 'bg-tier-breaking/[0.03] hover:bg-tier-breaking/[0.06]' : 'hover:bg-accent/30'
+      )}
     >
-      <span className={cn('h-2 w-2 rounded-full mt-1.5 flex-shrink-0', TIER_DOT[insight.tier])} />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground leading-snug line-clamp-2 mb-1">
-          {insight.title}
-        </p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-muted-foreground">{insight.references} refs</span>
-          <span className="text-[10px] text-muted-foreground">·</span>
-          <CredBar value={insight.credibility} />
-          {insight.momentum && insight.momentumLabel && (
-            <>
-              <span className="text-[10px] text-muted-foreground">·</span>
-              <span className={cn('text-[10px] font-medium', TIER_TEXT[insight.tier])}>
-                ↑ {insight.momentumLabel}
-              </span>
-            </>
-          )}
+      {/* Top row */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
+        <div className="flex items-center gap-2">
+          <span className={cn('text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full', TIER_PILL[insight.tier])}>
+            {insight.tier}
+          </span>
           {insight.isLive && (
-            <>
-              <span className="text-[10px] text-muted-foreground">·</span>
-              <span className="inline-flex items-center gap-0.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--live-blue))] animate-pulse" />
-                <span className="text-[10px] font-mono text-[hsl(var(--live-blue))] uppercase tracking-wider">Live</span>
-              </span>
-            </>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[hsl(var(--live-blue))]/10">
+              <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--live-blue))] animate-pulse" />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-[hsl(var(--live-blue))]">Live</span>
+            </span>
           )}
         </div>
-        {insight.davidCanTell && (
-          <p className="text-[11px] text-muted-foreground italic mt-1 line-clamp-2 leading-snug">
-            "{insight.davidCanTell}"
-          </p>
+        {insight.momentum && insight.momentumLabel && (
+          <span className="text-[10px] font-medium text-tier-breaking">↑ {insight.momentumLabel}</span>
         )}
       </div>
-      <button
-        onClick={e => { e.stopPropagation(); onOpen(insight.id); }}
-        className="flex-shrink-0 text-muted-foreground group-hover:text-foreground transition-colors mt-0.5"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M5 2.5L9.5 7 5 11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+
+      {/* Title */}
+      <p className="px-4 py-1 text-sm font-medium text-foreground leading-snug">{insight.title}</p>
+
+      {/* Quote */}
+      {insight.davidCanTell && (
+        <p className="px-4 pb-2.5 text-[11px] text-muted-foreground italic leading-snug line-clamp-2">
+          "{insight.davidCanTell}"
+        </p>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-4 pb-3 pt-2 border-t border-border/50">
+        <span className="text-[10px] text-muted-foreground">{insight.references} refs</span>
+        <CredBar value={insight.credibility} />
+      </div>
+
+      {/* Hover actions */}
+      {onDiscuss && (
+        <div className="px-4 pb-3 pt-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <button
+            onClick={e => { e.stopPropagation(); onDiscuss(insight); }}
+            className="text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border rounded-md px-2.5 py-1 hover:bg-background transition-colors"
+          >
+            Ask AUO →
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); onOpen(insight.id); }}
+            className="text-[11px] font-medium text-foreground border border-border rounded-md px-2.5 py-1 hover:bg-background transition-colors"
+          >
+            Explore detail →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -90,10 +109,11 @@ interface TopicDetailPanelProps {
   topic: MockTopic;
   onBack: () => void;
   onOpenInsight: (id: string) => void;
-  onBuildPosition: () => void;
+  onBuildPosition: (topic: MockTopic) => void;
+  onDiscuss?: (insight: TopicInsight) => void;
 }
 
-export function TopicDetailPanel({ topic, onBack, onOpenInsight, onBuildPosition }: TopicDetailPanelProps) {
+export function TopicDetailPanel({ topic, onBack, onOpenInsight, onBuildPosition, onDiscuss }: TopicDetailPanelProps) {
   const [filter, setFilter] = useState<TierFilter>('all');
 
   const filtered = filter === 'all' ? topic.insights : topic.insights.filter(i => i.tier === filter);
@@ -116,7 +136,7 @@ export function TopicDetailPanel({ topic, onBack, onOpenInsight, onBuildPosition
           <ChevronLeft className="h-3.5 w-3.5" />
           Today's Briefing
         </button>
-        <h1 className="text-[11px] font-medium uppercase tracking-[0.15em] text-foreground mb-1">
+        <h1 className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground mb-1">
           {topic.name}
         </h1>
         <p className="text-xs text-muted-foreground">
@@ -150,9 +170,14 @@ export function TopicDetailPanel({ topic, onBack, onOpenInsight, onBuildPosition
 
       {/* Insights */}
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="space-y-0.5">
+        <div className="space-y-2">
           {filtered.map(insight => (
-            <InsightRow key={insight.id} insight={insight} onOpen={onOpenInsight} />
+            <InsightCard
+              key={insight.id}
+              insight={insight}
+              onOpen={onOpenInsight}
+              onDiscuss={onDiscuss}
+            />
           ))}
         </div>
       </div>
@@ -160,7 +185,7 @@ export function TopicDetailPanel({ topic, onBack, onOpenInsight, onBuildPosition
       {/* Build position CTA */}
       <div className="flex-shrink-0 border-t border-border px-5 py-3">
         <button
-          onClick={onBuildPosition}
+          onClick={() => onBuildPosition(topic)}
           className="w-full py-2 rounded-lg bg-emerging/10 text-emerging text-sm font-semibold hover:bg-emerging/20 transition-colors"
         >
           Build Position from this topic →
