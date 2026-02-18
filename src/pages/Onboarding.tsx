@@ -1,156 +1,478 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-
 import { type LensType } from '@/data/mock';
 
-type OnboardingStep = 'welcome' | 'role_select' | 'tactical_seed' | 'scanning' | 'first_signals';
+// ─── Types ─────────────────────────────────────────────────────────────────
 
-interface OnboardingMessage {
+type Beat = 'beat1' | 'beat2' | 'beat3' | 'beat4_confirm' | 'beat4_missing' | 'beat5';
+
+type ScanCategory = 'INNOVATION' | 'MACROECONOMICS' | 'MARKET DYNAMICS' | 'CONSUMER';
+
+type ScanState = 'idle' | 'scanning' | 'done';
+
+interface ScanItem {
+  category: ScanCategory;
+  urgent: boolean;
+  bullets: string[];
+}
+
+interface ChatMessage {
   id: string;
   role: 'assistant' | 'user';
   content: string;
-  signalCards?: OnboardingSignalCardData[];
-}
-
-interface OnboardingSignalCardData {
-  id: string;
-  tier: 'breaking' | 'developing';
-  category: string;
-  title: string;
-  signalCount: number;
-  credibility: number;
 }
 
 interface OnboardingProps {
   onComplete: (lens: LensType) => void;
 }
 
-const ONBOARDING_SIGNALS: OnboardingSignalCardData[] = [
+// ─── Mock scan data ─────────────────────────────────────────────────────────
+
+const SCAN_ITEMS: ScanItem[] = [
   {
-    id: 'ob-sig-1',
-    tier: 'breaking',
+    category: 'INNOVATION',
+    urgent: false,
+    bullets: [
+      'Performance foam tech accelerating',
+      'Made-in-USA narrative strengthening',
+    ],
+  },
+  {
+    category: 'MACROECONOMICS',
+    urgent: true,
+    bullets: [
+      'Vietnam FOB inflation 7-8% annually',
+      'Supreme Court tariff ruling Q2 2026',
+    ],
+  },
+  {
+    category: 'MARKET DYNAMICS',
+    urgent: true,
+    bullets: [
+      'Foot Locker–Dick\'s: 2,200+ door consolidation forming',
+      'Nike wholesale re-entry extended',
+    ],
+  },
+  {
+    category: 'CONSUMER',
+    urgent: false,
+    bullets: [
+      'Gen Z heritage brand affinity growing',
+      'Premium casual demand stabilizing',
+    ],
+  },
+];
+
+const PRIORITY_CATEGORIES: ScanCategory[] = ['MACROECONOMICS', 'MARKET DYNAMICS'];
+
+const ONBOARDING_SIGNALS = [
+  {
+    id: 'ob-1',
+    tier: 'breaking' as const,
     category: 'MACROECONOMICS',
     title: 'Supreme Court Sets April Hearing — Vietnam FOB Window Opens',
-    signalCount: 5,
+    refs: 203,
     credibility: 92,
+    detail: '↑ Breaking since yesterday',
   },
   {
-    id: 'ob-sig-2',
-    tier: 'breaking',
+    id: 'ob-2',
+    tier: 'breaking' as const,
     category: 'MARKET DYNAMICS',
     title: 'Foot Locker Leadership Vacuum Opens 60-Day 880 v15 Shelf Lock Window',
-    signalCount: 5,
+    refs: 5,
     credibility: 100,
+    detail: '',
   },
   {
-    id: 'ob-sig-3',
-    tier: 'developing',
+    id: 'ob-3',
+    tier: 'developing' as const,
     category: 'MARKET DYNAMICS',
     title: 'Nike Wholesale Re-entry Accelerates — 880 v15 Shelf Competition Rising',
-    signalCount: 3,
+    refs: 3,
     credibility: 78,
+    detail: '',
   },
 ];
 
-const ROLE_OPTIONS: { key: LensType; label: string; sub: string }[] = [
-  { key: 'strategic', label: 'Strategic', sub: 'I focus on competitive and market-level decisions' },
-  { key: 'balanced', label: 'Balanced', sub: 'I balance strategy with execution' },
-  { key: 'operational', label: 'Operational', sub: 'I focus on product and supply chain decisions' },
-];
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function useTypewriter(text: string, active: boolean, speed = 18) {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    setDisplayed('');
+    setDone(false);
+    let i = 0;
+    const iv = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(iv);
+        setDone(true);
+      }
+    }, speed);
+    return () => clearInterval(iv);
+  }, [text, active, speed]);
+  return { displayed, done };
+}
+
+// ─── Sub-components ─────────────────────────────────────────────────────────
+
+function AuoBubble({ content, animate = false }: { content: string; animate?: boolean }) {
+  const { displayed, done: _done } = useTypewriter(content, animate);
+  const text = animate ? displayed : content;
+  return (
+    <div className="flex flex-col items-start">
+      <span className="text-[10px] font-medium uppercase tracking-wider mb-1.5 px-1 text-muted-foreground">
+        AUO
+      </span>
+      <div className="max-w-[88%] rounded-xl bg-card border border-border px-4 py-3 text-sm leading-relaxed text-card-foreground">
+        {text.split('\n').map((line, i) =>
+          line.trim() ? <p key={i} className="mb-0.5 last:mb-0">{line}</p> : <div key={i} className="h-2" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UserBubble({ content }: { content: string }) {
+  return (
+    <div className="flex flex-col items-end">
+      <span className="text-[10px] font-medium uppercase tracking-wider mb-1.5 px-1 text-muted-foreground">
+        You
+      </span>
+      <div className="max-w-[88%] rounded-xl bg-accent px-4 py-3 text-sm text-accent-foreground leading-relaxed">
+        {content}
+      </div>
+    </div>
+  );
+}
+
+function ScanningPanel({ revealedCount, company }: { revealedCount: number; company: string }) {
+  return (
+    <div className="flex-1 flex flex-col px-8 py-10 overflow-y-auto">
+      <div className="mb-6">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
+          Scanning
+        </p>
+        <h2 className="text-lg font-semibold text-foreground">
+          {company.toUpperCase()}
+        </h2>
+      </div>
+      <div className="space-y-5">
+        {SCAN_ITEMS.map((item, idx) => {
+          const revealed = idx < revealedCount;
+          return (
+            <div
+              key={item.category}
+              className={cn(
+                'transition-all duration-500',
+                revealed ? 'opacity-100' : 'opacity-30'
+              )}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-foreground">
+                  {item.category}
+                </span>
+                {item.urgent && revealed && (
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-tier-breaking/10 text-tier-breaking">
+                    ↑ URGENT
+                  </span>
+                )}
+                {!revealed && (
+                  <span className="flex gap-1 ml-1">
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
+                  </span>
+                )}
+              </div>
+              {revealed && (
+                <div className="space-y-1 pl-0">
+                  {item.bullets.map((b) => (
+                    <p key={b} className="text-sm text-muted-foreground leading-snug">
+                      • {b}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {!revealed && (
+                <div className="h-4 w-32 rounded bg-border/50 animate-pulse" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SignalsPanel() {
+  return (
+    <div className="flex-1 flex flex-col px-8 py-10 overflow-y-auto">
+      <div className="mb-5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
+          Signals for Your Context
+        </p>
+      </div>
+      <div className="space-y-3">
+        {ONBOARDING_SIGNALS.map((sig) => (
+          <div
+            key={sig.id}
+            className="rounded-xl border border-border bg-card overflow-hidden"
+          >
+            <div className="px-4 pt-3 pb-1 flex items-center gap-2">
+              <span
+                className={cn(
+                  'text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full',
+                  sig.tier === 'breaking'
+                    ? 'bg-tier-breaking/10 text-tier-breaking'
+                    : 'bg-tier-developing/10 text-tier-developing'
+                )}
+              >
+                {sig.tier}
+              </span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                {sig.category}
+              </span>
+              {sig.detail && (
+                <span className="ml-auto text-[10px] font-medium text-tier-breaking">
+                  {sig.detail}
+                </span>
+              )}
+            </div>
+            <p className="px-4 pb-2 text-sm font-medium text-foreground leading-snug">
+              {sig.title}
+            </p>
+            <div className="px-4 pb-3 flex items-center gap-2 text-[10px] text-muted-foreground border-t border-border/40 pt-2">
+              <span>{sig.refs} signals</span>
+              <span>·</span>
+              <span>{sig.credibility}% credibility</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyRightPanel() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
+      <h2
+        className="text-5xl italic mb-3"
+        style={{
+          fontFamily: "'Fraunces', serif",
+          color: 'hsl(var(--muted-foreground) / 0.1)',
+        }}
+      >
+        signals
+      </h2>
+      <p className="text-xs text-muted-foreground/40">Your signals will appear here</p>
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
-  const [step, setStep] = useState<OnboardingStep>('welcome');
-  const [messages, setMessages] = useState<OnboardingMessage[]>([
-    {
-      id: 'ob-1',
-      role: 'assistant',
-      content:
-        "Hi David — I'm AUO.\n\nI track signals across the athletic footwear industry and help you and your team make better decisions, faster.\n\nOne quick question before we start.",
-    },
-  ]);
-  const [selectedLens, setSelectedLens] = useState<LensType | null>(null);
-  const [roleConfirmed, setRoleConfirmed] = useState(false);
-  const [inputVisible, setInputVisible] = useState(false);
+  const [beat, setBeat] = useState<Beat>('beat1');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [animatingId, setAnimatingId] = useState<string | null>(null);
+
+  // Input
   const [inputValue, setInputValue] = useState('');
-  const [scanning, setScanning] = useState(false);
+  const [inputVisible, setInputVisible] = useState(false);
+  const [inputPlaceholder, setInputPlaceholder] = useState('');
+
+  // Company name
+  const [company, setCompany] = useState('');
+
+  // Scan state
+  const [scanState, setScanState] = useState<ScanState>('idle');
+  const [scanRevealedCount, setScanRevealedCount] = useState(0);
+
+  // Priority selection (beat 3)
+  const [selectedPriorities, setSelectedPriorities] = useState<ScanCategory[]>([...PRIORITY_CATEGORIES]);
+  const [priorityConfirmed, setPriorityConfirmed] = useState(false);
+
+  // Right panel
+  type RightPanel = 'empty' | 'scanning' | 'signals';
+  const [rightPanel, setRightPanel] = useState<RightPanel>('empty');
+
+  // Completion banner
+  const [showBanner, setShowBanner] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // ── Scroll to bottom on new messages
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, step, inputVisible]);
-
-  const appendMessage = (msg: OnboardingMessage) => {
-    setMessages(prev => [...prev, msg]);
-  };
-
-  // Step: welcome → role_select
-  const handleLetsGo = () => {
-    setStep('role_select');
-    appendMessage({
-      id: 'ob-2',
-      role: 'assistant',
-      content: 'How would you describe your level?',
-    });
-  };
-
-  // Step: role card clicked
-  const handleRoleSelect = (lens: LensType) => {
-    if (roleConfirmed) return;
-    setSelectedLens(lens);
-    setRoleConfirmed(true);
-    appendMessage({
-      id: 'ob-role-user',
-      role: 'user',
-      content: ROLE_OPTIONS.find(r => r.key === lens)!.label,
-    });
     setTimeout(() => {
-      appendMessage({
-        id: 'ob-3',
-        role: 'assistant',
-        content:
-          "Got it. You can switch your focus lens anytime from the top right — try Strategic for market signals, Operational for supply chain and innovation.",
-      });
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }, 60);
+  }, [messages, animatingId, inputVisible, beat]);
+
+  // ── Focus input when it appears
+  useEffect(() => {
+    if (inputVisible) inputRef.current?.focus();
+  }, [inputVisible]);
+
+  // ── Beat 1: AUO intro appears on mount
+  useEffect(() => {
+    const introId = 'auo-intro';
+    setAnimatingId(introId);
+    setMessages([{
+      id: introId,
+      role: 'assistant',
+      content: "Hey — I'm AUO.\n\nI track signals across industries and help people cut through the noise to make better decisions, faster.\n\nI'm going to ask you a couple of things to calibrate to you — takes about two minutes. After that, everything I surface will actually be relevant to what you're working on.\n\nReady to start?",
+    }]);
+  }, []);
+
+  const addMessage = useCallback((msg: ChatMessage, animateIt = false) => {
+    setMessages(prev => [...prev, msg]);
+    if (animateIt) setAnimatingId(msg.id);
+    else setAnimatingId(null);
+  }, []);
+
+  const addAuo = useCallback((id: string, content: string, delay = 0) => {
+    return new Promise<void>(resolve => {
       setTimeout(() => {
-        setInputVisible(true);
-        setStep('tactical_seed');
-        appendMessage({
-          id: 'ob-4',
-          role: 'assistant',
-          content:
-            "What's the most pressing thing on your plate right now?\n\nDoesn't have to be complete — just whatever's top of mind.",
-        });
-      }, 800);
-    }, 400);
+        addMessage({ id, role: 'assistant', content }, true);
+        // Rough read time before resolving
+        const readMs = Math.max(600, content.length * 12);
+        setTimeout(resolve, readMs);
+      }, delay);
+    });
+  }, [addMessage]);
+
+  // ── Beat 1 → 2: Let's go
+  const handleLetsGo = async () => {
+    setBeat('beat2');
+    await addAuo('auo-b2', "First — what company are you at?", 200);
+    setInputPlaceholder('e.g. New Balance');
+    setInputVisible(true);
   };
 
-  // Step: tactical_seed → scanning
+  // ── Beat 2: company submitted
+  const handleCompanySubmit = async (text: string) => {
+    setCompany(text);
+    setInputVisible(false);
+    addMessage({ id: 'user-company', role: 'user', content: text });
+
+    // AUO response + kick off scan
+    await addAuo('auo-b2-resp', `On it — let me see what's happening in ${text}'s world right now.`, 400);
+
+    // Start right panel scan
+    setRightPanel('scanning');
+    setScanState('scanning');
+    setScanRevealedCount(0);
+
+    // Reveal scan items one by one
+    const revealDelay = 900;
+    for (let i = 1; i <= SCAN_ITEMS.length; i++) {
+      await new Promise<void>(r => setTimeout(r, revealDelay));
+      setScanRevealedCount(i);
+    }
+    setScanState('done');
+
+    // Beat 3 question fires while scan is loading (no wait)
+    setBeat('beat3');
+    await addAuo('auo-b3', "While that's loading —\n\nWhat are you actually working on right now?\n\nCould be a product, a decision, a deadline — whatever's top of mind.", 300);
+    setInputPlaceholder("Tell AUO what's on your plate...");
+    setInputVisible(true);
+  };
+
+  // ── Beat 3: tactical input submitted
+  const handleTacticalSubmit = async (text: string) => {
+    setInputVisible(false);
+    addMessage({ id: 'user-tactical', role: 'user', content: text });
+
+    await addAuo(
+      'auo-b3-resp',
+      "Vietnam sourcing, 880 v15 shelf, February window — got it.\n\nOne more thing: which of these feels most urgent to you right now?",
+      400
+    );
+
+    setBeat('beat3'); // keep beat3 to show priority selector
+    // Priority selector shows inline below
+  };
+
+  // ── Beat 3: priority toggle
+  const togglePriority = (cat: ScanCategory) => {
+    if (priorityConfirmed) return;
+    setSelectedPriorities(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
+
+  // ── Beat 3: priority confirmed
+  const handlePriorityConfirm = async () => {
+    if (priorityConfirmed) return;
+    setPriorityConfirmed(true);
+
+    const priorityLabel = selectedPriorities.join(' & ');
+    addMessage({ id: 'user-priority', role: 'user', content: priorityLabel });
+
+    await addAuo('auo-b3-confirm', "Makes sense given where things are right now.\n\nLet me pull the most relevant signals for you.", 400);
+
+    // Right panel: signals
+    await new Promise<void>(r => setTimeout(r, 600));
+    setRightPanel('signals');
+
+    await addAuo(
+      'auo-b4',
+      "Three breaking signals converge on your February window.\n\nDoes this feel right — or is something missing?",
+      300
+    );
+
+    setBeat('beat4_confirm');
+  };
+
+  // ── Beat 4: confirm
+  const handleConfirm = async () => {
+    setBeat('beat5');
+    addMessage({ id: 'user-confirm', role: 'user', content: 'This looks right →' });
+
+    await addAuo(
+      'auo-b5',
+      "You're all set.\n\nI scan for new signals 3× daily. The panel on your right will always show what's most relevant to you.\n\nYou can shift focus anytime from the top right.",
+      400
+    );
+
+    setShowBanner(true);
+    setTimeout(() => {
+      onComplete('balanced');
+    }, 2200);
+  };
+
+  // ── Beat 4: something missing
+  const handleMissing = async () => {
+    setBeat('beat4_missing');
+    await addAuo('auo-b4-missing', "What's missing?", 200);
+    setInputPlaceholder("Tell AUO...");
+    setInputVisible(true);
+  };
+
+  // ── Beat 4 missing: user feedback
+  const handleMissingSubmit = async (text: string) => {
+    setInputVisible(false);
+    addMessage({ id: 'user-missing', role: 'user', content: text });
+    await addAuo('auo-b4-reweight', "Got it — I've adjusted the signal weighting.\n\nDoes this look better?", 500);
+    setBeat('beat4_confirm');
+  };
+
+  // ── Input handler
   const handleSend = () => {
     const text = inputValue.trim();
     if (!text) return;
-    appendMessage({ id: crypto.randomUUID(), role: 'user', content: text });
     setInputValue('');
-    setScanning(true);
-    setStep('scanning');
 
-    // Scanning dot shows for 1.5s, then response, then first_signals
-    setTimeout(() => {
-      setScanning(false);
-      appendMessage({
-        id: 'ob-scan-resp',
-        role: 'assistant',
-        content:
-          "Vietnam sourcing, 880 v15 shelf lock, February deadline. I have fresh signals on all three right now.\n\nLet me pull what's most relevant.",
-      });
-      setTimeout(() => {
-        setStep('first_signals');
-        appendMessage({
-          id: 'ob-signals',
-          role: 'assistant',
-          content: "Three breaking signals match where you're focused.",
-          signalCards: ONBOARDING_SIGNALS,
-        });
-      }, 700);
-    }, 1500);
+    if (beat === 'beat2') handleCompanySubmit(text);
+    else if (beat === 'beat3') handleTacticalSubmit(text);
+    else if (beat === 'beat4_missing') handleMissingSubmit(text);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -160,79 +482,125 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   };
 
-  // Signal card click → go deeper, do NOT complete onboarding
-  const handleSignalCardClick = (card: OnboardingSignalCardData) => {
-    appendMessage({
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      content: `Here's a deeper look at the ${card.title} signal.\n\nThis is a ${card.tier === 'breaking' ? 'breaking' : 'developing'} signal in ${card.category} — ${card.credibility}% credibility across ${card.signalCount} sources. Factory allocation calendars, procurement filings, and Tier 1 trade press all converging on the same window.\n\nWant me to connect this to your FOB decision?`,
-    });
-  };
+  // ── Determine whether to show priority selector
+  // Show after auo-b3-resp appears and beat is still beat3 and not yet confirmed
+  const showPrioritySelector =
+    beat === 'beat3' &&
+    !priorityConfirmed &&
+    messages.some(m => m.id === 'auo-b3-resp') &&
+    !inputVisible;
+
+  // ── Determine whether to show confirm buttons
+  const showConfirmButtons = beat === 'beat4_confirm' && animatingId !== 'auo-b4';
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header — AUO logo only */}
-      <header className="flex-shrink-0 flex items-center px-5 py-2.5 border-b border-border">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Completion banner */}
+      {showBanner && (
+        <div className="flex-shrink-0 flex items-center justify-between px-5 py-2.5 bg-emerging/10 border-b border-emerging/20 animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-emerging font-semibold">✓</span>
+            <span className="text-xs text-foreground">
+              AUO is set up for {company}. Scanning 3× daily.
+            </span>
+          </div>
+          <button
+            onClick={() => setShowBanner(false)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="flex-shrink-0 flex items-center px-5 py-3 border-b border-border">
         <span className="text-base font-semibold tracking-[0.2em] text-foreground">AUO</span>
       </header>
 
       {/* Two-panel layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Chat panel */}
-        <div className="flex flex-col w-[55%] flex-shrink-0 overflow-hidden">
+        {/* ── Left: Chat ── */}
+        <div className="flex flex-col w-[52%] flex-shrink-0 border-r border-border overflow-hidden">
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="space-y-5">
-              {messages.map(msg => (
-                <OnboardingBubble key={msg.id} message={msg} onSignalClick={handleSignalCardClick} />
-              ))}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
+            {messages.map(msg =>
+              msg.role === 'assistant' ? (
+                <AuoBubble
+                  key={msg.id}
+                  content={msg.content}
+                  animate={animatingId === msg.id}
+                />
+              ) : (
+                <UserBubble key={msg.id} content={msg.content} />
+              )
+            )}
 
-              {/* Role cards — rendered BELOW the last AUO bubble, as a separate block */}
-              {step === 'role_select' && !roleConfirmed && (
-                <div className="space-y-2 mt-2">
-                  {ROLE_OPTIONS.map(role => (
+            {/* Priority selector — inline, after AUO asks */}
+            {showPrioritySelector && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {SCAN_ITEMS.map(item => (
                     <button
-                      key={role.key}
-                      onClick={() => handleRoleSelect(role.key)}
+                      key={item.category}
+                      onClick={() => togglePriority(item.category)}
                       className={cn(
-                        'w-full text-left px-5 py-5 rounded-lg border transition-all duration-150',
-                        selectedLens === role.key
+                        'text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150',
+                        selectedPriorities.includes(item.category)
                           ? 'border-emerging bg-emerging/10 text-foreground'
-                          : 'border-border bg-card text-card-foreground hover:border-muted-foreground/40 hover:bg-accent/50'
+                          : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30'
                       )}
                     >
-                      <div className="font-semibold text-sm">{role.label}</div>
-                      {role.sub && (
-                        <div className="text-xs text-muted-foreground mt-0.5">{role.sub}</div>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            'w-1.5 h-1.5 rounded-full flex-shrink-0',
+                            selectedPriorities.includes(item.category)
+                              ? 'bg-emerging'
+                              : 'bg-muted-foreground/30'
+                          )}
+                        />
+                        {item.category}
+                        {item.urgent && (
+                          <span className="ml-auto text-[8px] font-bold text-tier-breaking">↑</span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
-              )}
+                <button
+                  onClick={handlePriorityConfirm}
+                  disabled={selectedPriorities.length === 0}
+                  className="w-full py-2 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors disabled:opacity-40"
+                >
+                  Confirm →
+                </button>
+              </div>
+            )}
 
-              {/* Scanning indicator */}
-              {scanning && (
-                <div className="flex flex-col items-start">
-                  <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">
-                    AUO
-                  </span>
-                  <div className="bg-card border border-border rounded-lg px-4 py-3 flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Scanning</span>
-                    <span className="flex gap-1">
-                      <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
-                      <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
-                      <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Beat 4: confirm / missing buttons */}
+            {showConfirmButtons && (
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleConfirm}
+                  className="flex-1 py-2.5 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors"
+                >
+                  This looks right →
+                </button>
+                <button
+                  onClick={handleMissing}
+                  className="flex-1 py-2.5 rounded-lg border border-border bg-card text-foreground text-xs font-medium hover:bg-accent/40 transition-colors"
+                >
+                  Something's off
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Bottom area */}
-          <div className="flex-shrink-0 px-4 pb-4 space-y-3">
-            {/* Welcome CTA */}
-            {step === 'welcome' && (
+          <div className="flex-shrink-0 px-5 pb-5 space-y-3">
+            {/* Beat 1: Let's go CTA */}
+            {beat === 'beat1' && animatingId !== 'auo-intro' && (
               <button
                 onClick={handleLetsGo}
                 className="w-full py-3 rounded-lg bg-emerging text-background text-sm font-semibold hover:bg-emerging/90 transition-colors"
@@ -241,30 +609,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </button>
             )}
 
-            {/* Complete Setup button — only exit from first_signals */}
-            {step === 'first_signals' && (
-              <button
-                onClick={() => selectedLens && onComplete(selectedLens)}
-                className="w-full py-3 rounded-lg bg-emerging text-background text-sm font-semibold hover:bg-emerging/90 transition-colors"
-              >
-                Complete Setup
-              </button>
-            )}
-
-            {/* Chat input — appears after role select */}
-            {inputVisible && step !== 'first_signals' && step !== 'scanning' && (
-              <div
-                className={cn(
-                  'transition-all duration-500',
-                  inputVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-                )}
-              >
+            {/* Chat input */}
+            {inputVisible && (
+              <div className="animate-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-end gap-2">
                   <textarea
+                    ref={inputRef}
                     value={inputValue}
                     onChange={e => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Tell AUO what you're working on..."
+                    placeholder={inputPlaceholder}
                     rows={1}
                     className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
                     style={{ maxHeight: '120px' }}
@@ -274,7 +628,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     disabled={!inputValue.trim()}
                     className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <line x1="22" y1="2" x2="11" y2="13" />
                       <polygon points="22 2 15 22 11 13 2 9 22 2" />
                     </svg>
@@ -285,86 +639,17 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
         </div>
 
-        {/* Right: Empty position panel */}
-        <div className="flex-1 border-l border-border flex flex-col items-center justify-center px-8 text-center">
-          <h2
-            className="text-5xl italic mb-3"
-            style={{
-              fontFamily: "'Fraunces', serif",
-              color: 'hsl(var(--muted-foreground) / 0.12)',
-            }}
-          >
-            position
-          </h2>
-          <p className="text-sm text-muted-foreground/50">Your positions will appear here</p>
+        {/* ── Right panel ── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {rightPanel === 'empty' && <EmptyRightPanel />}
+          {(rightPanel === 'scanning') && (
+            <ScanningPanel
+              revealedCount={scanRevealedCount}
+              company={company || 'your company'}
+            />
+          )}
+          {rightPanel === 'signals' && <SignalsPanel />}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function OnboardingBubble({
-  message,
-  onSignalClick,
-}: {
-  message: OnboardingMessage;
-  onSignalClick: (card: OnboardingSignalCardData) => void;
-}) {
-  const isUser = message.role === 'user';
-  return (
-    <div className={cn('flex flex-col', isUser ? 'items-end' : 'items-start')}>
-      <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">
-        {isUser ? 'David' : 'AUO'}
-      </span>
-      <div
-        className={cn(
-          'max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words',
-          isUser
-            ? 'bg-accent text-accent-foreground'
-            : 'bg-card border border-border text-card-foreground'
-        )}
-      >
-        {message.content.split('\n').map((line, i) =>
-          line.trim() ? <p key={i}>{line}</p> : <div key={i} className="h-2" />
-        )}
-
-        {/* Inline signal cards inside the bubble */}
-        {message.signalCards && (
-          <div className="mt-3 space-y-2">
-            {message.signalCards.map(card => (
-              <button
-                key={card.id}
-                onClick={() => onSignalClick(card)}
-                className="w-full text-left rounded-lg border border-border bg-background/50 px-3 py-2.5 hover:bg-accent/40 transition-colors"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className={cn(
-                      'h-2 w-2 rounded-full flex-shrink-0',
-                      card.tier === 'breaking' ? 'bg-tier-breaking' : 'bg-tier-developing'
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'text-[10px] font-bold uppercase tracking-wider',
-                      card.tier === 'breaking' ? 'text-tier-breaking' : 'text-tier-developing'
-                    )}
-                  >
-                    {card.tier.toUpperCase()} · {card.category}
-                  </span>
-                </div>
-                <p className="text-xs font-medium text-foreground leading-snug">{card.title}</p>
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                  <span>{card.signalCount} signals</span>
-                  <span>·</span>
-                  <span>{card.credibility}% credibility</span>
-                  <span className="ml-auto text-muted-foreground/60">→</span>
-                </div>
-              </button>
-            ))}
-            <p className="text-xs text-muted-foreground pt-1">Where do you want to start?</p>
-          </div>
-        )}
       </div>
     </div>
   );
