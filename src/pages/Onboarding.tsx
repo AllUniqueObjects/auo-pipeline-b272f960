@@ -120,20 +120,30 @@ function useTypewriter(text: string, active: boolean, speed = 18) {
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
-function AuoBubble({ content, animate = false }: { content: string; animate?: boolean }) {
-  const { displayed, done: _done } = useTypewriter(content, animate);
+function AuoBubble({
+  content,
+  animate = false,
+  onDone,
+}: {
+  content: string;
+  animate?: boolean;
+  onDone?: () => void;
+}) {
+  const { displayed, done } = useTypewriter(content, animate);
   const text = animate ? displayed : content;
+
+  useEffect(() => {
+    if (done && onDone) onDone();
+  }, [done, onDone]);
+
   return (
-    <div className="flex flex-col items-start">
-      <span
-        className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2 px-1 text-muted-foreground/60"
-        style={{ fontFamily: "'DM Mono', monospace" }}
-      >
+    <div className="flex flex-col items-start gap-2.5">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/70 px-0.5">
         AUO
       </span>
-      <div className="max-w-[88%] rounded-xl bg-background border border-border/70 shadow-[0_1px_6px_0_hsl(220,14%,88%,0.5)] px-4 py-3.5 text-[13px] leading-[1.65] text-foreground">
+      <div className="max-w-[88%] rounded-2xl bg-card border border-border/60 px-5 py-4 text-[15px] leading-[1.7] text-foreground">
         {text.split('\n').map((line, i) =>
-          line.trim() ? <p key={i} className="mb-1 last:mb-0">{line}</p> : <div key={i} className="h-1.5" />
+          line.trim() ? <p key={i} className="mb-1.5 last:mb-0">{line}</p> : <div key={i} className="h-2" />
         )}
       </div>
     </div>
@@ -142,19 +152,17 @@ function AuoBubble({ content, animate = false }: { content: string; animate?: bo
 
 function UserBubble({ content }: { content: string }) {
   return (
-    <div className="flex flex-col items-end">
-      <span
-        className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2 px-1 text-muted-foreground/60"
-        style={{ fontFamily: "'DM Mono', monospace" }}
-      >
+    <div className="flex flex-col items-end gap-2.5">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/70 px-0.5">
         You
       </span>
-      <div className="max-w-[88%] rounded-xl bg-accent px-4 py-3.5 text-[13px] leading-[1.65] text-accent-foreground">
+      <div className="max-w-[88%] rounded-2xl bg-primary/8 border border-primary/10 px-5 py-4 text-[15px] leading-[1.7] text-foreground">
         {content}
       </div>
     </div>
   );
 }
+
 
 function ScanningPanel({ revealedCount, company }: { revealedCount: number; company: string }) {
   return (
@@ -300,6 +308,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [beat, setBeat] = useState<Beat>('beat1');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
+  const [introTypingDone, setIntroTypingDone] = useState(false);
 
   // Input
   const [inputValue, setInputValue] = useState('');
@@ -513,7 +522,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const showConfirmButtons = beat === 'beat4_confirm' && animatingId !== 'auo-b4';
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-screen flex flex-col bg-muted overflow-hidden">
       {/* Completion banner */}
       {showBanner && (
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-2.5 bg-emerging/10 border-b border-emerging/20 animate-in slide-in-from-top-2 duration-300">
@@ -533,39 +542,40 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       )}
 
       {/* Header */}
-      <header className="flex-shrink-0 flex items-center px-5 py-3 border-b border-border">
+      <header className="flex-shrink-0 flex items-center px-5 py-3 border-b border-border bg-background">
         <span className="text-base font-semibold tracking-[0.2em] text-foreground">AUO</span>
       </header>
 
       {/* Layout: full-width chat until right panel activates */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── Left: Chat ── */}
+        {/* ── Left: Chat — white card background ── */}
         <div
           className={cn(
-            'flex flex-col flex-shrink-0 overflow-hidden transition-all duration-500',
+            'flex flex-col flex-shrink-0 overflow-hidden transition-all duration-500 bg-background',
             rightPanel === 'empty' ? 'w-full border-r-0' : 'w-[52%] border-r border-border'
           )}
         >
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
-            <div className={cn('mx-auto space-y-5', rightPanel === 'empty' ? 'max-w-xl px-8' : 'max-w-none px-6')}>
+            <div className={cn('mx-auto space-y-6', rightPanel === 'empty' ? 'max-w-xl px-8' : 'max-w-none px-6')}>
               {messages.map(msg =>
                 msg.role === 'assistant' ? (
                   <AuoBubble
                     key={msg.id}
                     content={msg.content}
                     animate={animatingId === msg.id}
+                    onDone={msg.id === 'auo-intro' ? () => setIntroTypingDone(true) : undefined}
                   />
                 ) : (
                   <UserBubble key={msg.id} content={msg.content} />
                 )
               )}
 
-              {/* Beat 1: Let's go — inline, right below the bubble */}
-              {beat === 'beat1' && (
+              {/* Beat 1: Let's go — appears after AUO intro finishes typing */}
+              {beat === 'beat1' && introTypingDone && (
                 <button
                   onClick={handleLetsGo}
-                  className="w-full py-3 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/85 transition-colors tracking-wide mt-1"
+                  className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-[15px] font-semibold hover:bg-primary/85 transition-colors tracking-wide animate-in fade-in duration-300"
                 >
                   Let's go →
                 </button>
