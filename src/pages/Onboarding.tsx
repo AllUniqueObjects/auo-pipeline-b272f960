@@ -551,7 +551,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       <div className="flex-1 flex overflow-hidden">
         {rightPanel === 'empty' ? (
           /* ── Full-width chat before right panel activates ── */
-          <div className="flex flex-col flex-1 overflow-hidden bg-background">
+          <div className="flex flex-col flex-1 overflow-hidden" style={{ background: 'hsl(var(--panel-warm))' }}>
             <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
               <div className="mx-auto max-w-xl px-8 space-y-6">
                 {messages.map(msg =>
@@ -606,7 +606,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         ) : (
           /* ── Resizable split once right panel activates ── */
           <PanelGroup direction="horizontal" className="flex-1">
-            <Panel defaultSize={52} minSize={25} maxSize={75} className="flex flex-col bg-background border-r border-border">
+            <Panel defaultSize={52} minSize={25} maxSize={75} className="flex flex-col border-r border-border" style={{ background: 'hsl(var(--panel-warm))' }}>
               <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
                 <div className="mx-auto max-w-none px-6 space-y-6">
                   {messages.map(msg =>
@@ -660,7 +660,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </PanelResizeHandle>
 
             {/* Right panel */}
-            <Panel minSize={25} className="flex flex-col overflow-hidden" style={{ background: 'hsl(var(--panel-warm))' }}>
+            <Panel minSize={25} className="flex flex-col overflow-hidden bg-background">
               {rightPanel === 'scanning' && <ScanningPanel revealedCount={scanRevealedCount} company={company || 'your company'} />}
               {rightPanel === 'signals' && <SignalsPanel />}
             </Panel>
