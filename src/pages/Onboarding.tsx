@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { type LensType } from '@/data/mock';
 
@@ -548,145 +549,120 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
       {/* Layout: full-width chat until right panel activates */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── Left: Chat — white card background ── */}
-        <div
-          className={cn(
-            'flex flex-col flex-shrink-0 overflow-hidden transition-all duration-500 bg-background',
-            rightPanel === 'empty' ? 'w-full border-r-0' : 'w-[52%] border-r border-border'
-          )}
-        >
-          {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
-            <div className={cn('mx-auto space-y-6', rightPanel === 'empty' ? 'max-w-xl px-8' : 'max-w-none px-6')}>
-              {messages.map(msg =>
-                msg.role === 'assistant' ? (
-                  <AuoBubble
-                    key={msg.id}
-                    content={msg.content}
-                    animate={animatingId === msg.id}
-                    onDone={msg.id === 'auo-intro' ? () => setIntroTypingDone(true) : undefined}
-                  />
-                ) : (
-                  <UserBubble key={msg.id} content={msg.content} />
-                )
-              )}
-
-              {/* Beat 1: Let's go — appears after AUO intro finishes typing */}
-              {beat === 'beat1' && introTypingDone && (
-                <button
-                  onClick={handleLetsGo}
-                  className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-[15px] font-semibold hover:bg-primary/85 transition-colors tracking-wide animate-in fade-in duration-300"
-                >
-                  Let's go →
-                </button>
-              )}
-
-              {/* Priority selector — inline, after AUO asks */}
-              {showPrioritySelector && (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {SCAN_ITEMS.map(item => (
-                      <button
-                        key={item.category}
-                        onClick={() => togglePriority(item.category)}
-                        className={cn(
-                          'text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150',
-                          selectedPriorities.includes(item.category)
-                            ? 'border-emerging bg-emerging/10 text-foreground'
-                            : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30'
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={cn(
-                              'w-1.5 h-1.5 rounded-full flex-shrink-0',
-                              selectedPriorities.includes(item.category)
-                                ? 'bg-emerging'
-                                : 'bg-muted-foreground/30'
-                            )}
-                          />
-                          {item.category}
-                          {item.urgent && (
-                            <span className="ml-auto text-[8px] font-bold text-tier-breaking">↑</span>
-                          )}
-                        </div>
-                      </button>
-                    ))}
+        {rightPanel === 'empty' ? (
+          /* ── Full-width chat before right panel activates ── */
+          <div className="flex flex-col flex-1 overflow-hidden bg-background">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
+              <div className="mx-auto max-w-xl px-8 space-y-6">
+                {messages.map(msg =>
+                  msg.role === 'assistant' ? (
+                    <AuoBubble key={msg.id} content={msg.content} animate={animatingId === msg.id} onDone={msg.id === 'auo-intro' ? () => setIntroTypingDone(true) : undefined} />
+                  ) : (
+                    <UserBubble key={msg.id} content={msg.content} />
+                  )
+                )}
+                {beat === 'beat1' && introTypingDone && (
+                  <button onClick={handleLetsGo} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-[15px] font-semibold hover:bg-primary/85 transition-colors tracking-wide animate-in fade-in duration-300">
+                    Let's go →
+                  </button>
+                )}
+                {showPrioritySelector && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      {SCAN_ITEMS.map(item => (
+                        <button key={item.category} onClick={() => togglePriority(item.category)} className={cn('text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150', selectedPriorities.includes(item.category) ? 'border-emerging bg-emerging/10 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30')}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', selectedPriorities.includes(item.category) ? 'bg-emerging' : 'bg-muted-foreground/30')} />
+                            {item.category}
+                            {item.urgent && <span className="ml-auto text-[8px] font-bold text-tier-breaking">↑</span>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={handlePriorityConfirm} disabled={selectedPriorities.length === 0} className="w-full py-2 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors disabled:opacity-40">Confirm →</button>
                   </div>
-                  <button
-                    onClick={handlePriorityConfirm}
-                    disabled={selectedPriorities.length === 0}
-                    className="w-full py-2 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors disabled:opacity-40"
-                  >
-                    Confirm →
-                  </button>
-                </div>
-              )}
-
-              {/* Beat 4: confirm / missing buttons */}
-              {showConfirmButtons && (
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={handleConfirm}
-                    className="flex-1 py-2.5 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors"
-                  >
-                    This looks right →
-                  </button>
-                  <button
-                    onClick={handleMissing}
-                    className="flex-1 py-2.5 rounded-lg border border-border bg-card text-foreground text-xs font-medium hover:bg-accent/40 transition-colors"
-                  >
-                    Something's off
-                  </button>
+                )}
+                {showConfirmButtons && (
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handleConfirm} className="flex-1 py-2.5 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors">This looks right →</button>
+                    <button onClick={handleMissing} className="flex-1 py-2.5 rounded-lg border border-border bg-card text-foreground text-xs font-medium hover:bg-accent/40 transition-colors">Something's off</button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex-shrink-0 pb-5 pt-3 border-t border-border max-w-xl mx-auto w-full px-8">
+              {inputVisible && (
+                <div className="animate-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex items-end gap-2">
+                    <textarea ref={inputRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={inputPlaceholder} rows={1} className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none" style={{ maxHeight: '120px' }} />
+                    <button onClick={handleSend} disabled={!inputValue.trim()} className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
-
-          {/* Bottom area — chat input only */}
-          <div className={cn('flex-shrink-0 pb-5 pt-3 border-t border-border', rightPanel === 'empty' ? 'max-w-xl mx-auto w-full px-8' : 'px-6')}>
-            {/* Chat input */}
-            {inputVisible && (
-              <div className="animate-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-end gap-2">
-                  <textarea
-                    ref={inputRef}
-                    value={inputValue}
-                    onChange={e => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={inputPlaceholder}
-                    rows={1}
-                    className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-                    style={{ maxHeight: '120px' }}
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={!inputValue.trim()}
-                    className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="22" y1="2" x2="11" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  </button>
+        ) : (
+          /* ── Resizable split once right panel activates ── */
+          <PanelGroup direction="horizontal" className="flex-1">
+            <Panel defaultSize={52} minSize={25} maxSize={75} className="flex flex-col bg-background border-r border-border">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
+                <div className="mx-auto max-w-none px-6 space-y-6">
+                  {messages.map(msg =>
+                    msg.role === 'assistant' ? (
+                      <AuoBubble key={msg.id} content={msg.content} animate={animatingId === msg.id} onDone={msg.id === 'auo-intro' ? () => setIntroTypingDone(true) : undefined} />
+                    ) : (
+                      <UserBubble key={msg.id} content={msg.content} />
+                    )
+                  )}
+                  {showPrioritySelector && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        {SCAN_ITEMS.map(item => (
+                          <button key={item.category} onClick={() => togglePriority(item.category)} className={cn('text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150', selectedPriorities.includes(item.category) ? 'border-emerging bg-emerging/10 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30')}>
+                            <div className="flex items-center gap-1.5">
+                              <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', selectedPriorities.includes(item.category) ? 'bg-emerging' : 'bg-muted-foreground/30')} />
+                              {item.category}
+                              {item.urgent && <span className="ml-auto text-[8px] font-bold text-tier-breaking">↑</span>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={handlePriorityConfirm} disabled={selectedPriorities.length === 0} className="w-full py-2 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors disabled:opacity-40">Confirm →</button>
+                    </div>
+                  )}
+                  {showConfirmButtons && (
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={handleConfirm} className="flex-1 py-2.5 rounded-lg bg-emerging text-background text-xs font-semibold hover:bg-emerging/90 transition-colors">This looks right →</button>
+                      <button onClick={handleMissing} className="flex-1 py-2.5 rounded-lg border border-border bg-card text-foreground text-xs font-medium hover:bg-accent/40 transition-colors">Something's off</button>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
+              <div className="flex-shrink-0 pb-5 pt-3 border-t border-border px-6">
+                {inputVisible && (
+                  <div className="animate-in slide-in-from-bottom-2 duration-300">
+                    <div className="flex items-end gap-2">
+                      <textarea ref={inputRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={inputPlaceholder} rows={1} className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none" style={{ maxHeight: '120px' }} />
+                      <button onClick={handleSend} disabled={!inputValue.trim()} className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Panel>
 
-        </div>
+            {/* Draggable divider */}
+            <PanelResizeHandle className="w-1 bg-border hover:bg-muted-foreground/30 transition-colors cursor-col-resize" />
 
-        {/* ── Right panel — only shown when content is available ── */}
-        {rightPanel !== 'empty' && (
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'hsl(var(--panel-warm))' }}>
-            {rightPanel === 'scanning' && (
-              <ScanningPanel
-                revealedCount={scanRevealedCount}
-                company={company || 'your company'}
-              />
-            )}
-            {rightPanel === 'signals' && <SignalsPanel />}
-          </div>
+            {/* Right panel */}
+            <Panel minSize={25} className="flex flex-col overflow-hidden" style={{ background: 'hsl(var(--panel-warm))' }}>
+              {rightPanel === 'scanning' && <ScanningPanel revealedCount={scanRevealedCount} company={company || 'your company'} />}
+              {rightPanel === 'signals' && <SignalsPanel />}
+            </Panel>
+          </PanelGroup>
         )}
       </div>
     </div>
