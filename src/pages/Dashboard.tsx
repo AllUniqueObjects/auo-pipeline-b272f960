@@ -7,11 +7,15 @@ import { PositionPanel, type PositionState } from '@/components/views/PositionPa
 import { BriefingPanel } from '@/components/views/BriefingPanel';
 import { TopicDetailPanel } from '@/components/views/TopicDetailPanel';
 import { InsightDetailPanel } from '@/components/views/InsightDetailPanel';
-import { MOCK_PROJECTS, MOCK_POSITIONS, MOCK_CHAT_MESSAGES, SESSION_OPENER_MESSAGE, MOCK_TOPIC_INSIGHTS, type MockChatMessage } from '@/data/mock';
+import { PositionStarter } from '@/components/views/PositionStarter';
+import {
+  MOCK_PROJECTS, MOCK_POSITIONS, MOCK_CHAT_MESSAGES, SESSION_OPENER_MESSAGE, MOCK_TOPIC_INSIGHTS,
+  LENS_LABELS, LENS_DESCRIPTIONS, LENS_MESSAGE, PROACTIVE_BRIEFINGS,
+  type MockChatMessage, type LensType, type MockTopic, type TopicInsight,
+} from '@/data/mock';
 import { mockPosition } from '@/data/mock-position';
 
-type LensType = 'executive' | 'leader' | 'ic';
-type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'generating' | 'position_active';
+type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'generating' | 'position_active' | 'position_starter';
 
 type DevState =
   | 'session_open'
@@ -32,18 +36,6 @@ const DEV_STATES: DevState[] = [
   'panel_collapsed',
 ];
 
-const LENS_LABELS: Record<LensType, string> = {
-  executive: 'Executive',
-  leader: 'Leader',
-  ic: 'Individual Contributor',
-};
-
-const LENS_MESSAGE: Record<LensType, string> = {
-  executive: 'Switched to Executive lens. Market Dynamics and Macroeconomics signals are weighted first.',
-  leader: "Switched to Leader lens. Signals are reweighted — you'll see more balance across categories now.",
-  ic: 'Switched to Individual Contributor lens. Innovation and operational signals are weighted first.',
-};
-
 // Find a topic insight by id across all topics
 function findTopicInsight(id: string) {
   for (const topic of MOCK_TOPIC_INSIGHTS) {
@@ -58,7 +50,7 @@ interface DashboardProps {
   justCompletedOnboarding?: boolean;
 }
 
-export default function Dashboard({ initialLens = 'executive', justCompletedOnboarding = false }: DashboardProps) {
+export default function Dashboard({ initialLens = 'balanced', justCompletedOnboarding = false }: DashboardProps) {
   const isMobile = useIsMobile();
   const [activeProject, setActiveProject] = useState('p1');
   const [showPositions, setShowPositions] = useState(false);
@@ -83,6 +75,14 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
 
   // Position panel state (used when rightView = generating | position_active)
   const [positionState, setPositionState] = useState<PositionState>('empty');
+
+  // Position starter state (guided Build Position flow)
+  const [positionStarter, setPositionStarter] = useState<{
+    sourceType: 'topic' | 'insight';
+    sourceName: string;
+    insightCount: number;
+    insightTitles: string[];
+  } | null>(null);
 
   // Chat messages — lifted to Dashboard, prepend session opener
   const [messages, setMessages] = useState<MockChatMessage[]>([SESSION_OPENER_MESSAGE, ...MOCK_CHAT_MESSAGES]);
@@ -148,15 +148,62 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
     setRightView('insight_detail');
   };
 
-  const handleBuildPosition = () => {
+  // Build position — open PositionStarter with context
+  const handleBuildPositionFromTopic = (topic: MockTopic) => {
+    setPositionStarter({
+      sourceType: 'topic',
+      sourceName: topic.name,
+      insightCount: topic.insights.length,
+      insightTitles: topic.insights.map(i => i.title),
+    });
+    setRightView('position_starter' as RightPanelView);
+  };
+
+  const handleBuildPositionFromInsight = (insight: TopicInsight) => {
+    setPositionStarter({
+      sourceType: 'insight',
+      sourceName: insight.title,
+      insightCount: 1,
+      insightTitles: [insight.title],
+    });
+    setRightView('position_starter' as RightPanelView);
+  };
+
+  const handlePositionGenerate = () => {
+    setPositionStarter(null);
     setRightView('generating');
     setPositionState('generating');
+  };
+
+  const handlePositionStarterCancel = () => {
+    setPositionStarter(null);
+    setRightView('briefing');
+  };
+
+  // "Ask AUO" — inject discuss message into chat
+  const handleDiscuss = (insight: TopicInsight) => {
+    appendMessage({
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: `Tell me about: ${insight.title}`,
+    });
+    setTimeout(() => {
+      const proactive = PROACTIVE_BRIEFINGS[insight.id];
+      appendMessage({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: proactive
+          ? proactive.replace(/__INSIGHT_RECS__[\d,]*/g, '')
+          : `Here's a deeper look at this signal.\n\nThis is a ${insight.tier} signal — ${Math.round(insight.credibility * 100)}% credibility across ${insight.references} references. ${insight.davidCanTell}`,
+      });
+    }, 600);
   };
 
   const handleBackToBriefing = () => {
     setRightView('briefing');
     setSelectedTopicId(null);
     setSelectedInsightId(null);
+    setPositionStarter(null);
   };
 
   const handleBackFromInsight = () => {
@@ -281,41 +328,29 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
               <ChevronDown className={cn('h-3 w-3 transition-transform', lensDropdownOpen && 'rotate-180')} />
             </button>
             {lensDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-60 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
                 {(Object.entries(LENS_LABELS) as [LensType, string][]).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => handleLensSelect(key)}
-                    className="w-full text-left px-3 py-2.5 hover:bg-accent/50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2.5 hover:bg-accent/50 transition-colors flex items-start gap-2"
                   >
                     <span className={cn(
-                      'h-1.5 w-1.5 rounded-full flex-shrink-0',
+                      'h-1.5 w-1.5 rounded-full flex-shrink-0 mt-1.5',
                       activeLens === key ? 'bg-emerging' : 'bg-transparent border border-muted-foreground/40'
                     )} />
-                    <span className={cn('text-sm', activeLens === key ? 'text-foreground font-medium' : 'text-muted-foreground')}>
-                      {label}
-                    </span>
+                    <div>
+                      <div className={cn('text-sm', activeLens === key ? 'text-foreground font-medium' : 'text-muted-foreground')}>
+                        {label}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground/70 mt-0.5 leading-snug">
+                        {LENS_DESCRIPTIONS[key as LensType]}
+                      </div>
+                    </div>
                   </button>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Dev state machine buttons */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleDevNext}
-              className="px-2 py-1 rounded text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors border border-dashed border-border"
-              title={`Dev: ${DEV_STATES[devStateIndex]} → next`}
-            >
-              → {DEV_STATES[devStateIndex]}
-            </button>
-            <button
-              onClick={handleDevReset}
-              className="px-2 py-1 rounded text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors border border-dashed border-border"
-            >
-              reset
-            </button>
           </div>
         </div>
 
@@ -343,6 +378,23 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
         )}
       </header>
 
+      {/* Floating DEV panel — bottom-right, outside product UI */}
+      <div className="fixed bottom-4 right-4 z-50 flex gap-1 opacity-30 hover:opacity-100 transition-opacity">
+        <button
+          onClick={handleDevNext}
+          className="px-2 py-1 text-[9px] font-mono bg-background border border-dashed border-border rounded text-muted-foreground hover:text-foreground transition-colors"
+          title={`dev state: ${DEV_STATES[devStateIndex]}`}
+        >
+          dev: {DEV_STATES[devStateIndex]}
+        </button>
+        <button
+          onClick={handleDevReset}
+          className="px-2 py-1 text-[9px] font-mono bg-background border border-dashed border-border rounded text-muted-foreground hover:text-foreground transition-colors"
+        >
+          reset
+        </button>
+      </div>
+
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left panel: Chat */}
@@ -369,7 +421,7 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
             >
               <ChatView
                 onOpenSignals={() => {}}
-                onBuildPosition={handleBuildPosition}
+                onBuildPosition={handlePositionGenerate}
                 messages={messages}
                 onAppendMessage={appendMessage}
                 showLiveSignal={showLiveSignal}
@@ -430,7 +482,8 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
                     activeLens={activeLens}
                     onExplore={handleExplore}
                     onOpenInsight={(id) => handleOpenInsight(id)}
-                    onBuildPosition={handleBuildPosition}
+                    onBuildPosition={handleBuildPositionFromTopic}
+                    onDiscuss={handleDiscuss}
                   />
                 )}
 
@@ -439,7 +492,8 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
                     topic={selectedTopic}
                     onBack={handleBackToBriefing}
                     onOpenInsight={(id) => handleOpenInsight(id, selectedTopic.name)}
-                    onBuildPosition={handleBuildPosition}
+                    onBuildPosition={handleBuildPositionFromTopic}
+                    onDiscuss={handleDiscuss}
                   />
                 )}
 
@@ -448,7 +502,18 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
                     insight={selectedInsightResult.insight}
                     sourceName={insightSourceName}
                     onBack={handleBackFromInsight}
-                    onBuildPosition={handleBuildPosition}
+                    onBuildPosition={() => handleBuildPositionFromInsight(selectedInsightResult.insight)}
+                  />
+                )}
+
+                {rightView === 'position_starter' && positionStarter && (
+                  <PositionStarter
+                    sourceType={positionStarter.sourceType}
+                    sourceName={positionStarter.sourceName}
+                    insightCount={positionStarter.insightCount}
+                    insightTitles={positionStarter.insightTitles}
+                    onGenerate={handlePositionGenerate}
+                    onCancel={handlePositionStarterCancel}
                   />
                 )}
 

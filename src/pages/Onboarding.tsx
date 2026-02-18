@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
+import { type LensType } from '@/data/mock';
+
 type OnboardingStep = 'welcome' | 'role_select' | 'tactical_seed' | 'scanning' | 'first_signals';
-type LensType = 'executive' | 'leader' | 'ic';
 
 interface OnboardingMessage {
   id: string;
@@ -52,9 +53,9 @@ const ONBOARDING_SIGNALS: OnboardingSignalCardData[] = [
 ];
 
 const ROLE_OPTIONS: { key: LensType; label: string; sub: string }[] = [
-  { key: 'executive', label: 'Executive', sub: 'VP, C-Suite' },
-  { key: 'leader', label: 'Leader', sub: 'Director, Senior Manager' },
-  { key: 'ic', label: 'Individual Contributor', sub: '' },
+  { key: 'strategic', label: 'Strategic', sub: 'I focus on competitive and market-level decisions' },
+  { key: 'balanced', label: 'Balanced', sub: 'I balance strategy with execution' },
+  { key: 'operational', label: 'Operational', sub: 'I focus on product and supply chain decisions' },
 ];
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
@@ -107,7 +108,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         id: 'ob-3',
         role: 'assistant',
         content:
-          "Got it. You can switch this lens anytime from the top right — sometimes you'll want to see what an IC or leader would see too.",
+          "Got it. You can switch your focus lens anytime from the top right — try Strategic for market signals, Operational for supply chain and innovation.",
       });
       setTimeout(() => {
         setInputVisible(true);
