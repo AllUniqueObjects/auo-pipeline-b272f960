@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { Send, ChevronDown, ChevronUp, BarChart3, ChevronsLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type MockChatMessage } from '@/data/mock';
 import { LiveSignalSurface } from '@/components/views/LiveSignalSurface';
@@ -22,6 +22,8 @@ interface ChatViewProps {
   messages: MockChatMessage[];
   onAppendMessage: (msg: MockChatMessage) => void;
   showLiveSignal?: boolean;
+  onCollapse?: () => void;
+  onOpenInsight?: (insightId: string) => void;
 }
 
 export function ChatView({
@@ -30,7 +32,10 @@ export function ChatView({
   messages,
   onAppendMessage,
   showLiveSignal = false,
+  onCollapse,
+  onOpenInsight,
 }: ChatViewProps) {
+
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [inputExpanded, setInputExpanded] = useState(true);
@@ -96,7 +101,18 @@ export function ChatView({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-border">
-        <span className="text-sm font-semibold tracking-[0.15em] text-foreground">AUO</span>
+        <div className="flex items-center gap-2">
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+              aria-label="Collapse chat"
+            >
+              <ChevronsLeft className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <span className="text-sm font-semibold tracking-[0.15em] text-foreground">AUO</span>
+        </div>
         <button
           onClick={onOpenSignals}
           className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
@@ -110,7 +126,7 @@ export function ChatView({
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="space-y-5">
           {messages.map(msg => (
-            <MessageBubble key={msg.id} message={msg} onBuildPosition={onBuildPosition} />
+            <MessageBubble key={msg.id} message={msg} onBuildPosition={onBuildPosition} onOpenInsight={onOpenInsight} />
           ))}
           {typing && <TypingIndicator />}
         </div>
@@ -128,7 +144,7 @@ export function ChatView({
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Ask AUO..."
+              placeholder="Reply to AUO..."
               rows={1}
               className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none overflow-y-auto"
               style={{ maxHeight: inputExpanded ? '120px' : '38px' }}
@@ -156,9 +172,11 @@ export function ChatView({
 function MessageBubble({
   message,
   onBuildPosition,
+  onOpenInsight,
 }: {
   message: MockChatMessage;
   onBuildPosition?: () => void;
+  onOpenInsight?: (insightId: string) => void;
 }) {
   const isUser = message.role === 'user';
   const labelText = isUser ? 'David' : (message.isContextGap ? 'AUO · context' : 'AUO');

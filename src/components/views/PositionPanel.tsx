@@ -20,6 +20,7 @@ interface PositionPanelProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   activeLens?: 'executive' | 'leader' | 'ic';
+  onBack?: () => void;
 }
 
 export function PositionPanel({ state, position, collapsed, onToggleCollapse }: PositionPanelProps) {
