@@ -537,10 +537,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         <span className="text-base font-semibold tracking-[0.2em] text-foreground">AUO</span>
       </header>
 
-      {/* Two-panel layout */}
+      {/* Layout: full-width chat until right panel activates */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── Left: Chat — warm writing surface ── */}
-        <div className="flex flex-col w-[52%] flex-shrink-0 border-r border-border overflow-hidden" style={{ background: 'hsl(30 20% 98%)' }}>
+        {/* ── Left: Chat ── */}
+        <div
+          className={cn(
+            'flex flex-col flex-shrink-0 overflow-hidden transition-all duration-500',
+            rightPanel === 'empty' ? 'w-full border-r-0' : 'w-[52%] border-r border-border'
+          )}
+        >
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
             {messages.map(msg =>
@@ -658,17 +663,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
         </div>
 
-        {/* ── Right panel — cool workspace tone ── */}
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'hsl(220 14% 95%)' }}>
-          {rightPanel === 'empty' && <EmptyRightPanel />}
-          {(rightPanel === 'scanning') && (
-            <ScanningPanel
-              revealedCount={scanRevealedCount}
-              company={company || 'your company'}
-            />
-          )}
-          {rightPanel === 'signals' && <SignalsPanel />}
-        </div>
+        {/* ── Right panel — only shown when content is available ── */}
+        {rightPanel !== 'empty' && (
+          <div className="flex-1 flex flex-col overflow-hidden bg-muted">
+            {rightPanel === 'scanning' && (
+              <ScanningPanel
+                revealedCount={scanRevealedCount}
+                company={company || 'your company'}
+              />
+            )}
+            {rightPanel === 'signals' && <SignalsPanel />}
+          </div>
+        )}
       </div>
     </div>
   );
