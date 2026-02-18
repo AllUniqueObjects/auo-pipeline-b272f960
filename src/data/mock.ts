@@ -455,6 +455,275 @@ export const MOCK_PROJECTS = [
   { id: 'p3', name: 'Competitive Intel' },
 ];
 
+// ─── Topic Insights ───────────────────────────────────────────────────────────
+
+export interface TopicInsight {
+  id: string;
+  tier: 'breaking' | 'developing' | 'established';
+  category: string;
+  title: string;
+  references: number;
+  credibility: number;
+  momentum: boolean;
+  momentumLabel?: string;
+  isLive: boolean;
+  davidCanTell: string;
+  decisionQuestion?: string;
+  whatThisMeans?: string;
+  basedOnSignals?: number;
+}
+
+export interface MockTopic {
+  id: string;
+  name: string;
+  newCount?: number;
+  insights: TopicInsight[];
+}
+
+export const MOCK_TOPIC_INSIGHTS: MockTopic[] = [
+  {
+    id: 'topic-vms',
+    name: 'VIETNAM MANUFACTURING SQUEEZE',
+    newCount: 2,
+    insights: [
+      {
+        id: 'vms-001',
+        tier: 'breaking',
+        category: 'Macroeconomics',
+        title: 'Supreme Court Tariff Ruling Forces Maine Expansion Decision Before FW26 BOM Lock',
+        references: 203,
+        credibility: 0.92,
+        momentum: true,
+        momentumLabel: 'Breaking since yesterday',
+        isLive: false,
+        davidCanTell: 'Tariff uncertainty has 203 sources — this is the loudest signal in the market right now.',
+        decisionQuestion: 'Should NB lock Vietnam FOB contracts at $18.40/pair by March 2025 and accept 7-8% inflation risk, or wait for Q2 Supreme Court clarity and risk 20-25% tariff?',
+        whatThisMeans: 'Tariff impact on Vietnam manufacturing directly affects 880 v15 sourcing costs and FW26 pricing strategy. The 8-12 week decision gap is not recoverable — BOM locks before the ruling lands.',
+        basedOnSignals: 4,
+      },
+      {
+        id: 'vms-002',
+        tier: 'breaking',
+        category: 'Macroeconomics',
+        title: 'Vietnam FOB Inflation Plus Tariff Risk Compresses 880 v15 Margin by 8-12 Points',
+        references: 126,
+        credibility: 0.85,
+        momentum: false,
+        isLive: false,
+        davidCanTell: '880 v15 cost per pair is locked while competitors face 7-8% annual Vietnam FOB inflation — that\'s a compounding structural advantage.',
+        decisionQuestion: 'Should NB accelerate Maine expansion timeline to lock skilled labor, or delay to assess Supreme Court tariff ruling impact?',
+        whatThisMeans: 'Vietnam FOB at $18.40 hides two converging pressures: 7-8% annual labor inflation plus potential 20-25% tariff uplift. The combined hit to margin is 8-12 points on 880 v15.',
+        basedOnSignals: 3,
+      },
+      {
+        id: 'vms-003',
+        tier: 'developing',
+        category: 'Macroeconomics',
+        title: 'Supply Chain Restructuring Accelerates Amid Tariff Uncertainty',
+        references: 89,
+        credibility: 0.79,
+        momentum: false,
+        isLive: false,
+        davidCanTell: 'Brands delaying reshoring decisions are creating a 12-18 month window where NB\'s Made-in-USA story compounds daily.',
+        decisionQuestion: 'Should NB accelerate reshoring communications to gain first-mover advantage while competitors delay?',
+        whatThisMeans: 'Tariff uncertainty is forcing competitors to evaluate reshoring options NB already has in Maine. The window to differentiate on supply chain resilience is open now.',
+        basedOnSignals: 3,
+      },
+      {
+        id: 'vms-004',
+        tier: 'developing',
+        category: 'Macroeconomics',
+        title: 'Maine Facility Expansion Reaches Permit Approval — 18-Month Build Timeline Confirmed',
+        references: 44,
+        credibility: 0.85,
+        momentum: true,
+        momentumLabel: 'Updated today',
+        isLive: true,
+        davidCanTell: '$8-12M investment approved. Competitor reshoring costs 2-3x higher due to later start — first mover advantage window is open now.',
+        decisionQuestion: 'Should Maine timeline be accelerated to capture FW27 capacity vs. phased expansion?',
+        whatThisMeans: 'Permit approval clears the largest regulatory hurdle. 18-month build means FW27 capacity is achievable if construction starts within 60 days.',
+        basedOnSignals: 2,
+      },
+      {
+        id: 'vms-005',
+        tier: 'established',
+        category: 'Macroeconomics',
+        title: 'Vietnam Labor Cost Baseline Shifts for FW27 Planning Cycle',
+        references: 23,
+        credibility: 0.71,
+        momentum: false,
+        isLive: false,
+        davidCanTell: '7-8% annual labor inflation is now baked into Vietnam FOB baseline — factor into FW27 BOM projections.',
+        decisionQuestion: 'How should FW27 BOM planning account for confirmed Vietnam labor inflation trajectory?',
+        whatThisMeans: 'Labor cost inflation is structural, not cyclical. FW27 planning models should assume $19-20 FOB baseline regardless of tariff outcome.',
+        basedOnSignals: 2,
+      },
+    ],
+  },
+  {
+    id: 'topic-rsc',
+    name: 'RETAIL SHELF COMPETITION',
+    newCount: 3,
+    insights: [
+      {
+        id: 'rsc-001',
+        tier: 'breaking',
+        category: 'Market Dynamics',
+        title: 'Foot Locker Leadership Vacuum Opens 60-Day 880 v15 Shelf Lock Window',
+        references: 5,
+        credibility: 1.0,
+        momentum: false,
+        isLive: false,
+        davidCanTell: 'Leadership churn opens a negotiation window that closes with March vendor reviews — 60 days to lock shelf position.',
+        decisionQuestion: 'Should 880 v15 lock Dick\'s-Foot Locker placement commitments within 60 days during leadership churn, or wait for Nike wholesale flood clarity?',
+        whatThisMeans: 'New buyers take 60-90 days to establish vendor relationships. March vendor reviews reset planograms. Locking now avoids competing against Nike\'s wholesale re-entry for shelf space.',
+        basedOnSignals: 3,
+      },
+      {
+        id: 'rsc-002',
+        tier: 'breaking',
+        category: 'Market Dynamics',
+        title: 'Consumer Price Resistance Hits Before Tariffs Land; 880 v15 Faces Dual-Compression',
+        references: 8,
+        credibility: 0.88,
+        momentum: false,
+        isLive: false,
+        davidCanTell: 'Price resistance already showing at $140-160 before tariff costs land — dual compression on 880 v15 margin story.',
+        decisionQuestion: 'Should 880 v15 retail at $150 and absorb 3-5% margin hit, or push $165 and risk 12-18% volume loss?',
+        whatThisMeans: 'Consumer ceiling is forming at $160 before tariff costs are passed through. If tariffs land, the squeeze happens at both ends — upstream cost increase and downstream price ceiling.',
+        basedOnSignals: 4,
+      },
+      {
+        id: 'rsc-003',
+        tier: 'breaking',
+        category: 'Market Dynamics',
+        title: "Dick's-Foot Locker Consolidation Creates 2,200+ Door Single Buyer Concentration",
+        references: 67,
+        credibility: 0.94,
+        momentum: true,
+        momentumLabel: 'Breaking since yesterday',
+        isLive: false,
+        davidCanTell: 'Single buyer now controls 2,200+ doors — NB shelf allocation decision has outsized leverage in this window.',
+        decisionQuestion: 'How should NB adjust negotiation strategy given single-buyer concentration of 2,200+ doors?',
+        whatThisMeans: 'Consolidated buying power cuts both ways. NB has leverage from brand strength, but so does the buyer. Shelf terms negotiated now set multi-year planogram baseline.',
+        basedOnSignals: 3,
+      },
+      {
+        id: 'rsc-004',
+        tier: 'developing',
+        category: 'Market Dynamics',
+        title: 'Nike Wholesale Re-entry Accelerates — 880 v15 Shelf Competition Rising',
+        references: 3,
+        credibility: 0.78,
+        momentum: false,
+        isLive: false,
+        davidCanTell: "Nike's wholesale reset is a multi-year process — not a quick channel shift. 6-12 month window before competitive pressure normalizes.",
+        decisionQuestion: 'Should NB lock shelf before Nike wholesale SKUs hit, or use Nike\'s presence to justify premium placement?',
+        whatThisMeans: 'Nike returning to wholesale adds SKU count at Dick\'s in the $140-160 neutral cushion segment. The window to lock placement before competition intensifies is 60-90 days.',
+        basedOnSignals: 2,
+      },
+      {
+        id: 'rsc-005',
+        tier: 'developing',
+        category: 'Market Dynamics',
+        title: 'Brooks $1B Ghost 16 Milestone Resets Neutral Cushion Shelf Hierarchy',
+        references: 6,
+        credibility: 0.82,
+        momentum: false,
+        isLive: false,
+        davidCanTell: 'Brooks hitting $1B resets buyer expectations for neutral cushion — 880 v15 needs a clear shelf story that differentiates from Ghost positioning.',
+        decisionQuestion: 'Should 880 v15 defend $150 premium with FuelCell messaging, or drop to $140 to match Ghost 16?',
+        whatThisMeans: 'Ghost 16 at $1B validates the $140 neutral cushion price point. 880 v15 at $150 needs FuelCell as clear premium justification — or risks being repositioned as overpriced.',
+        basedOnSignals: 2,
+      },
+    ],
+  },
+  {
+    id: 'topic-ct',
+    name: 'COMPETITIVE TECHNOLOGY',
+    newCount: 0,
+    insights: [
+      {
+        id: 'ct-001',
+        tier: 'breaking',
+        category: 'Innovation',
+        title: "Anta's $1.8B Puma Investment Creates 574-Line Threat in 6-9 Month Window",
+        references: 121,
+        credibility: 0.89,
+        momentum: true,
+        momentumLabel: 'Breaking since yesterday',
+        isLive: false,
+        davidCanTell: 'Anta-Puma combination targets NB\'s lifestyle positioning directly — 574 line is most exposed in 6-9 month window.',
+        decisionQuestion: 'Should NB lock Dick\'s shelf allocation for 574 during Puma\'s ownership distraction window?',
+        whatThisMeans: 'Anta capital converts Puma from lifestyle competitor to funded adversary. The 6-9 month integration period creates a window where Puma\'s retail execution will lag — NB needs to lock shelf allocation now.',
+        basedOnSignals: 3,
+      },
+      {
+        id: 'ct-002',
+        tier: 'developing',
+        category: 'Innovation',
+        title: "On's Automation Cost Edge Collides with CloudMonster Quality Crisis",
+        references: 45,
+        credibility: 0.76,
+        momentum: false,
+        isLive: false,
+        davidCanTell: "On's quality issues at scale create a window — but their automation cost structure still threatens NB's premium tier margins.",
+        decisionQuestion: "Should NB lead Dick's negotiations with defect rate differentiation, or match On's automation cost structure?",
+        whatThisMeans: "On's CloudMonster quality crisis gives NB a short-term quality differentiation window. But On's automation advantage will erode the cost structure gap within 18-24 months.",
+        basedOnSignals: 3,
+      },
+      {
+        id: 'ct-003',
+        tier: 'developing',
+        category: 'Innovation',
+        title: 'Running Shoe Foam Technology: TPU and Supercritical Foaming Accelerates',
+        references: 38,
+        credibility: 0.81,
+        momentum: false,
+        isLive: false,
+        davidCanTell: 'TPU supercritical foaming is becoming table stakes — NB FuelCell positioning needs a next-gen foam story before FW27.',
+        decisionQuestion: 'Should NB invest in next-gen TPU foam development to maintain FuelCell premium positioning for FW27?',
+        whatThisMeans: 'Competitors are closing the foam technology gap. FuelCell differentiation that commands $10-15 premium today may not hold through FW27 without a next-gen story.',
+        basedOnSignals: 2,
+      },
+      {
+        id: 'ct-004',
+        tier: 'developing',
+        category: 'Innovation',
+        title: 'ASICS-Saucony Copy NB Collaboration Playbook at 990v6 Price Band',
+        references: 15,
+        credibility: 0.74,
+        momentum: false,
+        isLive: false,
+        davidCanTell: "Competitors validating NB's collaboration model at 990v6 price band — early mover advantage eroding, needs next chapter.",
+        decisionQuestion: 'Should NB accelerate collaboration cadence or pivot to next-chapter differentiation above the copycat tier?',
+        whatThisMeans: 'ASICS and Saucony entering the collaboration space at 990v6 pricing validates the model but compresses the premium window. NB needs to move upstream or accelerate cadence.',
+        basedOnSignals: 2,
+      },
+      {
+        id: 'ct-005',
+        tier: 'established',
+        category: 'Innovation',
+        title: 'Salomon and Arc\'teryx Squeeze 574/990 Lifestyle Positioning',
+        references: 4,
+        credibility: 0.68,
+        momentum: false,
+        isLive: false,
+        davidCanTell: 'Outdoor-to-lifestyle crossover compressing from above — 574/990 needs clearer performance heritage story vs outdoor aesthetic.',
+        decisionQuestion: 'Should NB develop a technical outdoor lifestyle line, or defend heritage positioning against Salomon/Arc\'teryx?',
+        whatThisMeans: 'Salomon and Arc\'teryx are capturing the outdoor-to-streetwear consumer at premium price points. 574/990 lifestyle positioning is being squeezed from above by performance outdoor brands.',
+        basedOnSignals: 2,
+      },
+    ],
+  },
+];
+
+export const SESSION_OPENER_MESSAGE: MockChatMessage = {
+  id: 'session-opener',
+  role: 'assistant',
+  content: "Morning David. Supreme Court confirmed the April hearing date — Reuters plus two trade sources. Directly hits your Vietnam FOB window.\n\nSignals are on the right. Vietnam FOB or Foot Locker first?",
+};
+
 export const MOCK_CHAT_MESSAGES: MockChatMessage[] = [
   {
     id: 'ctx-1',

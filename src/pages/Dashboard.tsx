@@ -3,12 +3,15 @@ import { ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ChatView } from '@/components/views/ChatView';
-import { InsightsView } from '@/components/views/InsightsView';
 import { PositionPanel, type PositionState } from '@/components/views/PositionPanel';
-import { MOCK_PROJECTS, MOCK_POSITIONS, MOCK_CHAT_MESSAGES, type MockChatMessage } from '@/data/mock';
+import { BriefingPanel } from '@/components/views/BriefingPanel';
+import { TopicDetailPanel } from '@/components/views/TopicDetailPanel';
+import { InsightDetailPanel } from '@/components/views/InsightDetailPanel';
+import { MOCK_PROJECTS, MOCK_POSITIONS, MOCK_CHAT_MESSAGES, SESSION_OPENER_MESSAGE, MOCK_TOPIC_INSIGHTS, type MockChatMessage } from '@/data/mock';
 import { mockPosition } from '@/data/mock-position';
 
 type LensType = 'executive' | 'leader' | 'ic';
+type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'generating' | 'position_active';
 
 type DevState =
   | 'session_open'
@@ -41,6 +44,15 @@ const LENS_MESSAGE: Record<LensType, string> = {
   ic: 'Switched to Individual Contributor lens. Innovation and operational signals are weighted first.',
 };
 
+// Find a topic insight by id across all topics
+function findTopicInsight(id: string) {
+  for (const topic of MOCK_TOPIC_INSIGHTS) {
+    const insight = topic.insights.find(i => i.id === id);
+    if (insight) return { insight, topic };
+  }
+  return null;
+}
+
 interface DashboardProps {
   initialLens?: LensType;
   justCompletedOnboarding?: boolean;
@@ -50,7 +62,6 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
   const isMobile = useIsMobile();
   const [activeProject, setActiveProject] = useState('p1');
   const [showPositions, setShowPositions] = useState(false);
-  const [signalsOpen, setSignalsOpen] = useState(false);
 
   // Role lens
   const [activeLens, setActiveLens] = useState<LensType>(initialLens);
@@ -60,12 +71,21 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
   // Onboarding banner
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(justCompletedOnboarding);
 
-  // Position panel state
-  const [positionState, setPositionState] = useState<PositionState>('active');
-  const [positionCollapsed, setPositionCollapsed] = useState(false);
+  // Left panel collapse
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
 
-  // Chat messages — lifted to Dashboard
-  const [messages, setMessages] = useState<MockChatMessage[]>(MOCK_CHAT_MESSAGES);
+  // Right panel view state machine
+  const [rightView, setRightView] = useState<RightPanelView>('briefing');
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
+  const [insightSourceName, setInsightSourceName] = useState("Today's Briefing");
+
+  // Position panel state (used when rightView = generating | position_active)
+  const [positionState, setPositionState] = useState<PositionState>('empty');
+
+  // Chat messages — lifted to Dashboard, prepend session opener
+  const [messages, setMessages] = useState<MockChatMessage[]>([SESSION_OPENER_MESSAGE, ...MOCK_CHAT_MESSAGES]);
 
   // Live signal
   const [showLiveSignal, setShowLiveSignal] = useState(false);
@@ -73,13 +93,13 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
   // Dev state machine
   const [devStateIndex, setDevStateIndex] = useState(0);
 
-  // Auto-transition generating -> active after 2s
+  // Auto-transition generating -> position_active after 2s
   useEffect(() => {
-    if (positionState === 'generating') {
-      const timer = setTimeout(() => setPositionState('active'), 2000);
+    if (rightView === 'generating') {
+      const timer = setTimeout(() => setRightView('position_active'), 2000);
       return () => clearTimeout(timer);
     }
-  }, [positionState]);
+  }, [rightView]);
 
   // Close lens dropdown on outside click
   useEffect(() => {
@@ -100,7 +120,6 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
     setActiveLens(lens);
     setLensDropdownOpen(false);
     localStorage.setItem('activeLens', lens);
-    // 300-400ms delay before AUO message appears
     setTimeout(() => {
       appendMessage({
         id: crypto.randomUUID(),
@@ -110,6 +129,44 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
     }, 350);
   };
 
+  // Right panel navigation
+  const handleExplore = (topicId: string) => {
+    setSelectedTopicId(topicId);
+    setRightView('topic_detail');
+  };
+
+  const handleOpenInsight = (insightId: string, source?: string) => {
+    setSelectedInsightId(insightId);
+    if (source) {
+      setInsightSourceName(source);
+    } else if (selectedTopicId) {
+      const topic = MOCK_TOPIC_INSIGHTS.find(t => t.id === selectedTopicId);
+      setInsightSourceName(topic ? topic.name.replace(/\b\w/g, l => l.toUpperCase()) : "Today's Briefing");
+    } else {
+      setInsightSourceName("Today's Briefing");
+    }
+    setRightView('insight_detail');
+  };
+
+  const handleBuildPosition = () => {
+    setRightView('generating');
+    setPositionState('generating');
+  };
+
+  const handleBackToBriefing = () => {
+    setRightView('briefing');
+    setSelectedTopicId(null);
+    setSelectedInsightId(null);
+  };
+
+  const handleBackFromInsight = () => {
+    if (selectedTopicId) {
+      setRightView('topic_detail');
+    } else {
+      setRightView('briefing');
+    }
+  };
+
   const handleDevNext = () => {
     const next = (devStateIndex + 1) % DEV_STATES.length;
     setDevStateIndex(next);
@@ -117,16 +174,16 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
   };
 
   const applyDevState = (state: DevState) => {
-    // Reset all
-    setSignalsOpen(false);
     setShowLiveSignal(false);
-    setPositionCollapsed(false);
+    setRightCollapsed(false);
 
-    if (state === 'signals_overlay') setSignalsOpen(true);
     if (state === 'live_signal') setShowLiveSignal(true);
-    if (state === 'building') setPositionState('generating');
-    if (state === 'position_active') setPositionState('active');
-    if (state === 'panel_collapsed') setPositionCollapsed(true);
+    if (state === 'building') { setRightView('generating'); setPositionState('generating'); }
+    if (state === 'position_active') { setRightView('position_active'); setPositionState('active'); }
+    if (state === 'panel_collapsed') setRightCollapsed(true);
+    if (state === 'session_open' || state === 'signals_overlay' || state === 'decision_reflected') {
+      setRightView('briefing');
+    }
   };
 
   const handleDevReset = () => {
@@ -135,7 +192,15 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
   };
 
   // Mobile tabs
-  const [mobileTab, setMobileTab] = useState<'chat' | 'position'>('chat');
+  const [mobileTab, setMobileTab] = useState<'chat' | 'briefing'>('chat');
+
+  // Resolve selected objects
+  const selectedTopic = MOCK_TOPIC_INSIGHTS.find(t => t.id === selectedTopicId) ?? null;
+  const selectedInsightResult = selectedInsightId ? findTopicInsight(selectedInsightId) : null;
+
+  // Panel width classes
+  const leftWidth = leftCollapsed ? 'w-10 flex-shrink-0' : rightCollapsed ? 'flex-1' : 'w-[35%] flex-shrink-0';
+  const rightWidth = rightCollapsed ? 'w-10 flex-shrink-0' : leftCollapsed ? 'flex-1' : 'flex-1';
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -266,69 +331,140 @@ export default function Dashboard({ initialLens = 'executive', justCompletedOnbo
               Chat
             </button>
             <button
-              onClick={() => setMobileTab('position')}
+              onClick={() => setMobileTab('briefing')}
               className={cn(
                 'px-3 py-1 rounded-full text-xs font-medium',
-                mobileTab === 'position' ? 'bg-foreground text-background' : 'text-muted-foreground'
+                mobileTab === 'briefing' ? 'bg-foreground text-background' : 'text-muted-foreground'
               )}
             >
-              Position
+              Briefing
             </button>
           </div>
         )}
       </header>
 
       {/* Main content */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden">
         {/* Left panel: Chat */}
         {(!isMobile || mobileTab === 'chat') && (
-          <div
-            className={cn(
-              'flex flex-col overflow-hidden transition-all duration-300',
-              isMobile ? 'w-full' : positionCollapsed ? 'flex-1' : 'w-[55%] flex-shrink-0'
-            )}
-          >
-            <ChatView
-              onOpenSignals={() => setSignalsOpen(true)}
-              onBuildPosition={() => setPositionState('generating')}
-              messages={messages}
-              onAppendMessage={appendMessage}
-              showLiveSignal={showLiveSignal}
-            />
-          </div>
-        )}
-
-        {/* Signals overlay */}
-        {signalsOpen && (
-          <div className="absolute inset-0 z-40 bg-background flex flex-col">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-              <span className="text-sm font-semibold text-foreground">Signals</span>
-              <button
-                onClick={() => setSignalsOpen(false)}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          leftCollapsed ? (
+            // Collapsed CHAT tab
+            <button
+              onClick={() => setLeftCollapsed(false)}
+              className="w-10 flex-shrink-0 border-r border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <span
+                className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
               >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <InsightsView
-                onSelectInsight={() => { setSignalsOpen(false); }}
-                activeProject={activeProject}
-                activeLens={activeLens}
+                Chat
+              </span>
+            </button>
+          ) : (
+            <div
+              className={cn(
+                'flex flex-col overflow-hidden transition-all duration-300',
+                isMobile ? 'w-full' : leftWidth
+              )}
+            >
+              <ChatView
+                onOpenSignals={() => {}}
+                onBuildPosition={handleBuildPosition}
+                messages={messages}
+                onAppendMessage={appendMessage}
+                showLiveSignal={showLiveSignal}
+                onCollapse={() => setLeftCollapsed(true)}
+                onOpenInsight={(insightId) => handleOpenInsight(insightId, "Today's Briefing")}
               />
             </div>
-          </div>
+          )
         )}
 
-        {/* Right panel: Position */}
-        {(!isMobile || mobileTab === 'position') && (
-          <PositionPanel
-            state={positionState}
-            position={positionState === 'active' ? mockPosition : null}
-            collapsed={!isMobile && positionCollapsed}
-            onToggleCollapse={() => setPositionCollapsed(!positionCollapsed)}
-            activeLens={activeLens}
-          />
+        {/* Right panel: Dynamic content */}
+        {(!isMobile || mobileTab === 'briefing') && (
+          rightCollapsed ? (
+            // Collapsed POSITION tab (keep existing behavior)
+            <button
+              onClick={() => setRightCollapsed(false)}
+              className="w-10 flex-shrink-0 border-l border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <span
+                className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+              >
+                {rightView === 'position_active' ? 'Position' : 'Briefing'}
+              </span>
+            </button>
+          ) : (
+            <div
+              className={cn(
+                'flex flex-col overflow-hidden transition-all duration-300 border-l border-border',
+                isMobile ? 'w-full' : rightWidth
+              )}
+            >
+              {/* Right panel header with collapse */}
+              <div className="flex-shrink-0 flex items-center justify-between px-5 py-2.5 border-b border-border bg-background">
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {rightView === 'briefing' && "Briefing"}
+                  {rightView === 'topic_detail' && "Topic"}
+                  {rightView === 'insight_detail' && "Insight"}
+                  {rightView === 'generating' && "Building"}
+                  {rightView === 'position_active' && "Position"}
+                </span>
+                <button
+                  onClick={() => setRightCollapsed(true)}
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                  aria-label="Collapse panel"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M9 2.5L4.5 7 9 11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Right panel content */}
+              <div className="flex-1 overflow-hidden">
+                {rightView === 'briefing' && (
+                  <BriefingPanel
+                    topics={MOCK_TOPIC_INSIGHTS}
+                    activeLens={activeLens}
+                    onExplore={handleExplore}
+                    onOpenInsight={(id) => handleOpenInsight(id)}
+                    onBuildPosition={handleBuildPosition}
+                  />
+                )}
+
+                {rightView === 'topic_detail' && selectedTopic && (
+                  <TopicDetailPanel
+                    topic={selectedTopic}
+                    onBack={handleBackToBriefing}
+                    onOpenInsight={(id) => handleOpenInsight(id, selectedTopic.name)}
+                    onBuildPosition={handleBuildPosition}
+                  />
+                )}
+
+                {rightView === 'insight_detail' && selectedInsightResult && (
+                  <InsightDetailPanel
+                    insight={selectedInsightResult.insight}
+                    sourceName={insightSourceName}
+                    onBack={handleBackFromInsight}
+                    onBuildPosition={handleBuildPosition}
+                  />
+                )}
+
+                {(rightView === 'generating' || rightView === 'position_active') && (
+                  <PositionPanel
+                    state={rightView === 'generating' ? 'generating' : 'active'}
+                    position={rightView === 'position_active' ? mockPosition : null}
+                    collapsed={false}
+                    onToggleCollapse={() => {}}
+                    activeLens={activeLens}
+                    onBack={handleBackToBriefing}
+                  />
+                )}
+              </div>
+            </div>
+          )
         )}
       </div>
     </div>
