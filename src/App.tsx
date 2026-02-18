@@ -15,6 +15,11 @@ const App = () => {
   const [initialLens, setInitialLens] = useState<LensType>(() => {
     const stored = localStorage.getItem('activeLens') as LensType;
     const valid: LensType[] = ['strategic', 'balanced', 'operational'];
+    // Clear stale lens values from old schema (executive/leader/ic)
+    if (stored && !valid.includes(stored)) {
+      localStorage.removeItem('activeLens');
+      return 'balanced';
+    }
     return valid.includes(stored) ? stored : 'balanced';
   });
 
