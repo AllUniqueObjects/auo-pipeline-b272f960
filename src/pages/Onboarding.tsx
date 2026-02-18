@@ -260,17 +260,30 @@ function SignalsPanel() {
 
 function EmptyRightPanel() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-      <h2
-        className="text-5xl italic mb-3"
-        style={{
-          fontFamily: "'Fraunces', serif",
-          color: 'hsl(var(--muted-foreground) / 0.1)',
-        }}
-      >
-        signals
-      </h2>
-      <p className="text-xs text-muted-foreground/40">Your signals will appear here</p>
+    <div className="flex-1 flex flex-col px-8 py-10">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-6">
+        What AUO will scan
+      </p>
+      <div className="space-y-4">
+        {SCAN_ITEMS.map(item => (
+          <div key={item.category} className="flex items-start gap-3 opacity-30">
+            <div className="w-1 h-4 rounded-full bg-border mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-foreground mb-1">
+                {item.category}
+              </p>
+              <div className="space-y-1">
+                {item.bullets.map(b => (
+                  <div key={b} className="h-2 w-40 rounded bg-border/60" />
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground/30 mt-8">
+        Enter your company to start the scan
+      </p>
     </div>
   );
 }
@@ -341,8 +354,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     return new Promise<void>(resolve => {
       setTimeout(() => {
         addMessage({ id, role: 'assistant', content }, true);
-        // Rough read time before resolving
-        const readMs = Math.max(600, content.length * 12);
+        // Brief pause before next action (not tied to typewriter length)
+        const readMs = Math.max(500, Math.min(content.length * 4, 1200));
         setTimeout(resolve, readMs);
       }, delay);
     });
@@ -599,8 +612,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
           {/* Bottom area */}
           <div className="flex-shrink-0 px-5 pb-5 space-y-3">
-            {/* Beat 1: Let's go CTA */}
-            {beat === 'beat1' && animatingId !== 'auo-intro' && (
+            {/* Beat 1: Let's go CTA — always visible in beat1 */}
+            {beat === 'beat1' && (
               <button
                 onClick={handleLetsGo}
                 className="w-full py-3 rounded-lg bg-emerging text-background text-sm font-semibold hover:bg-emerging/90 transition-colors"
