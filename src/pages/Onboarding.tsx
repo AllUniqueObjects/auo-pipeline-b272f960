@@ -125,12 +125,15 @@ function AuoBubble({ content, animate = false }: { content: string; animate?: bo
   const text = animate ? displayed : content;
   return (
     <div className="flex flex-col items-start">
-      <span className="text-[10px] font-medium uppercase tracking-wider mb-1.5 px-1 text-muted-foreground">
+      <span
+        className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2 px-1 text-muted-foreground/60"
+        style={{ fontFamily: "'DM Mono', monospace" }}
+      >
         AUO
       </span>
-      <div className="max-w-[88%] rounded-xl bg-card border border-border px-4 py-3 text-sm leading-relaxed text-card-foreground">
+      <div className="max-w-[88%] rounded-xl bg-background border border-border/70 shadow-[0_1px_6px_0_hsl(220,14%,88%,0.5)] px-4 py-3.5 text-[13px] leading-[1.65] text-foreground">
         {text.split('\n').map((line, i) =>
-          line.trim() ? <p key={i} className="mb-0.5 last:mb-0">{line}</p> : <div key={i} className="h-2" />
+          line.trim() ? <p key={i} className="mb-1 last:mb-0">{line}</p> : <div key={i} className="h-1.5" />
         )}
       </div>
     </div>
@@ -140,10 +143,13 @@ function AuoBubble({ content, animate = false }: { content: string; animate?: bo
 function UserBubble({ content }: { content: string }) {
   return (
     <div className="flex flex-col items-end">
-      <span className="text-[10px] font-medium uppercase tracking-wider mb-1.5 px-1 text-muted-foreground">
+      <span
+        className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2 px-1 text-muted-foreground/60"
+        style={{ fontFamily: "'DM Mono', monospace" }}
+      >
         You
       </span>
-      <div className="max-w-[88%] rounded-xl bg-accent px-4 py-3 text-sm text-accent-foreground leading-relaxed">
+      <div className="max-w-[88%] rounded-xl bg-accent px-4 py-3.5 text-[13px] leading-[1.65] text-accent-foreground">
         {content}
       </div>
     </div>
@@ -533,8 +539,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
       {/* Two-panel layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── Left: Chat ── */}
-        <div className="flex flex-col w-[52%] flex-shrink-0 border-r border-border overflow-hidden">
+        {/* ── Left: Chat — warm writing surface ── */}
+        <div className="flex flex-col w-[52%] flex-shrink-0 border-r border-border overflow-hidden" style={{ background: 'hsl(30 20% 98%)' }}>
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
             {messages.map(msg =>
@@ -616,7 +622,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             {beat === 'beat1' && (
               <button
                 onClick={handleLetsGo}
-                className="w-full py-3 rounded-lg bg-emerging text-background text-sm font-semibold hover:bg-emerging/90 transition-colors"
+                className="w-full py-3 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/85 transition-colors tracking-wide"
               >
                 Let's go →
               </button>
@@ -652,8 +658,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
         </div>
 
-        {/* ── Right panel ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* ── Right panel — cool workspace tone ── */}
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'hsl(220 14% 95%)' }}>
           {rightPanel === 'empty' && <EmptyRightPanel />}
           {(rightPanel === 'scanning') && (
             <ScanningPanel
