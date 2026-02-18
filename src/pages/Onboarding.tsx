@@ -655,10 +655,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </Panel>
 
             {/* Draggable divider */}
-            <PanelResizeHandle className="group relative w-[1px] bg-border hover:bg-border/60 transition-colors cursor-col-resize flex items-center justify-center">
-              <div className="absolute z-10 flex items-center justify-center w-5 h-8 rounded-full bg-background border border-border shadow-sm group-hover:border-muted-foreground/40 group-hover:shadow-md transition-all">
-                <div className="w-[3px] h-3.5 rounded-full bg-muted-foreground/30 group-hover:bg-muted-foreground/60 transition-colors" />
-              </div>
+            <PanelResizeHandle className="group relative w-[1px] bg-border cursor-col-resize flex items-center justify-center">
+              <div className="absolute z-10 w-3 h-5 rounded-full bg-border/80 group-hover:bg-muted-foreground/40 transition-colors" />
             </PanelResizeHandle>
 
             {/* Right panel */}
