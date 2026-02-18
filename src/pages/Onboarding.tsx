@@ -678,7 +678,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
         {/* ── Right panel — only shown when content is available ── */}
         {rightPanel !== 'empty' && (
-          <div className="flex-1 flex flex-col overflow-hidden bg-muted">
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'hsl(var(--panel-warm))' }}>
             {rightPanel === 'scanning' && (
               <ScanningPanel
                 revealedCount={scanRevealedCount}
