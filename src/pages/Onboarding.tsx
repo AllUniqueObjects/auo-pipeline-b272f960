@@ -552,7 +552,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         {rightPanel === 'empty' ? (
           /* ── Full-width chat before right panel activates ── */
           <div className="flex flex-col flex-1 overflow-hidden" style={{ background: 'hsl(var(--panel-warm))' }}>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto py-10 pr-2">
               <div className="mx-auto max-w-xl px-8 space-y-6">
                 {messages.map(msg =>
                   msg.role === 'assistant' ? (
@@ -607,7 +607,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           /* ── Resizable split once right panel activates ── */
           <PanelGroup direction="horizontal" className="flex-1">
             <Panel defaultSize={52} minSize={25} maxSize={75} className="flex flex-col border-r border-border" style={{ background: 'hsl(var(--panel-warm))' }}>
-              <div ref={scrollRef} className="flex-1 overflow-y-auto py-10">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto py-10 pr-2">
                 <div className="mx-auto max-w-none px-6 space-y-6">
                   {messages.map(msg =>
                     msg.role === 'assistant' ? (
