@@ -11,6 +11,7 @@ export interface MockInsight {
   tier_reasoning: string;
   convergence_reasoning?: string;
   signal_ids?: string[];
+  momentum?: string;
 }
 
 export interface MockSourceUrl {
@@ -74,6 +75,16 @@ export interface MockChatMessage {
   id: string;
   role: 'assistant' | 'user';
   content: string;
+  signalCard?: {
+    title: string;
+    category: string;
+    tier: 'breaking' | 'developing' | 'established';
+    credibility: number;
+    sources: number;
+  };
+  showDecisionReflection?: boolean;
+  showBuildButton?: boolean;
+  isContextGap?: boolean;
 }
 
 export const MOCK_INSIGHTS: MockInsight[] = [
@@ -90,6 +101,7 @@ export const MOCK_INSIGHTS: MockInsight[] = [
     tier_reasoning: 'Vietnam tariff response and FW26 BOM finalization are both active priorities. The Supreme Court ruling timeline creates a forced decision window.',
     convergence_reasoning: 'Three independent forces — tariff policy uncertainty, Vietnam labor inflation, and Maine expansion capacity — converge on the same 60-day decision window for FW26 BOM lock.',
     signal_ids: ['scan-001', 'scan-002', 'scan-003', 'scan-004'],
+    momentum: '↑ Breaking since yesterday',
   },
   {
     id: '2',
@@ -447,21 +459,61 @@ export const MOCK_CHAT_MESSAGES: MockChatMessage[] = [
   {
     id: 'ctx-1',
     role: 'assistant',
-    content: "Morning David. Breaking signal just came in — Supreme Court set April hearing date for the tariff case. This directly affects your Vietnam FOB timing.",
+    content: "Morning David. Two things since yesterday — Supreme Court set the April hearing date (confirmed, Reuters), and Nike moved their Vietnam commitment up 3 weeks. Both hit your FOB decision.\n\nFull briefing or just the Vietnam thread?",
   },
   {
     id: 'ctx-2',
     role: 'user',
-    content: "How certain is the April timeline?",
+    content: "Vietnam thread.",
   },
   {
     id: 'ctx-3',
     role: 'assistant',
-    content: "High confidence — 3 Tier 1 sources including Reuters. The 6-week window before factory allocation closes is real. Nike already moved their commitment up.",
+    content: "April hearing confirmed — Reuters plus two trade sources. Vietnam FOB window to lock at current rates is 4–6 weeks. Nike already moved their commitment up by 3 weeks.",
+    signalCard: {
+      title: "Vietnam FOB contracts trending $18.40 with 7–8% annual labor inflation",
+      category: "Macroeconomics",
+      tier: 'breaking',
+      credibility: 0.92,
+      sources: 3,
+    },
   },
   {
     id: 'ctx-4',
     role: 'user',
+    content: "How certain is that window?",
+  },
+  {
+    id: 'ctx-5',
+    role: 'assistant',
+    content: "High confidence. Factory allocation calendars confirmed. March vendor review date is on Foot Locker's procurement calendar from their IR filings.",
+  },
+  {
+    id: 'ctx-6',
+    role: 'user',
     content: "Lock it. Vietnam FOB at $18.40. Maine accelerates in parallel.",
+  },
+  {
+    id: 'ctx-7',
+    role: 'assistant',
+    content: "Makes sense — the BOM timeline doesn't leave room to wait for the Supreme Court ruling.\n\nI'll note you're locking Vietnam FOB at $18.40/pair for FW26, with Maine capacity accelerating in parallel.\n\nWant me to log this?",
+    showDecisionReflection: true,
+  },
+  {
+    id: 'ctx-8',
+    role: 'user',
+    content: "Yes, log it.",
+  },
+  {
+    id: 'ctx-9',
+    role: 'assistant',
+    content: "Logged. Want me to build a position from this?",
+    showBuildButton: true,
+  },
+  {
+    id: 'ctx-10',
+    role: 'assistant',
+    content: "Which lines are getting the most attention from your team right now, beyond the 880 v15?",
+    isContextGap: true,
   },
 ];

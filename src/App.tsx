@@ -1,21 +1,41 @@
 import { useState } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import Login from './pages/Login';
+import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 
-export type AppAuth = { loggedIn: boolean };
+type AppState = 'onboarding' | 'dashboard';
+type LensType = 'executive' | 'leader' | 'ic';
 
 const App = () => {
-  const [auth, setAuth] = useState<AppAuth>({ loggedIn: false });
+  const [appState, setAppState] = useState<AppState>(() => {
+    return localStorage.getItem('onboardingComplete') === 'true' ? 'dashboard' : 'onboarding';
+  });
+
+  const [initialLens, setInitialLens] = useState<LensType>(() => {
+    return (localStorage.getItem('activeLens') as LensType) || 'executive';
+  });
+
+  const [justCompletedOnboarding, setJustCompletedOnboarding] = useState(false);
+
+  const handleOnboardingComplete = (lens: LensType) => {
+    localStorage.setItem('onboardingComplete', 'true');
+    localStorage.setItem('activeLens', lens);
+    setInitialLens(lens);
+    setJustCompletedOnboarding(true);
+    setAppState('dashboard');
+  };
 
   return (
     <TooltipProvider>
       <Toaster />
-      {auth.loggedIn ? (
-        <Dashboard onLogout={() => setAuth({ loggedIn: false })} />
+      {appState === 'onboarding' ? (
+        <Onboarding onComplete={handleOnboardingComplete} />
       ) : (
-        <Login onLogin={() => setAuth({ loggedIn: true })} />
+        <Dashboard
+          initialLens={initialLens}
+          justCompletedOnboarding={justCompletedOnboarding}
+        />
       )}
     </TooltipProvider>
   );

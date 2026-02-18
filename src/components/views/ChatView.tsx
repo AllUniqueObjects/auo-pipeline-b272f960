@@ -1,20 +1,46 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MOCK_CHAT_MESSAGES, type MockChatMessage } from '@/data/mock';
+import { type MockChatMessage } from '@/data/mock';
 import { LiveSignalSurface } from '@/components/views/LiveSignalSurface';
+
+const TIER_DOT: Record<string, string> = {
+  breaking: 'bg-tier-breaking',
+  developing: 'bg-tier-developing',
+  established: 'bg-tier-established',
+};
+
+const TIER_LABEL: Record<string, string> = {
+  breaking: 'text-tier-breaking',
+  developing: 'text-tier-developing',
+  established: 'text-tier-established',
+};
 
 interface ChatViewProps {
   onOpenSignals?: () => void;
+  onBuildPosition?: () => void;
+  messages: MockChatMessage[];
+  onAppendMessage: (msg: MockChatMessage) => void;
+  showLiveSignal?: boolean;
 }
 
-export function ChatView({ onOpenSignals }: ChatViewProps) {
-  const [messages, setMessages] = useState<MockChatMessage[]>(MOCK_CHAT_MESSAGES);
+export function ChatView({
+  onOpenSignals,
+  onBuildPosition,
+  messages,
+  onAppendMessage,
+  showLiveSignal = false,
+}: ChatViewProps) {
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [inputExpanded, setInputExpanded] = useState(true);
+  const [liveVisible, setLiveVisible] = useState(showLiveSignal);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setLiveVisible(showLiveSignal);
+  }, [showLiveSignal]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -46,7 +72,7 @@ export function ChatView({ onOpenSignals }: ChatViewProps) {
     const text = input.trim();
     if (!text) return;
     const userMsg: MockChatMessage = { id: crypto.randomUUID(), role: 'user', content: text };
-    setMessages(prev => [...prev, userMsg]);
+    onAppendMessage(userMsg);
     setInput('');
     resetTextareaHeight();
     setTyping(true);
@@ -57,7 +83,7 @@ export function ChatView({ onOpenSignals }: ChatViewProps) {
         role: 'assistant',
         content: "I'll pull the relevant signals on that. Give me a moment to cross-reference the latest data points.",
       };
-      setMessages(prev => [...prev, reply]);
+      onAppendMessage(reply);
       setTyping(false);
     }, 1500);
   };
@@ -84,7 +110,7 @@ export function ChatView({ onOpenSignals }: ChatViewProps) {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="space-y-5">
           {messages.map(msg => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble key={msg.id} message={msg} onBuildPosition={onBuildPosition} />
           ))}
           {typing && <TypingIndicator />}
         </div>
@@ -92,7 +118,9 @@ export function ChatView({ onOpenSignals }: ChatViewProps) {
 
       {/* LiveSignalSurface + Input */}
       <div className="flex-shrink-0">
-        <LiveSignalSurface />
+        {liveVisible && (
+          <LiveSignalSurface onDismiss={() => setLiveVisible(false)} />
+        )}
         <div className="border-t border-border px-4 py-3">
           <div className="flex items-end gap-2">
             <textarea
@@ -105,10 +133,17 @@ export function ChatView({ onOpenSignals }: ChatViewProps) {
               className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none overflow-y-auto"
               style={{ maxHeight: inputExpanded ? '120px' : '38px' }}
             />
-            <button onClick={() => setInputExpanded(!inputExpanded)} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors">
+            <button
+              onClick={() => setInputExpanded(!inputExpanded)}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+            >
               {inputExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             </button>
-            <button onClick={handleSend} disabled={!input.trim()} className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40">
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40"
+            >
               <Send className="h-4 w-4" />
             </button>
           </div>
@@ -118,23 +153,85 @@ export function ChatView({ onOpenSignals }: ChatViewProps) {
   );
 }
 
-function MessageBubble({ message }: { message: MockChatMessage }) {
+function MessageBubble({
+  message,
+  onBuildPosition,
+}: {
+  message: MockChatMessage;
+  onBuildPosition?: () => void;
+}) {
   const isUser = message.role === 'user';
+  const labelText = isUser ? 'David' : (message.isContextGap ? 'AUO · context' : 'AUO');
+
   return (
     <div className={cn('flex flex-col', isUser ? 'items-end' : 'items-start')}>
-      <span className={cn(
-        'text-[10px] font-medium uppercase tracking-wider mb-1 px-1',
-        isUser ? 'text-muted-foreground' : 'text-muted-foreground'
-      )}>
-        {isUser ? 'David' : 'AUO'}
+      <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">
+        {labelText}
       </span>
-      <div className={cn(
-        'max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words',
-        isUser
-          ? 'bg-accent text-accent-foreground'
-          : 'bg-card border border-border text-card-foreground'
-      )}>
+      <div
+        className={cn(
+          'max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words',
+          isUser
+            ? 'bg-accent text-accent-foreground'
+            : 'bg-card border border-border text-card-foreground',
+          message.isContextGap && !isUser && 'border-b-[2px] border-b-emerging/40'
+        )}
+      >
         <MarkdownLite text={message.content} />
+
+        {/* Inline signal card */}
+        {message.signalCard && (
+          <div className="mt-3 rounded-lg border border-border bg-background/60 px-3 py-2.5">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={cn('h-2 w-2 rounded-full flex-shrink-0', TIER_DOT[message.signalCard.tier])} />
+              <span className={cn('text-[10px] font-bold uppercase tracking-wider', TIER_LABEL[message.signalCard.tier])}>
+                {message.signalCard.tier.toUpperCase()} · {message.signalCard.category.toUpperCase()}
+              </span>
+            </div>
+            <p className="text-xs font-medium text-foreground leading-snug mb-2">
+              {message.signalCard.title}
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-muted-foreground">
+                {message.signalCard.sources} sources
+              </span>
+              <div className="flex items-center gap-1.5 flex-1">
+                <span className="text-[10px] text-muted-foreground">Credibility</span>
+                <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-tier-established"
+                    style={{ width: `${Math.round(message.signalCard.credibility * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  {Math.round(message.signalCard.credibility * 100)}%
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Decision reflection block */}
+        {message.showDecisionReflection && (
+          <div className="mt-3 rounded-r-lg border-l-[3px] border-l-emerging bg-emerging/8 px-3 py-2.5">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-emerging mb-1">
+              Decision noted
+            </p>
+            <p className="text-xs text-foreground/80 leading-relaxed">
+              Locking Vietnam FOB at $18.40/pair for FW26, Maine capacity accelerating in parallel.
+            </p>
+          </div>
+        )}
+
+        {/* Build Position button */}
+        {message.showBuildButton && (
+          <button
+            onClick={onBuildPosition}
+            className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
+          >
+            Build Position ✦
+          </button>
+        )}
       </div>
     </div>
   );
