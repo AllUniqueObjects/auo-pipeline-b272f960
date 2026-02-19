@@ -40,8 +40,13 @@ export function ChatView({
   const [typing, setTyping] = useState(false);
   const [inputExpanded, setInputExpanded] = useState(true);
   const [liveVisible, setLiveVisible] = useState(showLiveSignal);
+  // Streaming state – rendered locally until "done" fires
+  const [streamingText, setStreamingText] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setLiveVisible(showLiveSignal);
@@ -49,7 +54,12 @@ export function ChatView({
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, typing]);
+  }, [messages, typing, streamingText]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   const resetTextareaHeight = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -73,24 +83,130 @@ export function ChatView({
     adjustHeight();
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || typing || isStreaming) return;
+
     const userMsg: MockChatMessage = { id: crypto.randomUUID(), role: 'user', content: text };
     onAppendMessage(userMsg);
     setInput('');
     resetTextareaHeight();
-    setTyping(true);
 
-    setTimeout(() => {
-      const reply: MockChatMessage = {
+    const responderUrl = import.meta.env.VITE_RESPONDER_URL;
+
+    // Fallback to mock if no URL configured
+    if (!responderUrl) {
+      console.warn('VITE_RESPONDER_URL not set – using mock reply');
+      setTyping(true);
+      setTimeout(() => {
+        onAppendMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: "I'll pull the relevant signals on that. Give me a moment to cross-reference the latest data points.",
+        });
+        setTyping(false);
+      }, 1500);
+      return;
+    }
+
+    // Build history from current messages (before appending the new user msg)
+    const history = messages.map(m => ({ role: m.role, content: m.content }));
+
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
+    setTyping(true);
+    setStreamingText('');
+    setIsStreaming(false);
+
+    try {
+      const response = await fetch(responderUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history, session_type: 'follow_up' }),
+        signal: abortRef.current.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let currentEvent = '';
+      let accumulated = '';
+
+      setTyping(false);
+      setIsStreaming(true);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+
+            if (currentEvent === 'token') {
+              accumulated += data;
+              setStreamingText(accumulated);
+            } else if (currentEvent === 'done') {
+              // Commit final message
+              let donePayload: Record<string, unknown> = {};
+              try { donePayload = JSON.parse(data); } catch { /* non-JSON done */ }
+
+              const finalMsg: MockChatMessage = {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: accumulated || data,
+                // Surface position trigger if backend signals it
+                showBuildButton: donePayload.position_triggered === true,
+              };
+              onAppendMessage(finalMsg);
+
+              if (donePayload.position_triggered && onBuildPosition) {
+                onBuildPosition();
+              }
+
+              setIsStreaming(false);
+              setStreamingText('');
+              accumulated = '';
+            } else if (currentEvent === 'error') {
+              throw new Error(data);
+            }
+
+            currentEvent = '';
+          }
+        }
+      }
+
+      // If stream ended without a done event, commit whatever was accumulated
+      if (accumulated) {
+        onAppendMessage({ id: crypto.randomUUID(), role: 'assistant', content: accumulated });
+        setIsStreaming(false);
+        setStreamingText('');
+      }
+
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      console.error('ChatView fetch error:', err);
+      onAppendMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: "I'll pull the relevant signals on that. Give me a moment to cross-reference the latest data points.",
-      };
-      onAppendMessage(reply);
+        content: 'Sorry, I couldn\'t reach the server. Please try again.',
+      });
       setTyping(false);
-    }, 1500);
+      setIsStreaming(false);
+      setStreamingText('');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -128,6 +244,18 @@ export function ChatView({
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} onBuildPosition={onBuildPosition} onOpenInsight={onOpenInsight} />
           ))}
+
+          {/* Live streaming bubble */}
+          {isStreaming && streamingText && (
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">AUO</span>
+              <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words bg-card border border-border text-card-foreground">
+                <MarkdownLite text={streamingText} />
+              </div>
+            </div>
+          )}
+
+          {/* Typing indicator: only while connecting before first token */}
           {typing && <TypingIndicator />}
         </div>
       </div>
@@ -146,7 +274,8 @@ export function ChatView({
               onKeyDown={handleKeyDown}
               placeholder="Reply to AUO..."
               rows={1}
-              className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none overflow-y-auto"
+              disabled={typing || isStreaming}
+              className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none overflow-y-auto disabled:opacity-50"
               style={{ maxHeight: inputExpanded ? '120px' : '38px' }}
             />
             <button
@@ -157,7 +286,7 @@ export function ChatView({
             </button>
             <button
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!input.trim() || typing || isStreaming}
               className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40"
             >
               <Send className="h-4 w-4" />
