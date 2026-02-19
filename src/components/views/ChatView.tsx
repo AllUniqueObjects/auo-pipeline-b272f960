@@ -122,10 +122,11 @@ export function ChatView({
     setIsStreaming(false);
 
     try {
+      const userId = localStorage.getItem('userId') ?? undefined;
       const response = await fetch(responderUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, session_type: 'follow_up' }),
+        body: JSON.stringify({ message: text, history, session_type: 'follow_up', user_id: userId }),
         signal: abortRef.current.signal,
       });
 
