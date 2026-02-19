@@ -26,6 +26,8 @@ interface SignalRow {
   urgency: string;
   credibility: number | null;
   nb_relevance: string | null;
+  last_source_count: number | null;
+  created_at: string | null;
 }
 
 // ─── Tier display config ───────────────────────────────────────────────────────
@@ -147,7 +149,7 @@ export function InsightDetailPanel({ insightId, sourceName, onBack, onBuildPosit
       if (ids.length > 0) {
         const { data: signalData, error: signalError } = await supabase
           .from('signals')
-          .select('id, title, summary, urgency, credibility, nb_relevance')
+          .select('id, title, summary, urgency, credibility, nb_relevance, last_source_count, created_at')
           .in('id', ids);
 
         if (!signalError && signalData) {
@@ -252,8 +254,8 @@ export function InsightDetailPanel({ insightId, sourceName, onBack, onBuildPosit
                       id: sig.id,
                       title: sig.title,
                       credibility: sig.credibility ?? 0,
-                      sources: 0,
-                      created_at: null,
+                      sources: sig.last_source_count ?? 0,
+                      created_at: sig.created_at,
                       analysis_context: null,
                       nb_relevance: sig.nb_relevance,
                       source_urls: [],
