@@ -386,6 +386,48 @@ export type Database = {
         }
         Relationships: []
       }
+      positions: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          davids_take: string | null
+          id: string
+          position_essence: string | null
+          sections: Json | null
+          signal_refs: Json | null
+          title: string
+          tone: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          davids_take?: string | null
+          id?: string
+          position_essence?: string | null
+          sections?: Json | null
+          signal_refs?: Json | null
+          title: string
+          tone?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          davids_take?: string | null
+          id?: string
+          position_essence?: string | null
+          sections?: Json | null
+          signal_refs?: Json | null
+          title?: string
+          tone?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       role_context: {
         Row: {
           company_name: string
