@@ -84,6 +84,7 @@ export function ChatView({
   };
 
   const handleSend = async () => {
+    console.log('RESPONDER_URL:', import.meta.env.VITE_RESPONDER_URL);
     const text = input.trim();
     if (!text || typing || isStreaming) return;
 
