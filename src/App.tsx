@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
 
 function RootRoute() {
   const [isComplete] = useState(
@@ -16,14 +19,24 @@ function RootRoute() {
 const App = () => {
   return (
     <BrowserRouter>
-      <TooltipProvider>
-        <Toaster />
-        <Routes>
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/" element={<RootRoute />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <RootRoute />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </TooltipProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 };
