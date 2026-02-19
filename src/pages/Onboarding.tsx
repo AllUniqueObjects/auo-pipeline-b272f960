@@ -478,11 +478,12 @@ export default function Onboarding() {
       400
     );
 
+    // Set localStorage BEFORE navigate so App.tsx route guard sees the flag
+    localStorage.setItem('onboardingComplete', 'true');
+    localStorage.setItem('activeLens', 'balanced');
+    sessionStorage.setItem('justOnboarded', 'true');
     setShowBanner(true);
     setTimeout(() => {
-      localStorage.setItem('onboardingComplete', 'true');
-      localStorage.setItem('activeLens', 'balanced');
-      sessionStorage.setItem('justOnboarded', 'true');
       navigate('/');
     }, 2200);
   };
