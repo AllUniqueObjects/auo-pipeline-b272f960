@@ -19,6 +19,7 @@ const TIER_LABEL: Record<string, string> = {
 interface ChatViewProps {
   onOpenSignals?: () => void;
   onBuildPosition?: () => void;
+  onConversationId?: (id: string) => void;
   messages: MockChatMessage[];
   onAppendMessage: (msg: MockChatMessage) => void;
   showLiveSignal?: boolean;
@@ -29,6 +30,7 @@ interface ChatViewProps {
 export function ChatView({
   onOpenSignals,
   onBuildPosition,
+  onConversationId,
   messages,
   onAppendMessage,
   showLiveSignal = false,
@@ -160,21 +162,26 @@ export function ChatView({
               accumulated += (parsed.content as string) ?? '';
               setStreamingText(accumulated);
             } else if (parsed.type === 'done') {
-              const finalMsg: MockChatMessage = {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: accumulated || '',
-                showBuildButton: parsed.position_triggered === true,
-              };
-              onAppendMessage(finalMsg);
+                const finalMsg: MockChatMessage = {
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: accumulated || '',
+                  showBuildButton: parsed.position_triggered === true,
+                };
+                onAppendMessage(finalMsg);
 
-              if (parsed.position_triggered && onBuildPosition) {
-                onBuildPosition();
-              }
+                // Bubble up conversation_id to Dashboard
+                if (parsed.conversation_id && onConversationId) {
+                  onConversationId(parsed.conversation_id as string);
+                }
 
-              setIsStreaming(false);
-              setStreamingText('');
-              accumulated = '';
+                if (parsed.position_triggered && onBuildPosition) {
+                  onBuildPosition();
+                }
+
+                setIsStreaming(false);
+                setStreamingText('');
+                accumulated = '';
             } else if (parsed.type === 'error') {
               throw new Error((parsed.message as string) ?? 'Stream error');
             }
