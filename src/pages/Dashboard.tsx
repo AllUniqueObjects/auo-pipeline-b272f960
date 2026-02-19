@@ -36,14 +36,6 @@ const DEV_STATES: DevState[] = [
   'panel_collapsed',
 ];
 
-// Find a topic insight by id across all topics
-function findTopicInsight(id: string) {
-  for (const topic of MOCK_TOPIC_INSIGHTS) {
-    const insight = topic.insights.find(i => i.id === id);
-    if (insight) return { insight, topic };
-  }
-  return null;
-}
 
 interface DashboardProps {
   initialLens?: LensType;
@@ -252,7 +244,6 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
 
   // Resolve selected objects
   const selectedTopic = MOCK_TOPIC_INSIGHTS.find(t => t.id === selectedTopicId) ?? null;
-  const selectedInsightResult = selectedInsightId ? findTopicInsight(selectedInsightId) : null;
 
   // Panel width classes
   const leftWidth = leftCollapsed ? 'w-10 flex-shrink-0' : rightCollapsed ? 'flex-1' : 'w-[35%] flex-shrink-0';
@@ -506,12 +497,12 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                   />
                 )}
 
-                {rightView === 'insight_detail' && selectedInsightResult && (
+                {rightView === 'insight_detail' && selectedInsightId && (
                   <InsightDetailPanel
-                    insight={selectedInsightResult.insight}
+                    insightId={selectedInsightId}
                     sourceName={insightSourceName}
                     onBack={handleBackFromInsight}
-                    onBuildPosition={() => handleBuildPositionFromInsight(selectedInsightResult.insight)}
+                    onBuildPosition={() => setRightView('position_starter' as RightPanelView)}
                   />
                 )}
 
