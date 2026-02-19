@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ChatView } from '@/components/views/ChatView';
@@ -78,6 +79,8 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const [positionState, setPositionState] = useState<PositionState>('empty');
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [lastConversationId, setLastConversationId] = useState<string | null>(null);
+  const positionChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const positionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Position starter state (guided Build Position flow)
   const [positionStarter, setPositionStarter] = useState<{
@@ -166,44 +169,64 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     setRightView('position_starter' as RightPanelView);
   };
 
-  const handlePositionGenerate = async (insightId?: string) => {
+  // Cleanup position subscription + timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (positionChannelRef.current) {
+        supabase.removeChannel(positionChannelRef.current);
+        positionChannelRef.current = null;
+      }
+      if (positionTimeoutRef.current) {
+        clearTimeout(positionTimeoutRef.current);
+        positionTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePositionGenerate = (insightId?: string) => {
     setPositionStarter(null);
     setRightView('generating');
     setPositionState('generating');
 
-    const positionUrl = import.meta.env.VITE_POSITION_URL;
-    if (!positionUrl) {
-      console.warn('VITE_POSITION_URL not set');
-      setRightView('briefing');
-      return;
+    // Clean up any existing subscription
+    if (positionChannelRef.current) {
+      supabase.removeChannel(positionChannelRef.current);
+      positionChannelRef.current = null;
+    }
+    if (positionTimeoutRef.current) {
+      clearTimeout(positionTimeoutRef.current);
     }
 
-    try {
-      const userId = localStorage.getItem('userId');
-      const res = await fetch(positionUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          insight_id: insightId ?? selectedInsightId ?? null,
-          conversation_id: lastConversationId ?? null,
-        }),
-      });
+    // Subscribe to positions INSERT — the Responder spawns the generator
+    const channel = supabase
+      .channel('positions-insert')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'positions' },
+        (payload) => {
+          const newId = (payload.new as { id: string }).id;
+          setSelectedPositionId(newId);
+          setPositionState('active');
+          setRightView('position_active');
+          // Clean up after receiving
+          supabase.removeChannel(channel);
+          positionChannelRef.current = null;
+          if (positionTimeoutRef.current) {
+            clearTimeout(positionTimeoutRef.current);
+            positionTimeoutRef.current = null;
+          }
+        }
+      )
+      .subscribe();
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    positionChannelRef.current = channel;
 
-      const data = await res.json();
-      if (data.position_id) {
-        setSelectedPositionId(data.position_id);
-        setPositionState('active');
-        setRightView('position_active');
-      } else {
-        setRightView('briefing');
-      }
-    } catch (err) {
-      console.error('Position generator error:', err);
+    // 3-minute fallback
+    positionTimeoutRef.current = setTimeout(() => {
       setRightView('briefing');
-    }
+      supabase.removeChannel(channel);
+      positionChannelRef.current = null;
+    }, 3 * 60 * 1000);
   };
 
   const handlePositionStarterCancel = () => {
