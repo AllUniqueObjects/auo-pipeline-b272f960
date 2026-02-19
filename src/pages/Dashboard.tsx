@@ -76,6 +76,8 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
 
   // Position panel state (used when rightView = generating | position_active)
   const [positionState, setPositionState] = useState<PositionState>('empty');
+  const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
+  const [lastConversationId, setLastConversationId] = useState<string | null>(null);
 
   // Position starter state (guided Build Position flow)
   const [positionStarter, setPositionStarter] = useState<{
@@ -94,13 +96,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   // Dev state machine
   const [devStateIndex, setDevStateIndex] = useState(0);
 
-  // Auto-transition generating -> position_active after 2s
-  useEffect(() => {
-    if (rightView === 'generating') {
-      const timer = setTimeout(() => setRightView('position_active'), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [rightView]);
+  // (auto-transition removed — real API call drives position_active)
 
   // Close lens dropdown on outside click
   useEffect(() => {
@@ -170,10 +166,44 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     setRightView('position_starter' as RightPanelView);
   };
 
-  const handlePositionGenerate = () => {
+  const handlePositionGenerate = async (insightId?: string) => {
     setPositionStarter(null);
     setRightView('generating');
     setPositionState('generating');
+
+    const positionUrl = import.meta.env.VITE_POSITION_URL;
+    if (!positionUrl) {
+      console.warn('VITE_POSITION_URL not set');
+      setRightView('briefing');
+      return;
+    }
+
+    try {
+      const userId = localStorage.getItem('userId');
+      const res = await fetch(positionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          insight_id: insightId ?? selectedInsightId ?? null,
+          conversation_id: lastConversationId ?? null,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+      if (data.position_id) {
+        setSelectedPositionId(data.position_id);
+        setPositionState('active');
+        setRightView('position_active');
+      } else {
+        setRightView('briefing');
+      }
+    } catch (err) {
+      console.error('Position generator error:', err);
+      setRightView('briefing');
+    }
   };
 
   const handlePositionStarterCancel = () => {
@@ -421,7 +451,8 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
             >
               <ChatView
                 onOpenSignals={() => {}}
-                onBuildPosition={handlePositionGenerate}
+                onBuildPosition={() => handlePositionGenerate()}
+                onConversationId={(id) => setLastConversationId(id)}
                 messages={messages}
                 onAppendMessage={appendMessage}
                 showLiveSignal={showLiveSignal}
