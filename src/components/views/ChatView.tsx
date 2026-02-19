@@ -136,7 +136,6 @@ export function ChatView({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let currentEvent = '';
       let accumulated = '';
 
       setTyping(false);
@@ -151,40 +150,33 @@ export function ChatView({
         buffer = lines.pop() ?? '';
 
         for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
-            const data = line.slice(6);
+          if (line.startsWith('data: ')) {
+            const raw = line.slice(6);
+            let parsed: Record<string, unknown> = {};
+            try { parsed = JSON.parse(raw); } catch { continue; }
 
-            if (currentEvent === 'token') {
-              accumulated += data;
+            if (parsed.type === 'token') {
+              accumulated += (parsed.content as string) ?? '';
               setStreamingText(accumulated);
-            } else if (currentEvent === 'done') {
-              // Commit final message
-              let donePayload: Record<string, unknown> = {};
-              try { donePayload = JSON.parse(data); } catch { /* non-JSON done */ }
-
+            } else if (parsed.type === 'done') {
               const finalMsg: MockChatMessage = {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: accumulated || data,
-                // Surface position trigger if backend signals it
-                showBuildButton: donePayload.position_triggered === true,
+                content: accumulated || '',
+                showBuildButton: parsed.position_triggered === true,
               };
               onAppendMessage(finalMsg);
 
-              if (donePayload.position_triggered && onBuildPosition) {
+              if (parsed.position_triggered && onBuildPosition) {
                 onBuildPosition();
               }
 
               setIsStreaming(false);
               setStreamingText('');
               accumulated = '';
-            } else if (currentEvent === 'error') {
-              throw new Error(data);
+            } else if (parsed.type === 'error') {
+              throw new Error((parsed.message as string) ?? 'Stream error');
             }
-
-            currentEvent = '';
           }
         }
       }
