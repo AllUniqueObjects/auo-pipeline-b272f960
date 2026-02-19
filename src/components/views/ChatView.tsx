@@ -175,9 +175,6 @@ export function ChatView({
                   onConversationId(parsed.conversation_id as string);
                 }
 
-                if (parsed.position_triggered && onBuildPosition) {
-                  onBuildPosition();
-                }
 
                 setIsStreaming(false);
                 setStreamingText('');
