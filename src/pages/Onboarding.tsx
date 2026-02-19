@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { type LensType } from '@/data/mock';
@@ -23,9 +24,6 @@ interface ChatMessage {
   content: string;
 }
 
-interface OnboardingProps {
-  onComplete: (lens: LensType) => void;
-}
 
 // ─── Mock scan data ─────────────────────────────────────────────────────────
 
@@ -305,7 +303,8 @@ function EmptyRightPanel() {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function Onboarding({ onComplete }: OnboardingProps) {
+export default function Onboarding() {
+  const navigate = useNavigate();
   const [beat, setBeat] = useState<Beat>('beat1');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
@@ -473,7 +472,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
     setShowBanner(true);
     setTimeout(() => {
-      onComplete('balanced');
+      localStorage.setItem('onboardingComplete', 'true');
+      localStorage.setItem('activeLens', 'balanced');
+      sessionStorage.setItem('justOnboarded', 'true');
+      navigate('/');
     }, 2200);
   };
 
