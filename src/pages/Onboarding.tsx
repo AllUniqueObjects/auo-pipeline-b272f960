@@ -133,6 +133,11 @@ function AuoBubble({
 
   useEffect(() => {
     if (done && onDone) onDone();
+    // Always clear animatingId after typewriter finishes
+    if (done) {
+      // Signal via a custom event so Onboarding can clear animatingId
+      window.dispatchEvent(new CustomEvent('auo-typing-done'));
+    }
   }, [done, onDone]);
 
   return (
@@ -370,8 +375,11 @@ export default function Onboarding() {
       setTimeout(() => {
         addMessage({ id, role: 'assistant', content }, true);
         // Brief pause before next action (not tied to typewriter length)
-        const readMs = Math.max(500, Math.min(content.length * 4, 1200));
-        setTimeout(resolve, readMs);
+        const readMs = Math.max(800, Math.min(content.length * 4, 1400));
+        setTimeout(() => {
+          setAnimatingId(null);
+          resolve();
+        }, readMs);
       }, delay);
     });
   }, [addMessage]);
@@ -519,10 +527,11 @@ export default function Onboarding() {
     beat === 'beat3' &&
     !priorityConfirmed &&
     messages.some(m => m.id === 'auo-b3-resp') &&
-    !inputVisible;
+    !inputVisible &&
+    animatingId === null;
 
   // ── Determine whether to show confirm buttons
-  const showConfirmButtons = beat === 'beat4_confirm' && animatingId !== 'auo-b4';
+  const showConfirmButtons = beat === 'beat4_confirm' && animatingId === null;
 
   return (
     <div className="h-screen flex flex-col bg-muted overflow-hidden">
