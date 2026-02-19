@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { type LensType } from '@/data/mock';
+import { supabase } from '@/integrations/supabase/client';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -323,6 +324,9 @@ export default function Onboarding() {
   // Company name
   const [company, setCompany] = useState('');
 
+  // Tactical context
+  const [tacticalText, setTacticalText] = useState('');
+
   // Scan state
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [scanRevealedCount, setScanRevealedCount] = useState(0);
@@ -423,6 +427,7 @@ export default function Onboarding() {
 
   // ── Beat 3: tactical input submitted
   const handleTacticalSubmit = async (text: string) => {
+    setTacticalText(text);
     setInputVisible(false);
     addMessage({ id: 'user-tactical', role: 'user', content: text });
 
@@ -482,6 +487,24 @@ export default function Onboarding() {
     localStorage.setItem('onboardingComplete', 'true');
     localStorage.setItem('activeLens', 'balanced');
     sessionStorage.setItem('justOnboarded', 'true');
+
+    // Persist onboarding data to Supabase users table
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        localStorage.setItem('userId', session.user.id);
+        await supabase.from('users').upsert({
+          id: session.user.id,
+          company,
+          current_priorities: selectedPriorities.join(', '),
+          current_work: { description: tacticalText },
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+      }
+    } catch (err) {
+      console.warn('Onboarding Supabase save failed:', err);
+    }
+
     setShowBanner(true);
     setTimeout(() => {
       navigate('/');
