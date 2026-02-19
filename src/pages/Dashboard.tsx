@@ -50,18 +50,27 @@ interface DashboardProps {
   justCompletedOnboarding?: boolean;
 }
 
-export default function Dashboard({ initialLens = 'balanced', justCompletedOnboarding = false }: DashboardProps) {
+export default function Dashboard({ initialLens, justCompletedOnboarding }: DashboardProps) {
   const isMobile = useIsMobile();
   const [activeProject, setActiveProject] = useState('p1');
   const [showPositions, setShowPositions] = useState(false);
 
-  // Role lens
-  const [activeLens, setActiveLens] = useState<LensType>(initialLens);
+  // Role lens — read from prop or localStorage
+  const resolvedLens = (() => {
+    const lens = initialLens ?? (localStorage.getItem('activeLens') as LensType);
+    const valid: LensType[] = ['strategic', 'balanced', 'operational'];
+    return valid.includes(lens) ? lens : 'balanced';
+  })();
+  const [activeLens, setActiveLens] = useState<LensType>(resolvedLens);
+
+  // Onboarding banner — prop takes priority, fallback to sessionStorage flag
+  const didJustOnboard = justCompletedOnboarding ?? sessionStorage.getItem('justOnboarded') === 'true';
+  if (didJustOnboard) sessionStorage.removeItem('justOnboarded');
   const [lensDropdownOpen, setLensDropdownOpen] = useState(false);
   const lensDropdownRef = useRef<HTMLDivElement>(null);
 
   // Onboarding banner
-  const [showOnboardingBanner, setShowOnboardingBanner] = useState(justCompletedOnboarding);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(didJustOnboard);
 
   // Left panel collapse
   const [leftCollapsed, setLeftCollapsed] = useState(false);
