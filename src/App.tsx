@@ -5,8 +5,6 @@ import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 
 const App = () => {
-  const onboardingComplete = localStorage.getItem('onboardingComplete') === 'true';
-
   return (
     <BrowserRouter>
       <TooltipProvider>
@@ -16,7 +14,7 @@ const App = () => {
           <Route
             path="/"
             element={
-              onboardingComplete
+              localStorage.getItem('onboardingComplete') === 'true'
                 ? <Dashboard />
                 : <Navigate to="/onboarding" replace />
             }
