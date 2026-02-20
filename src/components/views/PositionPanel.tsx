@@ -33,6 +33,9 @@ export function PositionPanel({ state, position, collapsed, onToggleCollapse }: 
   const animatedPositionRef = useRef<string | null>(null);
   const shouldAnimate = position?.id !== animatedPositionRef.current;
 
+  console.log('[PositionPanel] realtimePosition:', position);
+  console.log('[PositionPanel] isGenerating:', state === 'generating');
+
   useEffect(() => {
     if (position?.id) {
       animatedPositionRef.current = position.id;
@@ -129,14 +132,18 @@ function ActiveState({
     ? new Date(position.created_at).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+        year: 'numeric',
       })
     : '';
 
-  const sections: PositionSection[] = Array.isArray(position.sections)
-    ? (position.sections as PositionSection[])
-    : [];
+  const sections: PositionSection[] = (() => {
+    if (!position.sections) return [];
+    if (Array.isArray(position.sections)) return position.sections as PositionSection[];
+    if (typeof position.sections === 'string') {
+      try { return JSON.parse(position.sections) as PositionSection[]; } catch { return []; }
+    }
+    return [];
+  })();
 
   const handleShare = () => {
     navigator.clipboard.writeText(`Position: ${position.title}`);
