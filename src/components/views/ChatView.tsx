@@ -45,6 +45,10 @@ export function ChatView({
   // Streaming state – rendered locally until "done" fires
   const [streamingText, setStreamingText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  // Position build state
+  const [showBuildButton, setShowBuildButton] = useState(false);
+  const [buildingPosition, setBuildingPosition] = useState(false);
+  const lastConversationIdRef = useRef<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -166,15 +170,19 @@ export function ChatView({
                   id: crypto.randomUUID(),
                   role: 'assistant',
                   content: accumulated || '',
-                  showBuildButton: parsed.position_triggered === true,
                 };
                 onAppendMessage(finalMsg);
 
-                // Bubble up conversation_id to Dashboard
-                if (parsed.conversation_id && onConversationId) {
-                  onConversationId(parsed.conversation_id as string);
+                // Capture conversation_id locally and bubble up to Dashboard
+                if (parsed.conversation_id) {
+                  lastConversationIdRef.current = parsed.conversation_id as string;
+                  if (onConversationId) onConversationId(parsed.conversation_id as string);
                 }
 
+                // Show build button if position was triggered — user must click
+                if (parsed.position_triggered === true) {
+                  setShowBuildButton(true);
+                }
 
                 setIsStreaming(false);
                 setStreamingText('');
@@ -209,6 +217,31 @@ export function ChatView({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  const handleBuildPositionClick = async () => {
+    setShowBuildButton(false);
+    setBuildingPosition(true);
+    // Tell Dashboard to enter 'generating' state and subscribe to realtime
+    onBuildPosition?.();
+
+    const positionUrl = import.meta.env.VITE_POSITION_URL;
+    if (!positionUrl) { console.warn('VITE_POSITION_URL not set'); return; }
+
+    const userId = localStorage.getItem('userId');
+    try {
+      await fetch(positionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          conversation_id: lastConversationIdRef.current ?? null,
+          chat_history: messages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+    } catch (err) {
+      console.error('Position generation fetch error:', err);
+    }
   };
 
   return (
@@ -255,6 +288,26 @@ export function ChatView({
 
           {/* Typing indicator: only while connecting before first token */}
           {typing && <TypingIndicator />}
+
+          {/* Build Position button — only shown after position_triggered, requires user click */}
+          {showBuildButton && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleBuildPositionClick}
+                className="px-4 py-2 rounded-full text-sm font-medium text-white transition-transform hover:scale-105 active:scale-95"
+                style={{ backgroundColor: '#D97706' }}
+              >
+                Build Position ✦
+              </button>
+            </div>
+          )}
+
+          {/* Building indicator */}
+          {buildingPosition && (
+            <div className="flex justify-end">
+              <span className="text-xs text-muted-foreground italic">Building position…</span>
+            </div>
+          )}
         </div>
       </div>
 
