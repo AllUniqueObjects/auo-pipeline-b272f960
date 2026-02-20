@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 export interface RealtimePosition {
   id: string;
   title: string;
-  davids_take: string | null;
+  davids_take?: string | null;
+  owner_quote?: string | null;
   sections: unknown;
   position_essence: string | null;
   tone: string | null;
@@ -29,7 +30,7 @@ export function usePositionRealtime(userId: string | null) {
         .limit(1)
         .maybeSingle();
 
-      if (data) setPosition(data as RealtimePosition);
+      if (data) setPosition(data as unknown as RealtimePosition);
     };
     fetchLatest();
 
@@ -45,7 +46,7 @@ export function usePositionRealtime(userId: string | null) {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          setPosition(payload.new as RealtimePosition);
+          setPosition(payload.new as unknown as RealtimePosition);
           setIsGenerating(false);
         }
       )
@@ -58,7 +59,7 @@ export function usePositionRealtime(userId: string | null) {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          setPosition(payload.new as RealtimePosition);
+          setPosition(payload.new as unknown as RealtimePosition);
         }
       )
       .subscribe();

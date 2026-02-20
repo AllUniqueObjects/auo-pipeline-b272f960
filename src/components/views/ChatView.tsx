@@ -3,6 +3,7 @@ import { Send, ChevronDown, ChevronUp, BarChart3, ChevronsLeft } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { type MockChatMessage } from '@/data/mock';
 import { LiveSignalSurface } from '@/components/views/LiveSignalSurface';
+import { supabase } from '@/integrations/supabase/client';
 
 const TIER_DOT: Record<string, string> = {
   breaking: 'bg-tier-breaking',
@@ -228,7 +229,8 @@ export function ChatView({
     const positionUrl = import.meta.env.VITE_POSITION_GENERATOR_URL
       || 'https://dkk222--auo-responder-generate-position.modal.run';
 
-    const userId = localStorage.getItem('userId');
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id ?? null;
 
     console.log('[ChatView] Calling position generator:', positionUrl);
     console.log('[ChatView] user_id:', userId, '| conversation_id:', lastConversationIdRef.current);
