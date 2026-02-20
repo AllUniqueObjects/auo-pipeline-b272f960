@@ -125,7 +125,7 @@ export function InsightDetailPanel({ insightId, sourceName, onBack, onBuildPosit
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedSignals, setExpandedSignals] = useState<Record<string, boolean>>({});
-  const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
+  
 
   useEffect(() => {
     if (!insightId) return;
@@ -261,6 +261,19 @@ export function InsightDetailPanel({ insightId, sourceName, onBack, onBuildPosit
               <CollapsibleDetail title={`Based on ${signals.length} Signal${signals.length !== 1 ? 's' : ''}`} defaultOpen={true}>
                 <div className="space-y-3">
                   {signals.map(sig => {
+                    const sorted = [...(sig.raw_sources ?? [])].sort((a, b) => {
+                      if (a.source_api === 'exa_analysis' && b.source_api !== 'exa_analysis') return -1;
+                      if (b.source_api === 'exa_analysis' && a.source_api !== 'exa_analysis') return 1;
+                      const da = a.source_date ? new Date(a.source_date).getTime() : 0;
+                      const db = b.source_date ? new Date(b.source_date).getTime() : 0;
+                      return db - da;
+                    });
+                    const topSources = sorted.slice(0, 5).map(src => ({
+                      title: src.title ?? src.url,
+                      url: src.url,
+                      domain: src.domain ?? new URL(src.url).hostname.replace('www.', ''),
+                    }));
+
                     const cardData: SignalCardData = {
                       id: sig.id,
                       title: sig.title,
@@ -269,63 +282,16 @@ export function InsightDetailPanel({ insightId, sourceName, onBack, onBuildPosit
                       created_at: sig.created_at,
                       analysis_context: null,
                       nb_relevance: sig.nb_relevance,
-                      source_urls: [],
+                      source_urls: topSources,
                     };
 
-                    const sorted = [...(sig.raw_sources ?? [])].sort((a, b) => {
-                      if (a.source_api === 'exa_analysis' && b.source_api !== 'exa_analysis') return -1;
-                      if (b.source_api === 'exa_analysis' && a.source_api !== 'exa_analysis') return 1;
-                      const da = a.source_date ? new Date(a.source_date).getTime() : 0;
-                      const db = b.source_date ? new Date(b.source_date).getTime() : 0;
-                      return db - da;
-                    });
-                    const topSources = sorted.slice(0, 5);
-
                     return (
-                      <div key={sig.id} className="space-y-2">
-                        <SignalCard
-                          signal={cardData}
-                          expanded={!!expandedSignals[sig.id]}
-                          onToggle={() => setExpandedSignals(prev => ({ ...prev, [sig.id]: !prev[sig.id] }))}
-                        />
-                        {topSources.length > 0 && (
-                          <div className="px-1 pb-1">
-                            <button
-                              onClick={() => setExpandedSources(prev => ({ ...prev, [sig.id]: !prev[sig.id] }))}
-                              className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors mb-1.5"
-                            >
-                              <ChevronDown className={cn('h-3 w-3 transition-transform', expandedSources[sig.id] ? 'rotate-0' : '-rotate-90')} />
-                              Sources ({sig.last_source_count ?? topSources.length})
-                            </button>
-                            {expandedSources[sig.id] && (
-                              <div className="space-y-1.5">
-                                {topSources.map((src, i) => (
-                                  <div key={i} className="flex items-start gap-2">
-                                    <span className="text-[10px] font-mono text-muted-foreground/70 flex-shrink-0 mt-0.5 w-20 truncate">
-                                      {src.domain}
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                      <a
-                                        href={src.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-foreground/70 hover:text-foreground transition-colors line-clamp-1 leading-snug"
-                                      >
-                                        {src.title}
-                                      </a>
-                                      {src.source_date && (
-                                        <span className="text-[10px] text-muted-foreground/50">
-                                          {new Date(src.source_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <SignalCard
+                        key={sig.id}
+                        signal={cardData}
+                        expanded={!!expandedSignals[sig.id]}
+                        onToggle={() => setExpandedSignals(prev => ({ ...prev, [sig.id]: !prev[sig.id] }))}
+                      />
                     );
                   })}
                 </div>
