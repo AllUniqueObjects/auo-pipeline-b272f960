@@ -1,55 +1,55 @@
 
-## Scrollbar: Thumb Visually Centered Inside the Track
 
-### The Problem
+# PositionPanel — Design Polish
 
-The scrollbar is 3px wide. The track is also 3px wide. The thumb fills the entire width of the track, so there's no visual "groove" — they read as the same element. This makes the scrollbar look blunt and unrefined.
+Nine targeted refinements to `src/components/views/PositionPanel.tsx` only. No other files touched.
 
-### The Approach — Inset Shadow on the Thumb
+---
 
-WebKit scrollbars don't support `margin` or `padding` on the thumb element to shrink it inside the track. The correct technique is to use a transparent `border` on the thumb combined with `background-clip: content-box`. This makes the thumb's painted background narrower than its actual hit area — so it appears centered inside the track with visible track on either side.
+## Changes
 
-Since the track is 3px and we want the thumb to look like ~1px centered within it, we set a `1px` transparent border on all sides of the thumb. This leaves a 1px painted thumb in the center of the 3px track with 1px of visible track on each side.
+### 1. Title: larger, more commanding
+Current `text-xl` (20px) is undersized for the primary artifact. Bump to `text-2xl` with `leading-snug` for better wrapping on long titles.
 
-### Change — `src/index.css`
+### 2. Tighter title-to-tone spacing
+Title and tone row are a semantic unit. Replace the blanket `space-y-5` container with explicit per-section margins:
+- Title to Tone: `mt-2` (8px — paired)
+- Tone to Quote: `mt-5`
+- Quote to Key Numbers: `mt-5`
+- Key Numbers to Memo: `mt-6` (breathing room before main body)
+- Memo to Evidence: `mt-6` plus a faint `border-t border-border/30` separator
+- Evidence to Actions: keep existing `border-t`
 
-```css
-::-webkit-scrollbar-track {
-  background: hsl(var(--border) / 0.2);   /* slightly more subtle track */
-  border-radius: 9999px;
-  margin-block: 85%;
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--border) / 0.8);   /* slightly stronger thumb for contrast */
-  border-radius: 9999px;
-  border: 1px solid transparent;          /* creates 1px gap between thumb and track wall */
-  background-clip: content-box;           /* clips the fill to inside the border, making thumb appear narrower */
-  transition: background 0.2s ease;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
-  background-clip: content-box;
-}
-```
+### 3. Owner Quote border: gray to amber
+The style intent is "human voice, not machine." Change `border-l border-border/60` to `border-l-2 border-amber-500/30` — warm, subtle, clearly distinct from structural borders.
 
-### Visual Result
+### 4. Key number index: move to top-right
+The "01" label currently sits at `top-1.5 left-2`, colliding with values like "$18.40". Move to `top-1.5 right-2.5` so the index never overlaps with content.
 
-```text
-Before:
-┌───┐  ← 3px track
-│███│  ← 3px thumb fills entire track, no groove visible
-└───┘
+### 5. Memo body text: slightly larger
+Bump from `text-sm` (14px) to `text-[15px]` with `leading-[1.75]` for better readability on the primary reading surface.
 
-After:
-┌───┐  ← 3px track (faint)
-│ █ │  ← 1px thumb centered, 1px gap each side
-└───┘
-```
+### 6. Remove duplicate share icon from tone row
+The Share2 icon in the tone/date row duplicates the bottom action bar. Remove it — the tone row should be: dot + label + date only. The bottom buttons remain.
 
-The thumb now reads as a distinct element riding inside the track — like a pill in a slot — rather than a block that replaces it.
+### 7. Credibility bar: widen
+Increase from `w-10` (40px) to `w-14` (56px) so the fill difference between 50% and 75% is actually perceivable.
 
-### Files Changed
+### 8. Content-shaped skeleton loader
+Replace the 3 identical pulse blocks with a skeleton that mirrors the real layout:
+- Wide bar for title
+- Short bar for tone/date
+- Border-left block for quote
+- 2x2 grid of small boxes for key numbers
+- 3 paragraph-width bars for memo
 
-| File | Change |
-|------|--------|
-| `src/index.css` | Add `border: 1px solid transparent` + `background-clip: content-box` to thumb; tune opacities |
+### 9. Warmer empty state copy
+Change "Start a conversation and ask AUO to build a position." to "When you're ready, ask AUO to build a position from your conversation."
+
+---
+
+## Technical Details
+
+All changes are CSS class and markup adjustments within `PositionPanel.tsx`. No new dependencies, no data changes, no other files modified.
+
+The `space-y-5` on the outer `<div>` in `ActiveState` will be removed entirely. Each section div will receive its own `mt-X` class instead, creating a deliberate spacing rhythm rather than uniform gaps.
