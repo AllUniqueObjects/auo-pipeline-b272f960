@@ -122,7 +122,7 @@ function EmptyState() {
         position
       </h2>
       <p className="text-sm text-muted-foreground max-w-[240px] leading-relaxed">
-        Start a conversation and ask AUO to build a position.
+        When you're ready, ask AUO to build a position from your conversation.
       </p>
     </div>
   );
@@ -133,14 +133,31 @@ function GeneratingState() {
     <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4">
       <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
       <p className="text-sm text-muted-foreground">Building position...</p>
-      <div className="w-full max-w-sm space-y-3 mt-4">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="space-y-2 animate-pulse" style={{ animationDelay: `${i * 200}ms` }}>
-            <div className="h-3 bg-muted rounded w-1/3" />
-            <div className="h-2 bg-muted rounded w-full" />
-            <div className="h-2 bg-muted rounded w-4/5" />
-          </div>
-        ))}
+      <div className="w-full max-w-sm mt-4 animate-pulse space-y-4">
+        {/* Title */}
+        <div className="h-5 bg-muted rounded w-3/4" />
+        {/* Tone + date */}
+        <div className="h-2 bg-muted rounded w-1/3" />
+        {/* Owner quote */}
+        <div className="border-l-2 border-amber-500/20 pl-3 py-1 space-y-1.5">
+          <div className="h-2 bg-muted rounded w-full" />
+          <div className="h-2 bg-muted rounded w-2/3" />
+        </div>
+        {/* Key numbers 2x2 */}
+        <div className="grid grid-cols-2 gap-2">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="border border-border rounded-lg px-3 py-3 space-y-1.5">
+              <div className="h-4 bg-muted rounded w-1/2" />
+              <div className="h-2 bg-muted rounded w-3/4" />
+            </div>
+          ))}
+        </div>
+        {/* Memo paragraphs */}
+        <div className="space-y-2">
+          <div className="h-2 bg-muted rounded w-full" />
+          <div className="h-2 bg-muted rounded w-11/12" />
+          <div className="h-2 bg-muted rounded w-4/5" />
+        </div>
       </div>
     </div>
   );
@@ -201,11 +218,11 @@ function ActiveState({
     : [];
 
   return (
-    <div className="px-5 py-6 space-y-5">
+    <div className="px-5 py-6">
       {/* 1. Title */}
       <div style={animDelay(0)}>
         <h1
-          className="text-xl font-bold text-foreground leading-tight"
+          className="text-2xl font-bold text-foreground leading-snug"
           style={{ fontFamily: "'Fraunces', serif" }}
         >
           {position.title}
@@ -213,7 +230,7 @@ function ActiveState({
       </div>
 
       {/* 2. Tone + Date + Share */}
-      <div className="flex items-center gap-3" style={animDelay(1)}>
+      <div className="flex items-center gap-3 mt-2" style={animDelay(1)}>
         <span className="flex items-center gap-1.5">
           <span className={cn('h-2 w-2 rounded-full flex-shrink-0', toneConf.dot)} />
           <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">{toneConf.label}</span>
@@ -221,19 +238,11 @@ function ActiveState({
         <span className="text-[10px] text-muted-foreground" style={{ fontFamily: "'DM Mono', monospace" }}>
           {timestamp}
         </span>
-        <div className="ml-auto">
-          <button
-            onClick={handleShare}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <Share2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
       </div>
 
       {/* 3. Owner Quote */}
       {position.owner_quote && (
-        <div style={animDelay(2)} className="border-l border-border/60 pl-3 py-0.5">
+        <div style={animDelay(2)} className="mt-5 border-l-2 border-amber-500/30 pl-3 py-0.5">
           <p className="text-sm text-foreground/70 italic leading-relaxed">
             {position.owner_quote}
           </p>
@@ -243,14 +252,14 @@ function ActiveState({
 
       {/* 4. Key Numbers */}
       {sections?.key_numbers && sections.key_numbers.length > 0 && (
-        <div style={animDelay(3)}>
+        <div style={animDelay(3)} className="mt-5">
           <div className="grid grid-cols-2 gap-2">
             {sections.key_numbers.map((kn, i) => (
               <div
                 key={i}
                 className="border border-border rounded-lg px-3 py-2.5 flex flex-col relative"
               >
-                <span className="absolute top-1.5 left-2 text-[10px] text-muted-foreground/30 font-mono leading-none">
+                <span className="absolute top-1.5 right-2.5 text-[10px] text-muted-foreground/30 font-mono leading-none">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <span className="text-lg font-bold text-foreground leading-none">{kn.value}</span>
@@ -263,9 +272,9 @@ function ActiveState({
 
       {/* 5. Memo */}
       {memoParagraphs.length > 0 && (
-        <div style={animDelay(4)} className="space-y-3">
+        <div style={animDelay(4)} className="mt-6 space-y-3">
           {memoParagraphs.map((para, i) => (
-            <p key={i} className="text-sm text-foreground/80 leading-[1.7]">
+            <p key={i} className="text-[15px] text-foreground/80 leading-[1.75]">
               {para}
             </p>
           ))}
@@ -274,7 +283,7 @@ function ActiveState({
 
       {/* Legacy fallback */}
       {legacy && legacy.length > 0 && (
-        <div style={animDelay(4)} className="space-y-3">
+        <div style={animDelay(4)} className="mt-6 space-y-3">
           {legacy.map((sec, i) => (
             <p key={i} className="text-sm text-foreground/80 leading-[1.7]">{sec.content}</p>
           ))}
@@ -283,7 +292,7 @@ function ActiveState({
 
       {/* 6. Signal Evidence (collapsible) */}
       {evidence.length > 0 && (
-        <div style={animDelay(5)}>
+        <div style={animDelay(5)} className="mt-6 pt-5 border-t border-border/30">
           <button
             onClick={() => setEvidenceOpen(v => !v)}
             className="flex items-center justify-between w-full text-left group"
@@ -305,7 +314,7 @@ function ActiveState({
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs font-medium text-foreground/80 leading-snug">{sig.title}</span>
                     <span
-                      className="flex-shrink-0 w-10 h-1.5 rounded-full bg-muted overflow-hidden mt-1 cursor-help"
+                      className="flex-shrink-0 w-14 h-1.5 rounded-full bg-muted overflow-hidden mt-1 cursor-help"
                       title={`${Math.round((sig.credibility ?? 0) * 100)}%`}
                     >
                       <span
@@ -349,7 +358,7 @@ function ActiveState({
       )}
 
       {/* 7. Action buttons */}
-      <div style={animDelay(6)} className="flex items-center gap-2 pt-2 border-t border-border/40">
+      <div style={animDelay(6)} className="flex items-center gap-2 mt-5 pt-2 border-t border-border/40">
         <button
           onClick={handleShare}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 transition-colors"
