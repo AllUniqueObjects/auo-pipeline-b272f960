@@ -390,8 +390,8 @@ export type Database = {
         Row: {
           conversation_id: string | null
           created_at: string | null
-          davids_take: string | null
           id: string
+          owner_quote: string | null
           position_essence: string | null
           sections: Json | null
           signal_refs: Json | null
@@ -403,8 +403,8 @@ export type Database = {
         Insert: {
           conversation_id?: string | null
           created_at?: string | null
-          davids_take?: string | null
           id?: string
+          owner_quote?: string | null
           position_essence?: string | null
           sections?: Json | null
           signal_refs?: Json | null
@@ -416,8 +416,8 @@ export type Database = {
         Update: {
           conversation_id?: string | null
           created_at?: string | null
-          davids_take?: string | null
           id?: string
+          owner_quote?: string | null
           position_essence?: string | null
           sections?: Json | null
           signal_refs?: Json | null
