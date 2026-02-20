@@ -99,18 +99,7 @@ export function PositionPanel({ state, position, collapsed, onToggleCollapse }: 
   }
 
   return (
-    <div className="flex flex-col h-full border-l border-border bg-background">
-      {/* Panel header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-5 py-2.5 border-b border-border">
-        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Position</span>
-        <button
-          onClick={onToggleCollapse}
-          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-        >
-          <ChevronRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full bg-background">
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {state === 'empty' && <EmptyState />}
@@ -158,9 +147,9 @@ function GeneratingState() {
 }
 
 const TONE_CONFIG: Record<string, { dot: string; label: string }> = {
-  decisive:    { dot: 'bg-tier-breaking',   label: 'DECISIVE' },
-  conditional: { dot: 'bg-tier-developing', label: 'CONDITIONAL' },
-  exploratory: { dot: 'bg-blue-400',        label: 'EXPLORATORY' },
+  decisive:    { dot: 'bg-tier-breaking',   label: 'LOCKING' },
+  conditional: { dot: 'bg-tier-developing', label: 'EVALUATING' },
+  exploratory: { dot: 'bg-blue-400',        label: 'EXPLORING' },
 };
 
 function ActiveState({
@@ -259,8 +248,11 @@ function ActiveState({
             {sections.key_numbers.map((kn, i) => (
               <div
                 key={i}
-                className="border border-border rounded-lg px-3 py-2.5 flex flex-col"
+                className="border border-border rounded-lg px-3 py-2.5 flex flex-col relative"
               >
+                <span className="absolute top-1.5 left-2 text-[10px] text-muted-foreground/30 font-mono leading-none">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
                 <span className="text-lg font-bold text-foreground leading-none">{kn.value}</span>
                 <span className="text-[11px] text-muted-foreground mt-1 leading-tight">{kn.label}</span>
               </div>
@@ -298,7 +290,7 @@ function ActiveState({
           >
             <span className="text-[11px] text-muted-foreground">
               Based on {evidence.length} signal{evidence.length !== 1 ? 's' : ''}
-              {avgCredibility !== null && ` · avg credibility ${avgCredibility}%`}
+              {avgCredibility !== null && ` · ${avgCredibility >= 75 ? 'High confidence' : avgCredibility >= 50 ? 'Moderate confidence' : 'Developing'}`}
             </span>
             {evidenceOpen
               ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -312,8 +304,18 @@ function ActiveState({
                 <div key={i} className="border-t border-border/40 pt-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs font-medium text-foreground/80 leading-snug">{sig.title}</span>
-                    <span className="text-[10px] text-muted-foreground flex-shrink-0 font-mono">
-                      {Math.round((sig.credibility ?? 0) * 100)}%
+                    <span
+                      className="flex-shrink-0 w-10 h-1.5 rounded-full bg-muted overflow-hidden mt-1 cursor-help"
+                      title={`${Math.round((sig.credibility ?? 0) * 100)}%`}
+                    >
+                      <span
+                        className={cn(
+                          'block h-full rounded-full',
+                          (sig.credibility ?? 0) >= 0.75 ? 'bg-emerald-500' :
+                          (sig.credibility ?? 0) >= 0.50 ? 'bg-amber-400' : 'bg-muted-foreground/40'
+                        )}
+                        style={{ width: `${Math.max(Math.round((sig.credibility ?? 0) * 100), 5)}%` }}
+                      />
                     </span>
                   </div>
                   {sig.one_liner && (
