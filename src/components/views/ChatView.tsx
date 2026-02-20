@@ -225,8 +225,8 @@ export function ChatView({
     // Tell Dashboard to enter 'generating' state and subscribe to realtime
     onBuildPosition?.();
 
-    const positionUrl = import.meta.env.VITE_POSITION_URL;
-    if (!positionUrl) { console.warn('VITE_POSITION_URL not set'); return; }
+    const positionUrl = import.meta.env.VITE_POSITION_GENERATOR_URL
+      || 'https://dkk222--auo-position-generator-generate-position.modal.run';
 
     const userId = localStorage.getItem('userId');
     try {
@@ -236,7 +236,7 @@ export function ChatView({
         body: JSON.stringify({
           user_id: userId,
           conversation_id: lastConversationIdRef.current ?? null,
-          chat_history: messages.map(m => ({ role: m.role, content: m.content })),
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
         }),
       });
     } catch (err) {
