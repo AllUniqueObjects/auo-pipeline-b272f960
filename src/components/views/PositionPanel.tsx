@@ -1,19 +1,31 @@
-import { useRef, useEffect } from 'react';
-import { Share2, ChevronRight, Loader2 } from 'lucide-react';
+import { useRef, useEffect, useState } from 'react';
+import { Share2, ChevronRight, ChevronDown, Loader2, Copy, Link } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { RealtimePosition } from '@/hooks/usePositionRealtime';
 
 export type PositionState = 'empty' | 'generating' | 'active';
 
-const TONE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  decisive:    { bg: 'bg-tier-breaking/10',    text: 'text-tier-breaking',    label: 'Decisive' },
-  conditional: { bg: 'bg-tier-developing/10',  text: 'text-tier-developing',  label: 'Conditional' },
-  exploratory: { bg: 'bg-blue-500/10',          text: 'text-blue-400',          label: 'Exploratory' },
-};
+// New sections shape
+interface KeyNumber {
+  value: string;
+  label: string;
+}
 
-// Section shape from the positions.sections JSONB
-interface PositionSection {
+interface SignalEvidence {
+  title: string;
+  credibility: number;
+  one_liner: string;
+}
+
+interface PositionSections {
+  key_numbers?: KeyNumber[];
+  memo?: string;
+  signal_evidence?: SignalEvidence[];
+}
+
+// Legacy section shape (backward compat)
+interface LegacySection {
   title: string;
   content: string;
   signal_refs?: string[];
@@ -26,6 +38,27 @@ interface PositionPanelProps {
   onToggleCollapse: () => void;
   activeLens?: string;
   onBack?: () => void;
+}
+
+function parseSections(raw: unknown): { parsed: PositionSections | null; legacy: LegacySection[] | null } {
+  if (!raw) return { parsed: null, legacy: null };
+
+  let obj: unknown = raw;
+  if (typeof raw === 'string') {
+    try { obj = JSON.parse(raw); } catch { return { parsed: null, legacy: null }; }
+  }
+
+  // Legacy: array of {title, content}
+  if (Array.isArray(obj)) {
+    return { parsed: null, legacy: obj as LegacySection[] };
+  }
+
+  // New format: object with key_numbers, memo, signal_evidence
+  if (typeof obj === 'object' && obj !== null) {
+    return { parsed: obj as PositionSections, legacy: null };
+  }
+
+  return { parsed: null, legacy: null };
 }
 
 export function PositionPanel({ state, position, collapsed, onToggleCollapse }: PositionPanelProps) {
@@ -93,7 +126,7 @@ function EmptyState() {
         position
       </h2>
       <p className="text-sm text-muted-foreground max-w-[240px] leading-relaxed">
-        Start a conversation to build your position.
+        Start a conversation and ask AUO to build a position.
       </p>
     </div>
   );
@@ -117,6 +150,12 @@ function GeneratingState() {
   );
 }
 
+const TONE_CONFIG: Record<string, { dot: string; label: string }> = {
+  decisive:    { dot: 'bg-tier-breaking',   label: 'DECISIVE' },
+  conditional: { dot: 'bg-tier-developing', label: 'CONDITIONAL' },
+  exploratory: { dot: 'bg-blue-400',        label: 'EXPLORATORY' },
+};
+
 function ActiveState({
   position,
   shouldAnimate,
@@ -126,7 +165,10 @@ function ActiveState({
   shouldAnimate: boolean;
   toast: ReturnType<typeof useToast>['toast'];
 }) {
-  const toneInfo = TONE_BADGE[(position.tone as string) ?? 'decisive'] ?? TONE_BADGE.decisive;
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+
+  const tone = (position.tone as string) ?? 'decisive';
+  const toneConf = TONE_CONFIG[tone] ?? TONE_CONFIG.decisive;
 
   const timestamp = position.created_at
     ? new Date(position.created_at).toLocaleDateString('en-US', {
@@ -136,90 +178,166 @@ function ActiveState({
       })
     : '';
 
-  const sections: PositionSection[] = (() => {
-    if (!position.sections) return [];
-    if (Array.isArray(position.sections)) return position.sections as PositionSection[];
-    if (typeof position.sections === 'string') {
-      try { return JSON.parse(position.sections) as PositionSection[]; } catch { return []; }
-    }
-    return [];
-  })();
+  const { parsed: sections, legacy } = parseSections(position.sections);
+
+  const animDelay = (index: number) =>
+    shouldAnimate ? { animation: `fade-in 0.4s ease-out ${index * 80}ms both` } : {};
 
   const handleShare = () => {
     navigator.clipboard.writeText(`Position: ${position.title}`);
     toast({ title: 'Copied', description: 'Position link copied to clipboard' });
   };
 
-  const animDelay = (index: number) =>
-    shouldAnimate ? { animation: `fade-in 0.4s ease-out ${index * 80}ms both` } : {};
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast({ title: 'Link copied' });
+  };
+
+  // Signal evidence summary
+  const evidence = sections?.signal_evidence ?? [];
+  const avgCredibility = evidence.length > 0
+    ? Math.round(evidence.reduce((sum, s) => sum + (s.credibility ?? 0), 0) / evidence.length * 100)
+    : null;
+
+  // Memo paragraphs — split on double newline
+  const memoParagraphs = sections?.memo
+    ? sections.memo.split(/\n\n+/).filter(Boolean)
+    : [];
 
   return (
-    <div className="px-5 py-6 space-y-6">
-      {/* Header */}
+    <div className="px-5 py-6 space-y-5">
+      {/* 1. Title */}
       <div style={animDelay(0)}>
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <h1
-            className="text-2xl font-semibold text-foreground leading-tight"
-            style={{ fontFamily: "'Fraunces', serif" }}
-          >
-            {position.title}
-          </h1>
-          <button
-            onClick={handleShare}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"
-          >
-            <Share2 className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Tone badge */}
-          <span className={cn(
-            'text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full',
-            toneInfo.bg, toneInfo.text
-          )}>
-            {toneInfo.label}
-          </span>
-
-          {/* Timestamp */}
-          <span className="text-xs text-muted-foreground" style={{ fontFamily: "'DM Mono', monospace" }}>
-            {timestamp}
-          </span>
-        </div>
-
-        {/* Position essence — subtitle */}
-        {position.position_essence && (
-          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-            {position.position_essence}
-          </p>
-        )}
+        <h1
+          className="text-xl font-bold text-foreground leading-tight"
+          style={{ fontFamily: "'Fraunces', serif" }}
+        >
+          {position.title}
+        </h1>
       </div>
 
-      {/* David's Take — always first, always blockquote */}
-      {position.davids_take && (
-        <div style={animDelay(1)}>
-          <h2 className="text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground mb-3">
-            David's Take
-          </h2>
-          <blockquote className="rounded-lg px-4 py-3 border-l-[3px] border-l-emerging bg-emerging/5">
-            <p className="text-sm text-foreground/80 leading-relaxed italic">
-              {position.davids_take}
-            </p>
-          </blockquote>
+      {/* 2. Tone + Date + Share */}
+      <div className="flex items-center gap-3" style={animDelay(1)}>
+        <span className="flex items-center gap-1.5">
+          <span className={cn('h-2 w-2 rounded-full flex-shrink-0', toneConf.dot)} />
+          <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">{toneConf.label}</span>
+        </span>
+        <span className="text-[10px] text-muted-foreground" style={{ fontFamily: "'DM Mono', monospace" }}>
+          {timestamp}
+        </span>
+        <div className="ml-auto">
+          <button
+            onClick={handleShare}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Owner Quote */}
+      {position.owner_quote && (
+        <div style={animDelay(2)} className="border-l border-border/60 pl-3 py-0.5">
+          <p className="text-sm text-foreground/70 italic leading-relaxed">
+            {position.owner_quote}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1 text-right">— David</p>
         </div>
       )}
 
-      {/* Dynamic sections */}
-      {sections.map((section, i) => (
-        <div key={i} style={animDelay(2 + i)}>
-          <h2 className="text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground mb-2">
-            {section.title}
-          </h2>
-          <p className="text-sm text-foreground/70" style={{ lineHeight: 1.7 }}>
-            {section.content}
-          </p>
+      {/* 4. Key Numbers */}
+      {sections?.key_numbers && sections.key_numbers.length > 0 && (
+        <div style={animDelay(3)}>
+          <div className="grid grid-cols-2 gap-2">
+            {sections.key_numbers.map((kn, i) => (
+              <div
+                key={i}
+                className="border border-border rounded-lg px-3 py-2.5 flex flex-col"
+              >
+                <span className="text-lg font-bold text-foreground leading-none">{kn.value}</span>
+                <span className="text-[11px] text-muted-foreground mt-1 leading-tight">{kn.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* 5. Memo */}
+      {memoParagraphs.length > 0 && (
+        <div style={animDelay(4)} className="space-y-3">
+          {memoParagraphs.map((para, i) => (
+            <p key={i} className="text-sm text-foreground/80 leading-[1.7]">
+              {para}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Legacy fallback */}
+      {legacy && legacy.length > 0 && (
+        <div style={animDelay(4)} className="space-y-3">
+          {legacy.map((sec, i) => (
+            <p key={i} className="text-sm text-foreground/80 leading-[1.7]">{sec.content}</p>
+          ))}
+        </div>
+      )}
+
+      {/* 6. Signal Evidence (collapsible) */}
+      {evidence.length > 0 && (
+        <div style={animDelay(5)}>
+          <button
+            onClick={() => setEvidenceOpen(v => !v)}
+            className="flex items-center justify-between w-full text-left group"
+          >
+            <span className="text-[11px] text-muted-foreground">
+              Based on {evidence.length} signal{evidence.length !== 1 ? 's' : ''}
+              {avgCredibility !== null && ` · avg credibility ${avgCredibility}%`}
+            </span>
+            {evidenceOpen
+              ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            }
+          </button>
+
+          {evidenceOpen && (
+            <div className="mt-3 space-y-3">
+              {evidence.map((sig, i) => (
+                <div key={i} className="border-t border-border/40 pt-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs font-medium text-foreground/80 leading-snug">{sig.title}</span>
+                    <span
+                      className="text-[10px] text-muted-foreground flex-shrink-0 font-mono"
+                    >
+                      {Math.round((sig.credibility ?? 0) * 100)}%
+                    </span>
+                  </div>
+                  {sig.one_liner && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{sig.one_liner}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 7. Action buttons */}
+      <div style={animDelay(6)} className="flex items-center gap-2 pt-2 border-t border-border/40">
+        <button
+          onClick={handleShare}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 transition-colors"
+        >
+          <Share2 className="h-3 w-3" />
+          Share ↗
+        </button>
+        <button
+          onClick={handleCopyLink}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 transition-colors"
+        >
+          <Link className="h-3 w-3" />
+          Copy link
+        </button>
+      </div>
     </div>
   );
 }
