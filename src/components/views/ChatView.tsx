@@ -226,7 +226,7 @@ export function ChatView({
     onBuildPosition?.();
 
     const positionUrl = import.meta.env.VITE_POSITION_GENERATOR_URL
-      || 'https://dkk222--auo-position-generator-generate-position.modal.run';
+      || 'https://dkk222--auo-responder-generate-position.modal.run';
 
     const userId = localStorage.getItem('userId');
 
