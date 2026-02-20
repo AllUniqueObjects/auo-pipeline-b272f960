@@ -12,10 +12,17 @@ interface KeyNumber {
   label: string;
 }
 
+interface SignalSource {
+  name: string;
+  url: string;
+  date?: string | null;
+}
+
 interface SignalEvidence {
   title: string;
   credibility: number;
   one_liner: string;
+  sources?: SignalSource[];
 }
 
 interface PositionSections {
@@ -305,14 +312,32 @@ function ActiveState({
                 <div key={i} className="border-t border-border/40 pt-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs font-medium text-foreground/80 leading-snug">{sig.title}</span>
-                    <span
-                      className="text-[10px] text-muted-foreground flex-shrink-0 font-mono"
-                    >
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0 font-mono">
                       {Math.round((sig.credibility ?? 0) * 100)}%
                     </span>
                   </div>
                   {sig.one_liner && (
                     <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{sig.one_liner}</p>
+                  )}
+                  {sig.sources && sig.sources.length > 0 && (
+                    <div className="mt-1.5 pl-2 space-y-0.5">
+                      {sig.sources.map((src, j) => (
+                        <div key={j} className="flex items-center gap-1 text-[11px]">
+                          <a
+                            href={src.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                          >
+                            {src.name} ↗
+                          </a>
+                          {src.date && (
+                            <span className="text-muted-foreground/60">· {src.date}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}
