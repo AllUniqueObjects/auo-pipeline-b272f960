@@ -229,8 +229,12 @@ export function ChatView({
       || 'https://dkk222--auo-position-generator-generate-position.modal.run';
 
     const userId = localStorage.getItem('userId');
+
+    console.log('[ChatView] Calling position generator:', positionUrl);
+    console.log('[ChatView] user_id:', userId, '| conversation_id:', lastConversationIdRef.current);
+
     try {
-      await fetch(positionUrl, {
+      const res = await fetch(positionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,8 +243,10 @@ export function ChatView({
           messages: messages.map(m => ({ role: m.role, content: m.content })),
         }),
       });
+      console.log('[ChatView] Position generator response status:', res.status);
     } catch (err) {
-      console.error('Position generation fetch error:', err);
+      console.error('[ChatView] Position generator fetch failed:', err);
+      setBuildingPosition(false);
     }
   };
 
