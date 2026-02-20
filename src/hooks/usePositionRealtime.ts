@@ -6,6 +6,8 @@ export interface RealtimePosition {
   title: string;
   davids_take: string | null;
   sections: unknown;
+  position_essence: string | null;
+  tone: string | null;
   created_at: string | null;
   user_id: string | null;
 }

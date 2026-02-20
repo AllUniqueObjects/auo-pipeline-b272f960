@@ -15,7 +15,7 @@ import {
   LENS_LABELS, LENS_DESCRIPTIONS, LENS_MESSAGE, PROACTIVE_BRIEFINGS,
   type MockChatMessage, type LensType, type MockTopic, type TopicInsight,
 } from '@/data/mock';
-import { mockPosition } from '@/data/mock-position';
+
 
 type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'generating' | 'position_active' | 'position_starter';
 
@@ -556,7 +556,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                 {(rightView === 'generating' || rightView === 'position_active') && (
                   <PositionPanel
                     state={rightView === 'generating' ? 'generating' : 'active'}
-                    position={rightView === 'position_active' ? (realtimePosition as unknown as typeof mockPosition ?? mockPosition) : null}
+                    position={rightView === 'position_active' ? realtimePosition : null}
                     collapsed={false}
                     onToggleCollapse={() => {}}
                     activeLens={activeLens}
