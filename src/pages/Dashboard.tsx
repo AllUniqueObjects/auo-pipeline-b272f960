@@ -3,6 +3,7 @@ import { ChevronDown, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePositionRealtime } from '@/hooks/usePositionRealtime';
 import { ChatView } from '@/components/views/ChatView';
 import { PositionPanel, type PositionState } from '@/components/views/PositionPanel';
 import { BriefingPanel } from '@/components/views/BriefingPanel';
@@ -45,6 +46,8 @@ interface DashboardProps {
 
 export default function Dashboard({ initialLens, justCompletedOnboarding }: DashboardProps) {
   const isMobile = useIsMobile();
+  const userId = localStorage.getItem('userId');
+  const { position: realtimePosition, isGenerating, setIsGenerating } = usePositionRealtime(userId);
   const [activeProject, setActiveProject] = useState('p1');
   const [showPositions, setShowPositions] = useState(false);
 
@@ -79,7 +82,6 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const [positionState, setPositionState] = useState<PositionState>('empty');
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [lastConversationId, setLastConversationId] = useState<string | null>(null);
-  const positionChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const positionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Position starter state (guided Build Position flow)
@@ -169,13 +171,9 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     setRightView('position_starter' as RightPanelView);
   };
 
-  // Cleanup position subscription + timeout on unmount
+  // Cleanup position timeout on unmount
   useEffect(() => {
     return () => {
-      if (positionChannelRef.current) {
-        supabase.removeChannel(positionChannelRef.current);
-        positionChannelRef.current = null;
-      }
       if (positionTimeoutRef.current) {
         clearTimeout(positionTimeoutRef.current);
         positionTimeoutRef.current = null;
@@ -183,49 +181,30 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     };
   }, []);
 
-  const handlePositionGenerate = (insightId?: string) => {
+  // Transition to position_active when realtime hook receives a new INSERT
+  useEffect(() => {
+    if (realtimePosition && isGenerating === false && rightView === 'generating') {
+      setPositionState('active');
+      setRightView('position_active');
+      if (positionTimeoutRef.current) {
+        clearTimeout(positionTimeoutRef.current);
+        positionTimeoutRef.current = null;
+      }
+    }
+  }, [realtimePosition, isGenerating, rightView]);
+
+  const handlePositionGenerate = (_insightId?: string) => {
     setPositionStarter(null);
     setRightView('generating');
     setPositionState('generating');
+    setIsGenerating(true);
 
-    // Clean up any existing subscription
-    if (positionChannelRef.current) {
-      supabase.removeChannel(positionChannelRef.current);
-      positionChannelRef.current = null;
-    }
-    if (positionTimeoutRef.current) {
-      clearTimeout(positionTimeoutRef.current);
-    }
-
-    // Subscribe to positions INSERT — the Responder spawns the generator
-    const channel = supabase
-      .channel('positions-insert')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'positions' },
-        (payload) => {
-          const newId = (payload.new as { id: string }).id;
-          setSelectedPositionId(newId);
-          setPositionState('active');
-          setRightView('position_active');
-          // Clean up after receiving
-          supabase.removeChannel(channel);
-          positionChannelRef.current = null;
-          if (positionTimeoutRef.current) {
-            clearTimeout(positionTimeoutRef.current);
-            positionTimeoutRef.current = null;
-          }
-        }
-      )
-      .subscribe();
-
-    positionChannelRef.current = channel;
-
-    // 3-minute fallback
+    // 3-minute fallback — realtime hook handles the INSERT transition
+    if (positionTimeoutRef.current) clearTimeout(positionTimeoutRef.current);
     positionTimeoutRef.current = setTimeout(() => {
       setRightView('briefing');
-      supabase.removeChannel(channel);
-      positionChannelRef.current = null;
+      setIsGenerating(false);
+      positionTimeoutRef.current = null;
     }, 3 * 60 * 1000);
   };
 
@@ -474,7 +453,10 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
             >
               <ChatView
                 onOpenSignals={() => {}}
-                onBuildPosition={() => handlePositionGenerate()}
+                onBuildPosition={() => {
+                  setIsGenerating(true);
+                  handlePositionGenerate();
+                }}
                 onConversationId={(id) => setLastConversationId(id)}
                 messages={messages}
                 onAppendMessage={appendMessage}
@@ -574,7 +556,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                 {(rightView === 'generating' || rightView === 'position_active') && (
                   <PositionPanel
                     state={rightView === 'generating' ? 'generating' : 'active'}
-                    position={rightView === 'position_active' ? mockPosition : null}
+                    position={rightView === 'position_active' ? (realtimePosition as unknown as typeof mockPosition ?? mockPosition) : null}
                     collapsed={false}
                     onToggleCollapse={() => {}}
                     activeLens={activeLens}
