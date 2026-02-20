@@ -76,24 +76,21 @@ export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveB
         </span>
       </div>
       {expanded && (
-        <>
-          <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>{analysisText}</p>
-          {signal.source_urls && signal.source_urls.length > 0 && (
-            <div className="mt-3 pt-2.5 border-t border-border/50">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sources</span>
-              <div className="mt-1.5 space-y-1">
-                {signal.source_urls.map((src, i) => (
-                  <a key={i} href={src.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                    className="flex items-center gap-2 text-xs text-foreground/70 hover:text-foreground transition-colors group">
-                    <span className="text-muted-foreground text-[10px] font-mono flex-shrink-0">{src.domain}</span>
-                    <span className="truncate">{src.title}</span>
-                    <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+        <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>{analysisText}</p>
+      )}
+      {signal.source_urls && signal.source_urls.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-border/50">
+          <div className="space-y-0.5">
+            {signal.source_urls.slice(0, expanded ? undefined : 3).map((src, i) => (
+              <a key={i} href={src.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                className="flex items-center gap-2 text-[11px] text-foreground/60 hover:text-foreground transition-colors group">
+                <span className="text-muted-foreground text-[10px] font-mono flex-shrink-0">{src.domain}</span>
+                <span className="truncate">{src.title}</span>
+                <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            ))}
+          </div>
+        </div>
       )}
       {signal.nb_relevance && (
         <p className={cn('text-xs text-muted-foreground italic', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>{signal.nb_relevance}</p>
