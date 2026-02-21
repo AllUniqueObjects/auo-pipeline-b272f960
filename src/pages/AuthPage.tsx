@@ -38,7 +38,7 @@ export default function AuthPage() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{ background: '#0a0a0a' }}
+      style={{ background: '#1a1a1a' }}
     >
       {/* Logo + tagline */}
       <div className="mb-8 text-center">
@@ -191,10 +191,6 @@ export default function AuthPage() {
               className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm"
               style={{ background: '#f0fdf4', color: '#166534' }}
             >
-              <span
-                className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: '#22c55e' }}
-              />
               {success}
             </div>
           )}
