@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface RealtimePosition {
@@ -13,38 +13,59 @@ export interface RealtimePosition {
   user_id: string | null;
 }
 
-const POLL_FALLBACK_MS = 30_000;
+const POLL_INTERVAL_MS = 5_000;
+const POLL_MAX_MS = 60_000;
 
 export function usePositionRealtime(userId: string | null, conversationId?: string | null) {
   const [position, setPosition] = useState<RealtimePosition | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef<number | null>(null);
 
+  const TAG = '[usePositionRealtime]';
+
+  // Stable fetch function — uses conversationId if available, else userId only
+  const fetchLatest = useCallback(async (reason: string) => {
+    if (!userId) return null;
+
+    let query = supabase
+      .from('positions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (conversationId) {
+      query = query.eq('conversation_id', conversationId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      console.warn(`${TAG} ${reason} query error:`, error.message);
+      return null;
+    }
+    console.log(`${TAG} ${reason} result:`, data ? `found id=${data.id}` : 'nothing found',
+      `(userId=${userId}, convId=${conversationId ?? 'null'})`);
+    return data;
+  }, [userId, conversationId]);
+
+  // Mount: fetch latest + subscribe to realtime
   useEffect(() => {
     if (!userId) return;
 
-    // Fetch latest position on mount
-    const fetchLatest = async () => {
-      let query = supabase
-        .from('positions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1);
+    console.log(`${TAG} mounted — userId=${userId}, conversationId=${conversationId ?? 'null'}`);
 
-      if (conversationId) {
-        query = query.eq('conversation_id', conversationId);
-      }
-
-      const { data } = await query.maybeSingle();
+    // Fetch latest on mount
+    fetchLatest('mount-fetch').then((data) => {
       if (data) setPosition(data as unknown as RealtimePosition);
-    };
-    fetchLatest();
+    });
 
-    // Build realtime filter — filter by conversation_id when available
+    // Build realtime filter
     const filter = conversationId
       ? `conversation_id=eq.${conversationId}`
       : `user_id=eq.${userId}`;
+
+    console.log(`${TAG} subscribing with filter: ${filter}`);
 
     const channel = supabase
       .channel(`positions-rt-${conversationId ?? userId}`)
@@ -52,71 +73,95 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'positions', filter },
         (payload) => {
+          console.log(`${TAG} Realtime INSERT received: id=${(payload.new as any)?.id}`);
           setPosition(payload.new as unknown as RealtimePosition);
           setIsGenerating(false);
-          // Clear fallback poll since realtime delivered
-          if (pollTimerRef.current) {
-            clearTimeout(pollTimerRef.current);
-            pollTimerRef.current = null;
-          }
+          stopPolling();
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'positions', filter },
         (payload) => {
+          console.log(`${TAG} Realtime UPDATE received: id=${(payload.new as any)?.id}`);
           setPosition(payload.new as unknown as RealtimePosition);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`${TAG} channel status: ${status}`);
+      });
 
     return () => {
+      console.log(`${TAG} cleanup — removing channel`);
       supabase.removeChannel(channel);
-      if (pollTimerRef.current) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+      stopPolling();
     };
   }, [userId, conversationId]);
 
-  // 30-second polling fallback: when isGenerating turns true, start a timer.
-  // If realtime hasn't delivered by then, poll Supabase directly.
+  // Stop polling helper
+  const stopPolling = () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    pollStartRef.current = null;
+  };
+
+  // Aggressive polling: every 5s while isGenerating, max 60s
   useEffect(() => {
     if (!isGenerating || !userId) {
-      if (pollTimerRef.current) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+      stopPolling();
       return;
     }
 
-    pollTimerRef.current = setTimeout(async () => {
-      console.log('[usePositionRealtime] Fallback poll triggered after 30s');
-      let query = supabase
-        .from('positions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1);
+    console.log(`${TAG} isGenerating=true — starting 5s poll (max 60s). convId=${conversationId ?? 'null'}`);
+    pollStartRef.current = Date.now();
 
-      if (conversationId) {
-        query = query.eq('conversation_id', conversationId);
+    const poll = async () => {
+      const elapsed = Date.now() - (pollStartRef.current ?? Date.now());
+      if (elapsed > POLL_MAX_MS) {
+        console.warn(`${TAG} polling timed out after 60s — giving up`);
+        stopPolling();
+        setIsGenerating(false);
+        return;
       }
 
-      const { data } = await query.maybeSingle();
+      console.log(`${TAG} polling fallback tick (${Math.round(elapsed / 1000)}s elapsed)`);
+
+      // Try with conversationId first, then fallback to userId-only
+      let data = await fetchLatest('poll-with-convId');
+
+      if (!data && conversationId) {
+        console.log(`${TAG} no result with convId, retrying userId-only`);
+        const { data: fallbackData } = await supabase
+          .from('positions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (fallbackData) {
+          console.log(`${TAG} userId-only fallback found id=${fallbackData.id}`);
+          data = fallbackData;
+        }
+      }
+
       if (data) {
         setPosition(data as unknown as RealtimePosition);
         setIsGenerating(false);
-      }
-    }, POLL_FALLBACK_MS);
-
-    return () => {
-      if (pollTimerRef.current) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
+        stopPolling();
       }
     };
-  }, [isGenerating, userId, conversationId]);
+
+    // First poll immediately
+    poll();
+    pollTimerRef.current = setInterval(poll, POLL_INTERVAL_MS);
+
+    return () => {
+      stopPolling();
+    };
+  }, [isGenerating, userId, conversationId, fetchLatest]);
 
   return { position, isGenerating, setIsGenerating };
 }
