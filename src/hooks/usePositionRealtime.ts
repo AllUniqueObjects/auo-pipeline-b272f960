@@ -96,7 +96,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
   };
 
   useEffect(() => {
-    if (!isGenerating || !userId) {
+    if (!isGenerating || !userId || !conversationId) {
       stopPolling();
       return;
     }
@@ -112,19 +112,14 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         return;
       }
 
-      let data = await fetchLatest('poll');
-
-      if (!data && conversationId) {
-        const { data: fallbackData } = await supabase
-          .from('positions')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (fallbackData) data = fallbackData;
-      }
+      const { data } = await supabase
+        .from('positions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (data && mountedRef.current) {
         setPosition(data as unknown as RealtimePosition);
