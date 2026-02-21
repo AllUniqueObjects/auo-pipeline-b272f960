@@ -23,16 +23,12 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
   const pollStartRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
 
-  const TAG = '[usePositionRealtime]';
-
-  // Track mounted state to prevent setState after unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Stable fetch function — uses conversationId if available, else userId only
-  const fetchLatest = useCallback(async (reason: string) => {
+  const fetchLatest = useCallback(async (_reason: string) => {
     if (!userId) return null;
 
     let query = supabase
@@ -47,32 +43,20 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
     }
 
     const { data, error } = await query.maybeSingle();
-    if (error) {
-      console.warn(`${TAG} ${reason} query error:`, error.message);
-      return null;
-    }
-    console.log(`${TAG} ${reason} result:`, data ? `found id=${data.id}` : 'nothing found',
-      `(userId=${userId}, convId=${conversationId ?? 'null'})`);
+    if (error) return null;
     return data;
   }, [userId, conversationId]);
 
-  // Mount: fetch latest + subscribe to realtime
   useEffect(() => {
     if (!userId) return;
 
-    console.log(`${TAG} mounted — userId=${userId}, conversationId=${conversationId ?? 'null'}`);
-
-    // Fetch latest on mount
     fetchLatest('mount-fetch').then((data) => {
       if (data && mountedRef.current) setPosition(data as unknown as RealtimePosition);
     });
 
-    // Build realtime filter
     const filter = conversationId
       ? `conversation_id=eq.${conversationId}`
       : `user_id=eq.${userId}`;
-
-    console.log(`${TAG} subscribing with filter: ${filter}`);
 
     const channel = supabase
       .channel(`positions-rt-${conversationId ?? userId}`)
@@ -81,7 +65,6 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         { event: 'INSERT', schema: 'public', table: 'positions', filter },
         (payload) => {
           if (!mountedRef.current) return;
-          console.log(`${TAG} Realtime INSERT received: id=${(payload.new as any)?.id}`);
           setPosition(payload.new as unknown as RealtimePosition);
           setIsGenerating(false);
           stopPolling();
@@ -92,23 +75,18 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         { event: 'UPDATE', schema: 'public', table: 'positions', filter },
         (payload) => {
           if (!mountedRef.current) return;
-          console.log(`${TAG} Realtime UPDATE received: id=${(payload.new as any)?.id}`);
           setPosition(payload.new as unknown as RealtimePosition);
         }
       )
-      .subscribe((status) => {
-        console.log(`${TAG} channel status: ${status}`);
-      });
+      .subscribe();
 
     return () => {
-      console.log(`${TAG} cleanup — removing channel`);
       supabase.removeChannel(channel);
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, conversationId]);
 
-  // Stop polling helper
   const stopPolling = () => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
@@ -117,33 +95,26 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
     pollStartRef.current = null;
   };
 
-  // Aggressive polling: every 5s while isGenerating, max 60s
   useEffect(() => {
     if (!isGenerating || !userId) {
       stopPolling();
       return;
     }
 
-    console.log(`${TAG} isGenerating=true — starting 5s poll (max 60s). convId=${conversationId ?? 'null'}`);
     pollStartRef.current = Date.now();
 
     const poll = async () => {
       if (!mountedRef.current) { stopPolling(); return; }
       const elapsed = Date.now() - (pollStartRef.current ?? Date.now());
       if (elapsed > POLL_MAX_MS) {
-        console.warn(`${TAG} polling timed out after 60s — giving up`);
         stopPolling();
         if (mountedRef.current) setIsGenerating(false);
         return;
       }
 
-      console.log(`${TAG} polling fallback tick (${Math.round(elapsed / 1000)}s elapsed)`);
-
-      // Try with conversationId first, then fallback to userId-only
-      let data = await fetchLatest('poll-with-convId');
+      let data = await fetchLatest('poll');
 
       if (!data && conversationId) {
-        console.log(`${TAG} no result with convId, retrying userId-only`);
         const { data: fallbackData } = await supabase
           .from('positions')
           .select('*')
@@ -151,11 +122,8 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        
-        if (fallbackData) {
-          console.log(`${TAG} userId-only fallback found id=${fallbackData.id}`);
-          data = fallbackData;
-        }
+
+        if (fallbackData) data = fallbackData;
       }
 
       if (data && mountedRef.current) {
@@ -165,13 +133,10 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
       }
     };
 
-    // First poll immediately
     poll();
     pollTimerRef.current = setInterval(poll, POLL_INTERVAL_MS);
 
-    return () => {
-      stopPolling();
-    };
+    return () => { stopPolling(); };
   }, [isGenerating, userId, conversationId, fetchLatest]);
 
   return { position, isGenerating, setIsGenerating };

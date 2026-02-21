@@ -215,20 +215,23 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   };
 
   // "Ask AUO" — inject discuss message into chat
-  const handleDiscuss = (insight: TopicInsight) => {
+  const handleDiscuss = (insight: any) => {
     appendMessage({
       id: crypto.randomUUID(),
       role: 'user',
       content: `Tell me about: ${insight.title}`,
     });
     setTimeout(() => {
-      const proactive = PROACTIVE_BRIEFINGS[insight.id];
+      const proactive = PROACTIVE_BRIEFINGS[insight.id as string];
+      const cred = typeof (insight as any).credibility === 'number' ? Math.round((insight as any).credibility * 100) : null;
+      const refs = (insight as any).references ?? null;
+      const davidNote = (insight as any).davidCanTell ?? '';
       appendMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
         content: proactive
           ? proactive.replace(/__INSIGHT_RECS__[\d,]*/g, '')
-          : `Here's a deeper look at this signal.\n\nThis is a ${insight.tier} signal — ${Math.round(insight.credibility * 100)}% credibility across ${insight.references} references. ${insight.davidCanTell}`,
+          : `Here's a deeper look at this signal.\n\n${cred !== null ? `${cred}% credibility` : 'Credibility pending'}${refs ? ` across ${refs} references` : ''}. ${davidNote}`,
       });
     }, 600);
   };
