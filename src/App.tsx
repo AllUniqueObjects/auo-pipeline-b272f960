@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Toaster } from '@/components/ui/toaster';
@@ -7,12 +8,11 @@ import AuthPage from './pages/AuthPage';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 
-const App = () => {
+function AppWithAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen first, then get current session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
@@ -36,25 +36,21 @@ const App = () => {
     );
   }
 
-  // Not authenticated → show auth page
   if (!session) {
-    return (
-      <TooltipProvider>
-        <Toaster />
-        <AuthPage />
-      </TooltipProvider>
-    );
+    return <AuthPage />;
   }
 
-  // Authenticated → check onboarding, then show dashboard
   const onboardingComplete = localStorage.getItem('onboardingComplete') === 'true';
+  return onboardingComplete ? <Dashboard /> : <Onboarding />;
+}
 
-  return (
+const App = () => (
+  <BrowserRouter>
     <TooltipProvider>
       <Toaster />
-      {onboardingComplete ? <Dashboard /> : <Onboarding />}
+      <AppWithAuth />
     </TooltipProvider>
-  );
-};
+  </BrowserRouter>
+);
 
 export default App;
