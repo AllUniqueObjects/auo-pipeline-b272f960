@@ -155,39 +155,39 @@ interface BriefingPanelProps {
 export function BriefingPanel({ onOpenInsight, onDiscuss }: BriefingPanelProps) {
   const [insights, setInsights] = useState<InsightRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [sinceYesterday, setSinceYesterday] = useState(0);
 
-  useEffect(() => {
-    async function fetchInsights() {
-      setLoading(true);
+  const fetchInsights = async () => {
+    setLoading(true);
+    setLoadError(false);
 
-      const { data, error } = await supabase
-        .from('insights')
-        .select('id, title, tier, user_relevance, urgency, cluster_name, created_at')
-        .not('tier', 'is', null)
-        .not('title', 'like', '[PROTO]%')
-        .order('created_at', { ascending: false })
-        .limit(20);
+    const { data, error } = await supabase
+      .from('insights')
+      .select('id, title, tier, user_relevance, urgency, cluster_name, created_at')
+      .not('tier', 'is', null)
+      .not('title', 'like', '[PROTO]%')
+      .order('created_at', { ascending: false })
+      .limit(20);
 
-      if (error) {
-        console.error('BriefingPanel fetch error:', error);
-        setLoading(false);
-        return;
-      }
-
-      const rows = (data ?? []) as InsightRow[];
-      setInsights(rows);
-
-      // Count items created in the last 24 h
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const count = rows.filter(r => r.created_at && r.created_at > cutoff).length;
-      setSinceYesterday(count);
-
+    if (error) {
+      console.error('BriefingPanel fetch error:', error);
+      setLoadError(true);
       setLoading(false);
+      return;
     }
 
-    fetchInsights();
-  }, []);
+    const rows = (data ?? []) as InsightRow[];
+    setInsights(rows);
+
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const count = rows.filter(r => r.created_at && r.created_at > cutoff).length;
+    setSinceYesterday(count);
+
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchInsights(); }, []);
 
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -221,6 +221,16 @@ export function BriefingPanel({ onOpenInsight, onDiscuss }: BriefingPanelProps) 
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center mt-16 gap-2">
+            <p className="text-sm text-muted-foreground">Unable to load.</p>
+            <button
+              onClick={fetchInsights}
+              className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+            >
+              Retry?
+            </button>
           </div>
         ) : insights.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center mt-12">No insights yet.</p>

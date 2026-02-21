@@ -51,6 +51,9 @@ export function ChatView({
   // Position build state
   const [showBuildButton, setShowBuildButton] = useState(false);
   const lastConversationIdRef = useRef<string | null>(null);
+  // Error state
+  const [sendError, setSendError] = useState(false);
+  const lastFailedTextRef = useRef<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -91,13 +94,16 @@ export function ChatView({
     adjustHeight();
   };
 
-  const handleSend = async () => {
-    const text = input.trim();
+  const handleSend = async (retryText?: string) => {
+    const text = retryText ?? input.trim();
     if (!text || typing || isStreaming) return;
+
+    setSendError(false);
+    lastFailedTextRef.current = null;
 
     const userMsg: MockChatMessage = { id: crypto.randomUUID(), role: 'user', content: text };
     onAppendMessage(userMsg);
-    setInput('');
+    if (!retryText) setInput('');
     resetTextareaHeight();
 
     const responderUrl = import.meta.env.VITE_RESPONDER_URL;
@@ -204,11 +210,8 @@ export function ChatView({
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('ChatView fetch error:', err);
-      onAppendMessage({
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: 'Sorry, I couldn\'t reach the server. Please try again.',
-      });
+      setSendError(true);
+      lastFailedTextRef.current = text;
       setTyping(false);
       setIsStreaming(false);
       setStreamingText('');
@@ -304,6 +307,24 @@ export function ChatView({
           <LiveSignalSurface onDismiss={() => setLiveVisible(false)} />
         )}
         <div className="border-t border-border px-4 py-3">
+          {/* Send error */}
+          {sendError && (
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#c0392b' }} />
+              <span className="text-xs" style={{ color: '#c0392b' }}>
+                Unable to reach AUO. Check your connection and try again.
+              </span>
+              <button
+                onClick={() => {
+                  if (lastFailedTextRef.current) handleSend(lastFailedTextRef.current);
+                }}
+                className="text-xs font-medium underline ml-auto"
+                style={{ color: '#c0392b' }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
           <div className="flex items-end gap-2">
             <textarea
               ref={textareaRef}
@@ -323,7 +344,7 @@ export function ChatView({
               {inputExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             </button>
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim() || typing || isStreaming}
               className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40"
             >

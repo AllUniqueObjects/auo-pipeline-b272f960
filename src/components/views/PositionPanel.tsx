@@ -76,7 +76,7 @@ function parseSections(raw: unknown): { parsed: PositionSections | null; legacy:
   return { parsed: null, legacy: null };
 }
 
-export function PositionPanel({ state, position, collapsed, onToggleCollapse }: PositionPanelProps) {
+export function PositionPanel({ state, position, collapsed, onToggleCollapse, onBack }: PositionPanelProps) {
   const { toast } = useToast();
   const animatedPositionRef = useRef<string | null>(null);
   const shouldAnimate = position?.id !== animatedPositionRef.current;
@@ -109,7 +109,7 @@ export function PositionPanel({ state, position, collapsed, onToggleCollapse }: 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {state === 'empty' && <EmptyState />}
-        {state === 'generating' && <GeneratingState />}
+        {state === 'generating' && <GeneratingState onRetry={onBack} />}
         {state === 'active' && position && (
           <ActiveState position={position} shouldAnimate={shouldAnimate} toast={toast} />
         )}
@@ -134,7 +134,30 @@ function EmptyState() {
   );
 }
 
-function GeneratingState() {
+function GeneratingState({ onRetry }: { onRetry?: () => void }) {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), 30_000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (timedOut) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-3">
+        <p className="text-sm text-muted-foreground">Couldn't generate position.</p>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+          >
+            Try again
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4">
       <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
