@@ -26,6 +26,7 @@ interface ChatViewProps {
   showLiveSignal?: boolean;
   onCollapse?: () => void;
   onOpenInsight?: (insightId: string) => void;
+  onOpenSignal?: (signalId: string) => void;
   isBuildingPosition?: boolean;
   positionReady?: boolean;
 }
@@ -39,6 +40,7 @@ export function ChatView({
   showLiveSignal = false,
   onCollapse,
   onOpenInsight,
+  onOpenSignal,
   isBuildingPosition = false,
   positionReady = false,
 }: ChatViewProps) {
@@ -282,6 +284,7 @@ export function ChatView({
                 message={msg}
                 onBuildPosition={onBuildPosition}
                 onOpenInsight={onOpenInsight}
+                onOpenSignal={onOpenSignal}
                 showInlineBuild={isLastAssistant}
                 onBuildClick={handleBuildPositionClick}
               />
@@ -296,7 +299,7 @@ export function ChatView({
             <div className="flex flex-col items-start">
               <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">AUO</span>
               <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words bg-card border border-border text-card-foreground">
-                <MarkdownLite text={streamingText} />
+                <MarkdownLite text={streamingText} onOpenSignal={onOpenSignal} />
               </div>
             </div>
           )}
@@ -370,12 +373,14 @@ function MessageBubble({
   message,
   onBuildPosition,
   onOpenInsight,
+  onOpenSignal,
   showInlineBuild,
   onBuildClick,
 }: {
   message: MockChatMessage;
   onBuildPosition?: () => void;
   onOpenInsight?: (insightId: string) => void;
+  onOpenSignal?: (signalId: string) => void;
   showInlineBuild?: boolean;
   onBuildClick?: () => void;
 }) {
@@ -396,7 +401,7 @@ function MessageBubble({
           message.isContextGap && !isUser && 'border-b-[2px] border-b-emerging/40'
         )}
       >
-        <MarkdownLite text={message.content} />
+        <MarkdownLite text={message.content} onOpenSignal={onOpenSignal} />
 
         {/* Inline signal card */}
         {message.signalCard && (
@@ -466,19 +471,53 @@ function MessageBubble({
   );
 }
 
-export function MarkdownLite({ text }: { text: string }) {
+export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSignal?: (signalId: string) => void }) {
   if (!text) return null;
   const lines = text.split('\n');
+
+  // Parse a line into segments: plain text, bold, and signal chips
+  const parseLine = (line: string) => {
+    // Split by signal tags [title|id] and bold **text**
+    const segments: React.ReactNode[] = [];
+    const regex = /(\*\*[^*]+\*\*|\[[^\]|]+\|[^\]]+\])/g;
+    let lastIdx = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(line)) !== null) {
+      if (match.index > lastIdx) {
+        segments.push(<span key={`t${lastIdx}`}>{line.slice(lastIdx, match.index)}</span>);
+      }
+      const token = match[0];
+      if (token.startsWith('**') && token.endsWith('**')) {
+        segments.push(<strong key={`b${match.index}`} className="font-semibold">{token.slice(2, -2)}</strong>);
+      } else if (token.startsWith('[') && token.includes('|')) {
+        const inner = token.slice(1, -1);
+        const pipeIdx = inner.lastIndexOf('|');
+        const title = inner.slice(0, pipeIdx);
+        const id = inner.slice(pipeIdx + 1);
+        segments.push(
+          <button
+            key={`s${match.index}`}
+            onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
+            className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
+            style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
+          >
+            {title}
+          </button>
+        );
+      }
+      lastIdx = regex.lastIndex;
+    }
+    if (lastIdx < line.length) {
+      segments.push(<span key={`t${lastIdx}`}>{line.slice(lastIdx)}</span>);
+    }
+    return segments;
+  };
+
   return (
     <div className="space-y-1.5">
       {lines.map((line, i) => {
-        const parts = line.split(/(\*\*[^*]+\*\*)/g);
-        const rendered = parts.map((part, j) => {
-          if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={j} className="font-semibold">{part.slice(2, -2)}</strong>;
-          }
-          return <span key={j}>{part}</span>;
-        });
+        const rendered = parseLine(line);
         if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
           return (<div key={i} className="flex gap-2 pl-1"><span className="text-muted-foreground">•</span><span>{rendered}</span></div>);
         }
