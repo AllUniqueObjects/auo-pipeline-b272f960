@@ -48,8 +48,8 @@ export default function AuthPage() {
         >
           AUO
         </span>
-        <span className="text-xs mt-1.5 block" style={{ color: '#888' }}>
-          Strategic intelligence platform
+        <span className="text-xs mt-1.5 block" style={{ color: '#fff' }}>
+          Make decisions before the market moves.
         </span>
       </div>
 
