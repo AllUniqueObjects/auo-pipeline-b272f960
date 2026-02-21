@@ -280,15 +280,7 @@ function ActiveState({
         </span>
       </div>
 
-      {/* 3. Owner Quote */}
-      {position.owner_quote && (
-        <div style={animDelay(2)} className="mt-5 border-l-2 border-amber-500/30 pl-3 py-0.5">
-          <p className="text-sm text-foreground/70 italic leading-relaxed">
-            {position.owner_quote}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1 text-right">— David</p>
-        </div>
-      )}
+      {/* Owner Quote — hidden from UI, data retained for sharing */}
 
       {/* 4. Key Numbers */}
       {sections?.key_numbers && sections.key_numbers.length > 0 && (
