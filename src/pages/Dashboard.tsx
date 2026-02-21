@@ -467,6 +467,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                 showLiveSignal={showLiveSignal}
                 onCollapse={() => setLeftCollapsed(true)}
                 onOpenInsight={(insightId) => handleOpenInsight(insightId, "Today's Briefing")}
+                isBuildingPosition={isGenerating}
               />
             </div>
           )
