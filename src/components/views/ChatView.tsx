@@ -273,35 +273,21 @@ export function ChatView({
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="space-y-5">
-          {messages.map(msg => (
-            <MessageBubble key={msg.id} message={msg} onBuildPosition={onBuildPosition} onOpenInsight={onOpenInsight} />
-          ))}
-
-          {/* Live streaming bubble */}
-          {isStreaming && streamingText && (
-            <div className="flex flex-col items-start">
-              <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">AUO</span>
-              <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words bg-card border border-border text-card-foreground">
-                <MarkdownLite text={streamingText} />
-              </div>
-            </div>
-          )}
-
-          {/* Typing indicator: only while connecting before first token */}
-          {typing && <TypingIndicator />}
-
-          {/* Build Position button — only shown after position_triggered, requires user click */}
-          {showBuildButton && (
-            <div className="flex justify-end">
-              <button
-                onClick={handleBuildPositionClick}
-                className="px-4 py-2 rounded-full text-sm font-medium text-white transition-transform hover:scale-105 active:scale-95"
-                style={{ backgroundColor: '#D97706' }}
-              >
-                Build Position ✦
-              </button>
-            </div>
-          )}
+          {messages.map((msg, idx) => {
+            // Attach build button to the last assistant message
+            const isLastAssistant = showBuildButton && msg.role === 'assistant' &&
+              !messages.slice(idx + 1).some(m => m.role === 'assistant');
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                onBuildPosition={onBuildPosition}
+                onOpenInsight={onOpenInsight}
+                showInlineBuild={isLastAssistant}
+                onBuildClick={handleBuildPositionClick}
+              />
+            );
+          })}
 
           {/* Building indicator */}
           {isBuildingPosition && (
@@ -354,10 +340,14 @@ function MessageBubble({
   message,
   onBuildPosition,
   onOpenInsight,
+  showInlineBuild,
+  onBuildClick,
 }: {
   message: MockChatMessage;
   onBuildPosition?: () => void;
   onOpenInsight?: (insightId: string) => void;
+  showInlineBuild?: boolean;
+  onBuildClick?: () => void;
 }) {
   const isUser = message.role === 'user';
   const labelText = isUser ? 'David' : (message.isContextGap ? 'AUO · context' : 'AUO');
@@ -422,13 +412,23 @@ function MessageBubble({
           </div>
         )}
 
-        {/* Build Position button */}
+        {/* Build Position button (from message data) */}
         {message.showBuildButton && (
           <button
             onClick={onBuildPosition}
             className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
           >
             Build Position ✦
+          </button>
+        )}
+
+        {/* Inline build button (appended to last assistant bubble) */}
+        {showInlineBuild && (
+          <button
+            onClick={onBuildClick}
+            className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
+          >
+            Build Position →
           </button>
         )}
       </div>
