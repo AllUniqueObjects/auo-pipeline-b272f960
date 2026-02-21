@@ -21,8 +21,15 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
   const [isGenerating, setIsGenerating] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollStartRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
 
   const TAG = '[usePositionRealtime]';
+
+  // Track mounted state to prevent setState after unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Stable fetch function — uses conversationId if available, else userId only
   const fetchLatest = useCallback(async (reason: string) => {
@@ -57,7 +64,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
 
     // Fetch latest on mount
     fetchLatest('mount-fetch').then((data) => {
-      if (data) setPosition(data as unknown as RealtimePosition);
+      if (data && mountedRef.current) setPosition(data as unknown as RealtimePosition);
     });
 
     // Build realtime filter
@@ -73,6 +80,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'positions', filter },
         (payload) => {
+          if (!mountedRef.current) return;
           console.log(`${TAG} Realtime INSERT received: id=${(payload.new as any)?.id}`);
           setPosition(payload.new as unknown as RealtimePosition);
           setIsGenerating(false);
@@ -83,6 +91,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'positions', filter },
         (payload) => {
+          if (!mountedRef.current) return;
           console.log(`${TAG} Realtime UPDATE received: id=${(payload.new as any)?.id}`);
           setPosition(payload.new as unknown as RealtimePosition);
         }
@@ -96,6 +105,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
       supabase.removeChannel(channel);
       stopPolling();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, conversationId]);
 
   // Stop polling helper
@@ -118,11 +128,12 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
     pollStartRef.current = Date.now();
 
     const poll = async () => {
+      if (!mountedRef.current) { stopPolling(); return; }
       const elapsed = Date.now() - (pollStartRef.current ?? Date.now());
       if (elapsed > POLL_MAX_MS) {
         console.warn(`${TAG} polling timed out after 60s — giving up`);
         stopPolling();
-        setIsGenerating(false);
+        if (mountedRef.current) setIsGenerating(false);
         return;
       }
 
@@ -147,7 +158,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         }
       }
 
-      if (data) {
+      if (data && mountedRef.current) {
         setPosition(data as unknown as RealtimePosition);
         setIsGenerating(false);
         stopPolling();
