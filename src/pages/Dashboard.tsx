@@ -322,6 +322,13 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
 
         {/* Right side controls */}
         <div className="ml-auto flex items-center gap-2">
+          {/* Sign out */}
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign out
+          </button>
           {/* Positions dropdown */}
           <div className="relative">
             <button

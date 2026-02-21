@@ -1,43 +1,59 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import AuthPage from './pages/AuthPage';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
-
-function RootRoute() {
-  const [isComplete] = useState(
-    () => localStorage.getItem('onboardingComplete') === 'true'
-  );
-  if (isComplete) return <Dashboard />;
-  return <Navigate to="/onboarding" replace />;
-}
 
 const App = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Listen first, then get current session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setLoading(false);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <span className="text-muted-foreground text-sm">Loading…</span>
+      </div>
+    );
+  }
+
+  // Not authenticated → show auth page
+  if (!session) {
+    return (
+      <TooltipProvider>
+        <Toaster />
+        <AuthPage />
+      </TooltipProvider>
+    );
+  }
+
+  // Authenticated → check onboarding, then show dashboard
+  const onboardingComplete = localStorage.getItem('onboardingComplete') === 'true';
+
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <RootRoute />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </TooltipProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <TooltipProvider>
+      <Toaster />
+      {onboardingComplete ? <Dashboard /> : <Onboarding />}
+    </TooltipProvider>
   );
 };
 
