@@ -38,7 +38,7 @@ export default function AuthPage() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{ background: '#fafaf9' }}
+      style={{ background: '#0a0a0a' }}
     >
       {/* Logo pill */}
       <div
