@@ -400,6 +400,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                 onCollapse={() => setLeftCollapsed(true)}
                 onOpenInsight={(insightId) => handleOpenInsight(insightId, "Today's Briefing")}
                 isBuildingPosition={isGenerating}
+                positionReady={rightView === 'position_active'}
               />
             </div>
           )

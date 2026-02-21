@@ -27,6 +27,7 @@ interface ChatViewProps {
   onCollapse?: () => void;
   onOpenInsight?: (insightId: string) => void;
   isBuildingPosition?: boolean;
+  positionReady?: boolean;
 }
 
 export function ChatView({
@@ -39,6 +40,7 @@ export function ChatView({
   onCollapse,
   onOpenInsight,
   isBuildingPosition = false,
+  positionReady = false,
 }: ChatViewProps) {
 
   const [input, setInput] = useState('');
@@ -278,7 +280,7 @@ export function ChatView({
         <div className="space-y-5">
           {messages.map((msg, idx) => {
             // Attach build button to the last assistant message
-            const isLastAssistant = showBuildButton && msg.role === 'assistant' &&
+            const isLastAssistant = showBuildButton && !positionReady && msg.role === 'assistant' &&
               !messages.slice(idx + 1).some(m => m.role === 'assistant');
             return (
               <MessageBubble
@@ -447,7 +449,7 @@ function MessageBubble({
         )}
 
         {/* Build Position button (from message data) */}
-        {message.showBuildButton && (
+        {message.showBuildButton && !showInlineBuild && (
           <button
             onClick={onBuildPosition}
             className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
