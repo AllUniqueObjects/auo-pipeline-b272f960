@@ -1,9 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { MOCK_INSIGHTS, type MockInsight } from '@/data/mock';
+import { supabase } from '@/integrations/supabase/client';
 
 type TierTab = 'all' | 'breaking' | 'developing' | 'established';
 type LensType = 'executive' | 'leader' | 'ic';
+
+interface InsightRow {
+  id: string;
+  title: string;
+  tier: string;
+  category: string;
+  signal_count: number;
+  reference_count: number | null;
+  momentum_score: number | null;
+  created_at: string | null;
+}
 
 const TIER_BORDER: Record<string, string> = {
   breaking: 'border-l-tier-breaking',
@@ -29,7 +40,7 @@ const LENS_CATEGORY_WEIGHT: Record<string, Record<string, number>> = {
     'VIETNAM MANUFACTURING SQUEEZE': 1,
     'RETAIL SHELF COMPETITION': 2,
   },
-  leader: {}, // equal — fall back to tier-based sort
+  leader: {},
 };
 
 interface InsightsViewProps {
@@ -39,37 +50,53 @@ interface InsightsViewProps {
   activeLens?: LensType;
 }
 
-export function InsightsView({ onSelectInsight, selectedInsightId, activeProject, activeLens = 'leader' }: InsightsViewProps) {
+export function InsightsView({ onSelectInsight, selectedInsightId, activeLens = 'leader' }: InsightsViewProps) {
   const [activeTab, setActiveTab] = useState<TierTab>('all');
+  const [insights, setInsights] = useState<InsightRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const projectInsights = useMemo(() =>
-    activeProject ? MOCK_INSIGHTS.filter(i => i.projectId === activeProject) : MOCK_INSIGHTS,
-    [activeProject]
-  );
+  useEffect(() => {
+    async function fetchInsights() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('insights')
+        .select('id, title, tier, category, signal_count, reference_count, momentum_score, created_at')
+        .not('tier', 'is', null)
+        .not('title', 'like', '[PROTO]%')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setInsights(data as InsightRow[]);
+      }
+      setLoading(false);
+    }
+    fetchInsights();
+  }, []);
 
   const counts = useMemo(() => ({
-    breaking: projectInsights.filter(i => i.tier === 'breaking').length,
-    developing: projectInsights.filter(i => i.tier === 'developing').length,
-    established: projectInsights.filter(i => i.tier === 'established').length,
-  }), [projectInsights]);
+    breaking: insights.filter(i => i.tier === 'breaking').length,
+    developing: insights.filter(i => i.tier === 'developing').length,
+    established: insights.filter(i => i.tier === 'established').length,
+  }), [insights]);
 
   const filtered = useMemo(() =>
-    activeTab === 'all' ? projectInsights : projectInsights.filter(i => i.tier === activeTab),
-    [activeTab, projectInsights]
+    activeTab === 'all' ? insights : insights.filter(i => i.tier === activeTab),
+    [activeTab, insights]
   );
 
   // Group by category
   const grouped = useMemo(() => {
-    const map = new Map<string, MockInsight[]>();
+    const map = new Map<string, InsightRow[]>();
     for (const insight of filtered) {
-      const group = map.get(insight.category) || [];
+      const cat = insight.category ?? 'General';
+      const group = map.get(cat) || [];
       group.push(insight);
-      map.set(insight.category, group);
+      map.set(cat, group);
     }
 
     const lensWeights = LENS_CATEGORY_WEIGHT[activeLens] || {};
 
-    const tierPriority = (items: MockInsight[]) => {
+    const tierPriority = (items: InsightRow[]) => {
       if (items.some(i => i.tier === 'breaking')) return 0;
       if (items.some(i => i.tier === 'developing')) return 1;
       return 2;
@@ -78,7 +105,6 @@ export function InsightsView({ onSelectInsight, selectedInsightId, activeProject
     return [...map.entries()].sort((a, b) => {
       const tierDiff = tierPriority(a[1]) - tierPriority(b[1]);
       if (tierDiff !== 0) return tierDiff;
-      // Tiebreak by lens weight
       const weightA = lensWeights[a[0]] ?? 99;
       const weightB = lensWeights[b[0]] ?? 99;
       return weightA - weightB;
@@ -91,6 +117,22 @@ export function InsightsView({ onSelectInsight, selectedInsightId, activeProject
     { key: 'developing', label: 'Developing', count: counts.developing },
     { key: 'established', label: 'Established', count: counts.established },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-sm text-muted-foreground">Loading insights…</p>
+      </div>
+    );
+  }
+
+  if (insights.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-sm text-muted-foreground">No insights yet.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -125,7 +167,6 @@ export function InsightsView({ onSelectInsight, selectedInsightId, activeProject
         <div className="space-y-8">
           {grouped.map(([category, items]) => (
             <div key={category}>
-              {/* Group header */}
               <div className="flex items-center justify-between mb-3 px-1">
                 <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
                   {category}
@@ -135,7 +176,6 @@ export function InsightsView({ onSelectInsight, selectedInsightId, activeProject
                 </span>
               </div>
 
-              {/* 2-col grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {items.map(insight => (
                   <button
@@ -159,11 +199,11 @@ export function InsightsView({ onSelectInsight, selectedInsightId, activeProject
                     <div className="flex items-center gap-3 text-xs text-muted-foreground whitespace-nowrap pt-1">
                       <span>{insight.signal_count} signals</span>
                       <span>·</span>
-                      <span>{insight.evidence_count} refs</span>
+                      <span>{insight.reference_count ?? 0} refs</span>
                     </div>
-                    {insight.momentum && (
+                    {(insight.momentum_score ?? 0) > 0 && (
                       <span className="text-[10px] font-medium text-tier-breaking flex items-center gap-0.5 mt-0.5">
-                        {insight.momentum}
+                        ↑ Momentum
                       </span>
                     )}
                   </button>

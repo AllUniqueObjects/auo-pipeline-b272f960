@@ -1,7 +1,27 @@
 import { useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type MockTopic, type TopicInsight } from '@/data/mock';
+
+// Local type definitions
+interface TopicInsightLocal {
+  id: string;
+  tier: 'breaking' | 'developing' | 'established';
+  title: string;
+  references: number;
+  credibility: number;
+  momentum: boolean;
+  momentumLabel?: string;
+  isLive: boolean;
+  davidCanTell: string;
+  category?: string;
+}
+
+interface TopicLocal {
+  id: string;
+  name: string;
+  newCount?: number;
+  insights: TopicInsightLocal[];
+}
 
 type TierFilter = 'all' | 'breaking' | 'developing' | 'established';
 
@@ -36,9 +56,9 @@ function CredBar({ value }: { value: number }) {
 }
 
 interface InsightCardProps {
-  insight: TopicInsight;
+  insight: TopicInsightLocal;
   onOpen: (id: string) => void;
-  onDiscuss?: (insight: TopicInsight) => void;
+  onDiscuss?: (insight: TopicInsightLocal) => void;
 }
 
 function InsightCard({ insight, onOpen, onDiscuss }: InsightCardProps) {
@@ -106,11 +126,11 @@ function InsightCard({ insight, onOpen, onDiscuss }: InsightCardProps) {
 }
 
 interface TopicDetailPanelProps {
-  topic: MockTopic;
+  topic: TopicLocal;
   onBack: () => void;
   onOpenInsight: (id: string) => void;
-  onBuildPosition: (topic: MockTopic) => void;
-  onDiscuss?: (insight: TopicInsight) => void;
+  onBuildPosition: (topic: TopicLocal) => void;
+  onDiscuss?: (insight: TopicInsightLocal) => void;
 }
 
 export function TopicDetailPanel({ topic, onBack, onOpenInsight, onBuildPosition, onDiscuss }: TopicDetailPanelProps) {
