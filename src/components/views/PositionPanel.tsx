@@ -73,8 +73,6 @@ export function PositionPanel({ state, position, collapsed, onToggleCollapse }: 
   const animatedPositionRef = useRef<string | null>(null);
   const shouldAnimate = position?.id !== animatedPositionRef.current;
 
-  console.log('[PositionPanel] realtimePosition:', position);
-  console.log('[PositionPanel] isGenerating:', state === 'generating');
 
   useEffect(() => {
     if (position?.id) {

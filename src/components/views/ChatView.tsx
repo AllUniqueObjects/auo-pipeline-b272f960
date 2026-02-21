@@ -91,7 +91,6 @@ export function ChatView({
   };
 
   const handleSend = async () => {
-    console.log('RESPONDER_URL:', import.meta.env.VITE_RESPONDER_URL);
     const text = input.trim();
     if (!text || typing || isStreaming) return;
 
@@ -104,7 +103,6 @@ export function ChatView({
 
     // Fallback to mock if no URL configured
     if (!responderUrl) {
-      console.warn('VITE_RESPONDER_URL not set – using mock reply');
       setTyping(true);
       setTimeout(() => {
         onAppendMessage({
@@ -232,9 +230,6 @@ export function ChatView({
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id ?? null;
 
-    console.log('[ChatView] Calling position generator:', positionUrl);
-    console.log('[ChatView] user_id:', userId, '| conversation_id:', lastConversationIdRef.current);
-
     try {
       const res = await fetch(positionUrl, {
         method: 'POST',
@@ -245,9 +240,7 @@ export function ChatView({
           messages: messages.map(m => ({ role: m.role, content: m.content })),
         }),
       });
-      console.log('[ChatView] Position generator response status:', res.status);
     } catch (err) {
-      console.error('[ChatView] Position generator fetch failed:', err);
       setBuildingPosition(false);
     }
   };
