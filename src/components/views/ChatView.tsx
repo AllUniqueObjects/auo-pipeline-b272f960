@@ -26,6 +26,7 @@ interface ChatViewProps {
   showLiveSignal?: boolean;
   onCollapse?: () => void;
   onOpenInsight?: (insightId: string) => void;
+  isBuildingPosition?: boolean;
 }
 
 export function ChatView({
@@ -37,6 +38,7 @@ export function ChatView({
   showLiveSignal = false,
   onCollapse,
   onOpenInsight,
+  isBuildingPosition = false,
 }: ChatViewProps) {
 
   const [input, setInput] = useState('');
@@ -48,7 +50,6 @@ export function ChatView({
   const [isStreaming, setIsStreaming] = useState(false);
   // Position build state
   const [showBuildButton, setShowBuildButton] = useState(false);
-  const [buildingPosition, setBuildingPosition] = useState(false);
   const lastConversationIdRef = useRef<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -220,7 +221,6 @@ export function ChatView({
 
   const handleBuildPositionClick = async () => {
     setShowBuildButton(false);
-    setBuildingPosition(true);
     // Tell Dashboard to enter 'generating' state and subscribe to realtime
     onBuildPosition?.();
 
@@ -231,7 +231,7 @@ export function ChatView({
     const userId = session?.user?.id ?? null;
 
     try {
-      const res = await fetch(positionUrl, {
+      await fetch(positionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -241,7 +241,7 @@ export function ChatView({
         }),
       });
     } catch (err) {
-      setBuildingPosition(false);
+      // Dashboard's isGenerating will handle timeout fallback
     }
   };
 
@@ -304,7 +304,7 @@ export function ChatView({
           )}
 
           {/* Building indicator */}
-          {buildingPosition && (
+          {isBuildingPosition && (
             <div className="flex justify-end">
               <span className="text-xs text-muted-foreground italic">Building position…</span>
             </div>
