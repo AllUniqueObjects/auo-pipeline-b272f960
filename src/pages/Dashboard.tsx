@@ -47,7 +47,8 @@ interface DashboardProps {
 export default function Dashboard({ initialLens, justCompletedOnboarding }: DashboardProps) {
   const isMobile = useIsMobile();
   const userId = localStorage.getItem('userId');
-  const { position: realtimePosition, isGenerating, setIsGenerating } = usePositionRealtime(userId);
+  const [lastConversationId, setLastConversationId] = useState<string | null>(null);
+  const { position: realtimePosition, isGenerating, setIsGenerating } = usePositionRealtime(userId, lastConversationId);
   const [activeProject, setActiveProject] = useState('p1');
   const [showPositions, setShowPositions] = useState(false);
 
@@ -81,7 +82,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   // Position panel state (used when rightView = generating | position_active)
   const [positionState, setPositionState] = useState<PositionState>('empty');
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
-  const [lastConversationId, setLastConversationId] = useState<string | null>(null);
+  // lastConversationId declared above (before usePositionRealtime)
   const positionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Position starter state (guided Build Position flow)
