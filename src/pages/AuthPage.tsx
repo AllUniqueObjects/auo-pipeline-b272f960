@@ -40,13 +40,16 @@ export default function AuthPage() {
       className="min-h-screen flex flex-col items-center justify-center px-4"
       style={{ background: '#0a0a0a' }}
     >
-      {/* Logo */}
-      <div className="mb-8">
+      {/* Logo + tagline */}
+      <div className="mb-8 text-center">
         <span
-          className="text-2xl font-semibold tracking-[0.3em]"
+          className="text-2xl font-semibold tracking-[0.3em] block"
           style={{ color: '#fff' }}
         >
           AUO
+        </span>
+        <span className="text-xs mt-1.5 block" style={{ color: '#888' }}>
+          Strategic intelligence platform
         </span>
       </div>
 
@@ -216,10 +219,6 @@ export default function AuthPage() {
         </form>
       </div>
 
-      {/* Footer */}
-      <p className="mt-8" style={{ fontSize: 12, color: '#bbb' }}>
-        Strategic intelligence platform · New Balance partnership
-      </p>
     </div>
   );
 }
