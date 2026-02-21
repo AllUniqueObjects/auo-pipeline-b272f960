@@ -7,6 +7,7 @@ export interface RealtimePosition {
   davids_take?: string | null;
   owner_quote?: string | null;
   sections: unknown;
+  signal_refs: unknown;
   position_essence: string | null;
   tone: string | null;
   created_at: string | null;
