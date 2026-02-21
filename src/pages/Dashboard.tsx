@@ -10,13 +10,14 @@ import { BriefingPanel } from '@/components/views/BriefingPanel';
 import { TopicDetailPanel } from '@/components/views/TopicDetailPanel';
 import { InsightDetailPanel } from '@/components/views/InsightDetailPanel';
 import { PositionStarter } from '@/components/views/PositionStarter';
+import { SingleSignalPanel } from '@/components/views/SingleSignalPanel';
 import {
   LENS_LABELS, LENS_DESCRIPTIONS, LENS_MESSAGE,
   type MockChatMessage, type LensType, type MockTopic, type TopicInsight,
 } from '@/data/mock';
 
 
-type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'generating' | 'position_active' | 'position_starter';
+type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'signal_detail' | 'generating' | 'position_active' | 'position_starter';
 
 type DevState =
   | 'session_open'
@@ -74,6 +75,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
+  const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
   const [insightSourceName, setInsightSourceName] = useState("Today's Briefing");
 
   // Position panel state (used when rightView = generating | position_active)
@@ -137,6 +139,11 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     setSelectedInsightId(insightId);
     setInsightSourceName(source ?? "Today's Briefing");
     setRightView('insight_detail');
+  };
+
+  const handleOpenSignal = (signalId: string) => {
+    setSelectedSignalId(signalId);
+    setRightView('signal_detail');
   };
 
   // Build position — open PositionStarter with context
@@ -399,6 +406,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                 showLiveSignal={showLiveSignal}
                 onCollapse={() => setLeftCollapsed(true)}
                 onOpenInsight={(insightId) => handleOpenInsight(insightId, "Today's Briefing")}
+                onOpenSignal={handleOpenSignal}
                 isBuildingPosition={isGenerating}
                 positionReady={rightView === 'position_active'}
               />
@@ -434,6 +442,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                   {rightView === 'briefing' && "Briefing"}
                   {rightView === 'topic_detail' && "Topic"}
                   {rightView === 'insight_detail' && "Insight"}
+                  {rightView === 'signal_detail' && "Signal"}
                   {rightView === 'generating' && "Building"}
                   {rightView === 'position_active' && "Position"}
                 </span>
@@ -457,6 +466,13 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                     onOpenInsight={(id) => handleOpenInsight(id)}
                     onBuildPosition={handleBuildPositionFromTopic}
                     onDiscuss={handleDiscuss}
+                  />
+                )}
+
+                {rightView === 'signal_detail' && selectedSignalId && (
+                  <SingleSignalPanel
+                    signalId={selectedSignalId}
+                    onBack={handleBackToBriefing}
                   />
                 )}
 
