@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Target, Send, Check, ArrowRight, Copy, ChevronUp } from 'lucide-react';
+import { Users, Target, Send, Check, ArrowRight, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   RECIPIENT_OPTIONS,
@@ -8,7 +8,6 @@ import {
   generateShareMessage,
   type ShareIntentOption,
 } from '@/data/mock-threads';
-import { MOCK_INSIGHTS } from '@/data/mock';
 
 type Step = 'recipient' | 'intent' | 'review';
 
@@ -26,8 +25,6 @@ interface ShareWizardViewProps {
 }
 
 export function ShareWizardView({ insightIds, onBack, onOpenThread, positionBrief }: ShareWizardViewProps) {
-  const insightId = insightIds[0];
-  const insight = MOCK_INSIGHTS.find(i => i.id === insightId);
   const [step, setStep] = useState<Step>('recipient');
   const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
   const [recipientName, setRecipientName] = useState('');
@@ -166,7 +163,6 @@ export function ShareWizardView({ insightIds, onBack, onOpenThread, positionBrie
               <span className="text-primary">{intentLabel}</span>
             </div>
 
-            {/* Format selector */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Format:</span>
               {FORMAT_OPTIONS.map(fmt => (
@@ -185,7 +181,6 @@ export function ShareWizardView({ insightIds, onBack, onOpenThread, positionBrie
               ))}
             </div>
 
-            {/* Message */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-medium text-foreground">Your message</span>
@@ -199,7 +194,6 @@ export function ShareWizardView({ insightIds, onBack, onOpenThread, positionBrie
               <p className="text-xs text-muted-foreground mt-1">✏️ Edit anything above — this is exactly what will be copied</p>
             </div>
 
-            {/* Copy button */}
             <button
               onClick={handleCopy}
               className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-medium text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
@@ -210,7 +204,6 @@ export function ShareWizardView({ insightIds, onBack, onOpenThread, positionBrie
           </div>
         )}
 
-        {/* Continue button (steps 1 & 2) */}
         {step !== 'review' && (
           <div className="flex justify-end mt-8">
             <button

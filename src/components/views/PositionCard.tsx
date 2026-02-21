@@ -1,5 +1,4 @@
 import { Pencil, Share2 } from 'lucide-react';
-import { MOCK_INSIGHTS } from '@/data/mock';
 
 export interface PositionSection {
   label: string;
@@ -19,23 +18,12 @@ interface PositionCardProps {
 }
 
 export function PositionCard({ brief, onShare }: PositionCardProps) {
-  const basedOnTitles = brief.basedOn
-    ?.map(id => MOCK_INSIGHTS.find(i => i.id === id)?.title)
-    .filter(Boolean);
-
   return (
     <div className="rounded-lg border border-ring/40 bg-card p-4 space-y-3">
       <div className="flex items-center gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Position</span>
       </div>
       <h4 className="text-sm font-semibold text-card-foreground">{brief.title}</h4>
-      {basedOnTitles && basedOnTitles.length > 0 && (
-        <p className="text-[11px] text-muted-foreground">
-          Based on: {basedOnTitles.map((t, i) => (
-            <span key={i}>{i > 0 ? ', ' : ''}<span className="text-foreground/70">{t!.slice(0, 40)}...</span></span>
-          ))}
-        </p>
-      )}
       <div className="space-y-3">
         {brief.sections.map((section, i) => (
           <div key={i}>

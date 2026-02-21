@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import type { MockTopic, TopicInsight, LensType } from '@/data/mock';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -143,13 +142,11 @@ function ClusterBlock({ name, insights, onOpenInsight, onDiscuss }: ClusterBlock
 // ─── Main component ────────────────────────────────────────────────────────────
 
 interface BriefingPanelProps {
-  // kept for backward-compat with Dashboard; not used internally
-  topics?: MockTopic[];
-  activeLens?: LensType;
+  activeLens?: string;
   onExplore?: (topicId: string) => void;
   onOpenInsight: (insightId: string) => void;
-  onBuildPosition?: (topic: MockTopic) => void;
-  onDiscuss: (insight: TopicInsight | InsightRow) => void;
+  onBuildPosition?: (topic: any) => void;
+  onDiscuss: (insight: InsightRow) => void;
 }
 
 export function BriefingPanel({ onOpenInsight, onDiscuss }: BriefingPanelProps) {

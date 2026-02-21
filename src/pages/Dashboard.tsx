@@ -11,8 +11,7 @@ import { TopicDetailPanel } from '@/components/views/TopicDetailPanel';
 import { InsightDetailPanel } from '@/components/views/InsightDetailPanel';
 import { PositionStarter } from '@/components/views/PositionStarter';
 import {
-  MOCK_PROJECTS, MOCK_POSITIONS, MOCK_CHAT_MESSAGES, SESSION_OPENER_MESSAGE, MOCK_TOPIC_INSIGHTS,
-  LENS_LABELS, LENS_DESCRIPTIONS, LENS_MESSAGE, PROACTIVE_BRIEFINGS,
+  LENS_LABELS, LENS_DESCRIPTIONS, LENS_MESSAGE,
   type MockChatMessage, type LensType, type MockTopic, type TopicInsight,
 } from '@/data/mock';
 
@@ -49,8 +48,6 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const userId = localStorage.getItem('userId');
   const [lastConversationId, setLastConversationId] = useState<string | null>(null);
   const { position: realtimePosition, isGenerating, setIsGenerating } = usePositionRealtime(userId, lastConversationId);
-  const [activeProject, setActiveProject] = useState('p1');
-  const [showPositions, setShowPositions] = useState(false);
 
   // Role lens — read from prop or localStorage
   const resolvedLens = (() => {
@@ -93,16 +90,14 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     insightTitles: string[];
   } | null>(null);
 
-  // Chat messages — lifted to Dashboard, prepend session opener
-  const [messages, setMessages] = useState<MockChatMessage[]>([SESSION_OPENER_MESSAGE, ...MOCK_CHAT_MESSAGES]);
+  // Chat messages — start empty, populated by real conversation
+  const [messages, setMessages] = useState<MockChatMessage[]>([]);
 
   // Live signal
   const [showLiveSignal, setShowLiveSignal] = useState(false);
 
   // Dev state machine
   const [devStateIndex, setDevStateIndex] = useState(0);
-
-  // (auto-transition removed — real API call drives position_active)
 
   // Close lens dropdown on outside click
   useEffect(() => {
@@ -140,14 +135,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
 
   const handleOpenInsight = (insightId: string, source?: string) => {
     setSelectedInsightId(insightId);
-    if (source) {
-      setInsightSourceName(source);
-    } else if (selectedTopicId) {
-      const topic = MOCK_TOPIC_INSIGHTS.find(t => t.id === selectedTopicId);
-      setInsightSourceName(topic ? topic.name.replace(/\b\w/g, l => l.toUpperCase()) : "Today's Briefing");
-    } else {
-      setInsightSourceName("Today's Briefing");
-    }
+    setInsightSourceName(source ?? "Today's Briefing");
     setRightView('insight_detail');
   };
 
@@ -214,26 +202,13 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     setRightView('briefing');
   };
 
-  // "Ask AUO" — inject discuss message into chat
+  // "Ask AUO" — inject discuss message into chat (no mock response)
   const handleDiscuss = (insight: any) => {
     appendMessage({
       id: crypto.randomUUID(),
       role: 'user',
       content: `Tell me about: ${insight.title}`,
     });
-    setTimeout(() => {
-      const proactive = PROACTIVE_BRIEFINGS[insight.id as string];
-      const cred = typeof (insight as any).credibility === 'number' ? Math.round((insight as any).credibility * 100) : null;
-      const refs = (insight as any).references ?? null;
-      const davidNote = (insight as any).davidCanTell ?? '';
-      appendMessage({
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: proactive
-          ? proactive.replace(/__INSIGHT_RECS__[\d,]*/g, '')
-          : `Here's a deeper look at this signal.\n\n${cred !== null ? `${cred}% credibility` : 'Credibility pending'}${refs ? ` across ${refs} references` : ''}. ${davidNote}`,
-      });
-    }, 600);
   };
 
   const handleBackToBriefing = () => {
@@ -278,9 +253,6 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   // Mobile tabs
   const [mobileTab, setMobileTab] = useState<'chat' | 'briefing'>('chat');
 
-  // Resolve selected objects
-  const selectedTopic = MOCK_TOPIC_INSIGHTS.find(t => t.id === selectedTopicId) ?? null;
-
   // Panel width classes
   const leftWidth = leftCollapsed ? 'w-10 flex-shrink-0' : rightCollapsed ? 'flex-1' : 'w-[35%] flex-shrink-0';
   const rightWidth = rightCollapsed ? 'w-10 flex-shrink-0' : leftCollapsed ? 'flex-1' : 'flex-1';
@@ -303,22 +275,6 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
       {/* Header */}
       <header className="flex-shrink-0 flex items-center gap-3 px-5 py-2.5 border-b border-border">
         <span className="text-base font-semibold tracking-[0.2em] text-foreground">AUO</span>
-        <div className="flex items-center gap-1.5 ml-4">
-          {MOCK_PROJECTS.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setActiveProject(p.id)}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150',
-                activeProject === p.id
-                  ? 'bg-foreground text-background shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-              )}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
 
         {/* Right side controls */}
         <div className="ml-auto flex items-center gap-2">
@@ -329,37 +285,6 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
           >
             Sign out
           </button>
-          {/* Positions dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowPositions(!showPositions)}
-              className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-            >
-              Positions ({MOCK_POSITIONS.length})
-              <ChevronDown className={cn('h-3 w-3 transition-transform', showPositions && 'rotate-180')} />
-            </button>
-            {showPositions && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
-                {MOCK_POSITIONS.map(pos => (
-                  <button
-                    key={pos.id}
-                    onClick={() => setShowPositions(false)}
-                    className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="text-sm text-card-foreground">{pos.title}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={cn(
-                        'text-[10px] font-medium uppercase',
-                        pos.status === 'shared' ? 'text-primary' : 'text-muted-foreground'
-                      )}>
-                        {pos.status}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Role Lens Switcher */}
           <div className="relative" ref={lensDropdownRef}>
@@ -526,20 +451,9 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
               <div className="flex-1 overflow-hidden">
                 {rightView === 'briefing' && (
                   <BriefingPanel
-                    topics={MOCK_TOPIC_INSIGHTS}
                     activeLens={activeLens}
                     onExplore={handleExplore}
                     onOpenInsight={(id) => handleOpenInsight(id)}
-                    onBuildPosition={handleBuildPositionFromTopic}
-                    onDiscuss={handleDiscuss}
-                  />
-                )}
-
-                {rightView === 'topic_detail' && selectedTopic && (
-                  <TopicDetailPanel
-                    topic={selectedTopic}
-                    onBack={handleBackToBriefing}
-                    onOpenInsight={(id) => handleOpenInsight(id, selectedTopic.name)}
                     onBuildPosition={handleBuildPositionFromTopic}
                     onDiscuss={handleDiscuss}
                   />
