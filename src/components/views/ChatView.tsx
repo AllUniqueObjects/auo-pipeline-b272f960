@@ -292,6 +292,19 @@ export function ChatView({
             );
           })}
 
+          {/* Typing indicator — visible until first token arrives */}
+          {typing && <TypingIndicator />}
+
+          {/* Streaming bubble */}
+          {isStreaming && streamingText && (
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">AUO</span>
+              <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm leading-relaxed break-words bg-card border border-border text-card-foreground">
+                <MarkdownLite text={streamingText} />
+              </div>
+            </div>
+          )}
+
           {/* Building indicator */}
           {isBuildingPosition && (
             <div className="flex justify-end">
