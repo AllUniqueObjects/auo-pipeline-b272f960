@@ -110,17 +110,11 @@ export function ChatView({
 
     const responderUrl = import.meta.env.VITE_RESPONDER_URL;
 
-    // Fallback to mock if no URL configured
+    // No responder URL configured — surface an error instead of mock data
     if (!responderUrl) {
-      setTyping(true);
-      setTimeout(() => {
-        onAppendMessage({
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: "I'll pull the relevant signals on that. Give me a moment to cross-reference the latest data points.",
-        });
-        setTyping(false);
-      }, 1500);
+      console.error('VITE_RESPONDER_URL not configured');
+      setSendError(true);
+      lastFailedTextRef.current = text;
       return;
     }
 
@@ -499,10 +493,10 @@ function TypingIndicator() {
   return (
     <div className="flex flex-col items-start">
       <span className="text-[10px] font-medium uppercase tracking-wider mb-1 px-1 text-muted-foreground">AUO</span>
-      <div className="bg-card border border-border rounded-lg px-4 py-3 flex items-center gap-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
-        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
-        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
+      <div className="bg-card border border-border rounded-lg px-4 py-3 flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+        <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+        <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
       </div>
     </div>
   );
