@@ -40,13 +40,10 @@ export default function AuthPage() {
       className="min-h-screen flex flex-col items-center justify-center px-4"
       style={{ background: '#0a0a0a' }}
     >
-      {/* Logo pill */}
-      <div
-        className="mb-8 px-5 py-1.5 rounded-full"
-        style={{ background: '#1a1a1a' }}
-      >
+      {/* Logo */}
+      <div className="mb-8">
         <span
-          className="text-sm font-semibold tracking-[0.25em]"
+          className="text-2xl font-semibold tracking-[0.3em]"
           style={{ color: '#fff' }}
         >
           AUO
