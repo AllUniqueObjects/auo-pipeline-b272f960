@@ -225,7 +225,7 @@ export function ChatView({
     onBuildPosition?.();
 
     const positionUrl = import.meta.env.VITE_POSITION_GENERATOR_URL
-      || 'https://dkk222--auo-responder-generate-position.modal.run';
+      || 'https://auo-api-proxy.dan-kim.workers.dev/position';
 
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id ?? null;
