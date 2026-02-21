@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from 'react';
-import { Share2, ChevronRight, ChevronDown, Loader2, Copy, Link } from 'lucide-react';
+import { Share2, ChevronRight, ChevronDown, Loader2, Copy, Link, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import type { RealtimePosition } from '@/hooks/usePositionRealtime';
 
 export type PositionState = 'empty' | 'generating' | 'active';
@@ -10,6 +11,13 @@ export type PositionState = 'empty' | 'generating' | 'active';
 interface KeyNumber {
   value: string;
   label: string;
+}
+
+interface RawSource {
+  domain?: string;
+  url?: string;
+  title?: string;
+  source_date?: string | null;
 }
 
 interface SignalSource {
@@ -177,6 +185,7 @@ function ActiveState({
   toast: ReturnType<typeof useToast>['toast'];
 }) {
   const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [signalSources, setSignalSources] = useState<Record<string, RawSource[]>>({});
 
   const tone = (position.tone as string) ?? 'decisive';
   const toneConf = TONE_CONFIG[tone] ?? TONE_CONFIG.decisive;
@@ -191,6 +200,41 @@ function ActiveState({
 
   const { parsed: sections, legacy } = parseSections(position.sections);
 
+  // Parse signal_refs from position
+  const signalRefs = (() => {
+    if (!position.signal_refs) return [] as SignalEvidence[];
+    const raw = typeof position.signal_refs === 'string'
+      ? JSON.parse(position.signal_refs)
+      : position.signal_refs;
+    return Array.isArray(raw) ? (raw as SignalEvidence[]) : [];
+  })();
+
+  // Use signal_refs as evidence (they contain title, credibility, one_liner, sources)
+  const evidence = sections?.signal_evidence?.length
+    ? sections.signal_evidence
+    : signalRefs;
+
+  // Fetch raw_sources from signals table for evidence titles
+  useEffect(() => {
+    if (evidence.length === 0) return;
+    const titles = evidence.map(e => e.title);
+
+    supabase
+      .from('signals')
+      .select('title, raw_sources')
+      .in('title', titles)
+      .then(({ data }) => {
+        if (!data) return;
+        const map: Record<string, RawSource[]> = {};
+        for (const sig of data) {
+          if (sig.raw_sources && Array.isArray(sig.raw_sources) && sig.raw_sources.length > 0) {
+            map[sig.title] = (sig.raw_sources as unknown as RawSource[]).slice(0, 3);
+          }
+        }
+        setSignalSources(map);
+      });
+  }, [position.id]);
+
   const animDelay = (index: number) =>
     shouldAnimate ? { animation: `fade-in 0.4s ease-out ${index * 80}ms both` } : {};
 
@@ -204,8 +248,6 @@ function ActiveState({
     toast({ title: 'Link copied' });
   };
 
-  // Signal evidence summary
-  const evidence = sections?.signal_evidence ?? [];
   const avgCredibility = evidence.length > 0
     ? Math.round(evidence.reduce((sum, s) => sum + (s.credibility ?? 0), 0) / evidence.length * 100)
     : null;
@@ -328,26 +370,53 @@ function ActiveState({
                   {sig.one_liner && (
                     <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{sig.one_liner}</p>
                   )}
-                  {sig.sources && sig.sources.length > 0 && (
-                    <div className="mt-1.5 pl-2 space-y-0.5">
-                      {sig.sources.map((src, j) => (
-                        <div key={j} className="flex items-center gap-1 text-[11px]">
-                          <a
-                            href={src.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                          >
-                            {src.name} ↗
-                          </a>
-                          {src.date && (
-                            <span className="text-muted-foreground/60">· {src.date}</span>
-                          )}
+                  {/* Sources: prefer sig.sources, fallback to fetched raw_sources */}
+                  {(() => {
+                    const inlineSources = sig.sources?.length ? sig.sources : null;
+                    const fetchedSources = signalSources[sig.title];
+                    if (inlineSources) {
+                      return (
+                        <div className="mt-1.5 pl-2 space-y-0.5">
+                          {inlineSources.map((src, j) => (
+                            <div key={j} className="flex items-center gap-1 text-[11px]">
+                              <a
+                                href={src.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                              >
+                                {src.name} ↗
+                              </a>
+                              {src.date && (
+                                <span className="text-muted-foreground/60">· {src.date}</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    }
+                    if (fetchedSources) {
+                      return (
+                        <div className="mt-1.5 pl-2 space-y-0.5">
+                          {fetchedSources.map((src, j) => (
+                            <div key={j} className="flex items-center gap-1 text-[11px]">
+                              <a
+                                href={src.url!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                              >
+                                {src.domain ?? new URL(src.url!).hostname} ↗
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               ))}
             </div>
