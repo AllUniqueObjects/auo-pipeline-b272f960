@@ -14,9 +14,9 @@ export interface SignalCardData {
   title: string;
   credibility: number;
   sources: number;
-  created_at: string;
-  analysis_context: string | string[];
-  nb_relevance?: string;
+  created_at: string | null;
+  analysis_context: string | string[] | null;
+  nb_relevance?: string | null;
   source_urls?: { title: string; url: string; domain: string }[];
 }
 
@@ -28,20 +28,48 @@ interface SignalCardProps {
   showLiveBadge?: boolean;
 }
 
+// Parse nb_relevance prefix: [CRITICAL], [HIGH], [WATCH], [FYI]
+const NB_PREFIX_COLORS: Record<string, string> = {
+  CRITICAL: 'bg-tier-breaking',
+  HIGH: 'bg-tier-developing',
+  WATCH: 'bg-muted-foreground',
+  FYI: 'bg-muted-foreground/50',
+};
+
+function parseNbRelevance(raw: string | null | undefined): { dot: string | null; text: string | null } {
+  if (!raw) return { dot: null, text: null };
+  const match = raw.match(/^\[(CRITICAL|HIGH|WATCH|FYI)\]\s*/);
+  if (match) {
+    return { dot: NB_PREFIX_COLORS[match[1]], text: raw.slice(match[0].length) };
+  }
+  return { dot: null, text: raw };
+}
+
+const STALE_DAYS = 7;
+
 export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveBadge }: SignalCardProps) {
-  const credPct = Math.round(signal.credibility * 100);
+  const cred = signal.credibility ?? 0;
+  const credPct = Math.round(cred * 100);
   const barColor = credPct > 50 ? 'bg-ring' : credPct > 30 ? 'bg-tier-developing' : 'bg-tier-breaking';
-  const relTime = formatRelative(new Date(signal.created_at));
+  const relTime = signal.created_at ? formatRelative(new Date(signal.created_at)) : '';
   const analysisText = Array.isArray(signal.analysis_context)
     ? signal.analysis_context.join('\n')
     : signal.analysis_context;
+
+  const { dot: nbDot, text: nbText } = parseNbRelevance(signal.nb_relevance);
+
+  // Stale: older than 7 days → dimmed
+  const isStale = signal.created_at
+    ? (Date.now() - new Date(signal.created_at).getTime()) > STALE_DAYS * 86400 * 1000
+    : false;
 
   return (
     <div
       onClick={onToggle}
       className={cn(
         'text-left rounded-lg border bg-card p-4 transition-all duration-200 overflow-hidden cursor-pointer',
-        expanded ? 'border-ring/40 bg-accent/5 md:col-span-2' : 'border-border hover:border-muted-foreground/30'
+        expanded ? 'border-ring/40 bg-accent/5 md:col-span-2' : 'border-border hover:border-muted-foreground/30',
+        isStale && 'opacity-50'
       )}
       style={{ overflowWrap: 'break-word' }}
     >
@@ -62,7 +90,7 @@ export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveB
               {commentCount}
             </span>
           )}
-          <span className="text-xs text-muted-foreground whitespace-nowrap">{relTime}</span>
+          {relTime && <span className="text-xs text-muted-foreground whitespace-nowrap">{relTime}</span>}
         </div>
       </div>
       <div className="flex items-center gap-4 mb-1.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -75,7 +103,7 @@ export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveB
           <span className="text-[10px]">{credPct}%</span>
         </span>
       </div>
-      {expanded && (
+      {expanded && analysisText && (
         <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>{analysisText}</p>
       )}
       {signal.source_urls && signal.source_urls.length > 0 && (
@@ -92,8 +120,11 @@ export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveB
           </div>
         </div>
       )}
-      {signal.nb_relevance && (
-        <p className={cn('text-xs text-muted-foreground italic', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>{signal.nb_relevance}</p>
+      {nbText && (
+        <div className={cn('flex items-start gap-1.5 mt-1.5', !expanded && 'line-clamp-1')}>
+          {nbDot && <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0 mt-1', nbDot)} />}
+          <p className="text-xs text-emerging italic leading-relaxed" style={{ overflowWrap: 'break-word' }}>{nbText}</p>
+        </div>
       )}
     </div>
   );

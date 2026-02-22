@@ -279,9 +279,9 @@ export function InsightDetailPanel({ insightId, sourceName, onBack, onBuildPosit
                       title: sig.title,
                       credibility: sig.credibility ?? 0,
                       sources: sig.last_source_count ?? 0,
-                      created_at: sig.created_at,
-                      analysis_context: null,
-                      nb_relevance: sig.nb_relevance,
+                      created_at: sig.created_at ?? null,
+                      analysis_context: sig.summary ?? null,
+                      nb_relevance: sig.nb_relevance ?? null,
                       source_urls: topSources,
                     };
 

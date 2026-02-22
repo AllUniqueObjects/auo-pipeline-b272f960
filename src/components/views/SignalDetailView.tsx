@@ -77,9 +77,9 @@ export function SignalDetailView({ insightIds, onBack, onAddInsight, onRemoveIns
             title: s.title,
             credibility: s.credibility ?? 0,
             sources: s.last_source_count ?? 0,
-            created_at: s.created_at,
-            analysis_context: null,
-            nb_relevance: s.nb_relevance,
+            created_at: s.created_at ?? null,
+            analysis_context: s.analysis_context ?? null,
+            nb_relevance: s.nb_relevance ?? null,
             source_urls: [],
           })));
         }
