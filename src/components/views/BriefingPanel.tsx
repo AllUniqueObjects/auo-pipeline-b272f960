@@ -64,26 +64,22 @@ function InsightCard({ insight, onOpen, onDiscuss }: InsightCardProps) {
           : 'hover:bg-accent/30'
       )}
     >
-      {/* Tier badge row */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-1.5">
+      {/* Tier badge + Title */}
+      <div className="px-4 py-4">
         {badge && (
-          <span className={cn('text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full', badge.pill)}>
+          <span className={cn('text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-1.5 inline-block', badge.pill)}>
             {badge.label}
           </span>
         )}
-      </div>
-
-      {/* Title */}
-      <p className="px-4 pb-1 text-sm font-medium text-foreground leading-snug">
-        {insight.title}
-      </p>
-
-      {/* user_relevance — always visible, amber, never hidden */}
-      {insight.user_relevance && (
-        <p className="px-4 pb-3 text-[11px] text-emerging leading-snug">
-          {insight.user_relevance}
+        <p className="text-sm font-medium text-foreground leading-snug">
+          {insight.title}
         </p>
-      )}
+        {insight.user_relevance && (
+          <p className="text-[11px] text-emerging leading-snug mt-1">
+            {insight.user_relevance}
+          </p>
+        )}
+      </div>
 
       {/* Hover actions */}
       <div className="px-4 pb-3 pt-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
