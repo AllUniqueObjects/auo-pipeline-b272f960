@@ -656,6 +656,7 @@ export type Database = {
           sources: number
           summary: string | null
           title: string
+          topic_cluster: string | null
           updated_at: string | null
           urgency: string
           watch_topic_match: string | null
@@ -693,6 +694,7 @@ export type Database = {
           sources?: number
           summary?: string | null
           title: string
+          topic_cluster?: string | null
           updated_at?: string | null
           urgency: string
           watch_topic_match?: string | null
@@ -730,6 +732,7 @@ export type Database = {
           sources?: number
           summary?: string | null
           title?: string
+          topic_cluster?: string | null
           updated_at?: string | null
           urgency?: string
           watch_topic_match?: string | null

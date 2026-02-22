@@ -28,6 +28,32 @@ const URGENCY_ACCENT: Record<string, string> = {
   monitor:  'border-l-border',
 };
 
+const URGENCY_ORDER: Record<string, number> = { urgent: 0, emerging: 1, monitor: 2 };
+
+function processInsights(raw: InsightRow[]): InsightRow[] {
+  const sorted = [...raw].sort((a, b) => {
+    const ua = URGENCY_ORDER[a.urgency] ?? 3;
+    const ub = URGENCY_ORDER[b.urgency] ?? 3;
+    if (ua !== ub) return ua - ub;
+    return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+  });
+
+  const result: InsightRow[] = [];
+  const clusterCount: Record<string, number> = {};
+
+  for (const row of sorted) {
+    if (result.length >= 12) break;
+    const key = row.cluster_name;
+    if (key) {
+      const count = clusterCount[key] ?? 0;
+      if (count >= 3) continue;
+      clusterCount[key] = count + 1;
+    }
+    result.push(row);
+  }
+  return result;
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
@@ -163,7 +189,7 @@ export function BriefingPanel({ onOpenInsight, onDiscuss }: BriefingPanelProps) 
       .not('tier', 'is', null)
       .not('title', 'like', '[PROTO]%')
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(50);
 
     if (error) {
       console.error('BriefingPanel fetch error:', error);
@@ -173,12 +199,13 @@ export function BriefingPanel({ onOpenInsight, onDiscuss }: BriefingPanelProps) 
     }
 
     const rows = (data ?? []) as InsightRow[];
-    setInsights(rows);
 
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const count = rows.filter(r => r.created_at && r.created_at > cutoff).length;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const count = rows.filter(r => r.created_at && r.created_at > yesterday.toISOString()).length;
     setSinceYesterday(count);
 
+    setInsights(processInsights(rows));
     setLoading(false);
   };
 
