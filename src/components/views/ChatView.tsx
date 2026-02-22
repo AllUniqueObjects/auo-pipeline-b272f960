@@ -273,7 +273,7 @@ export function ChatView({
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6">
         <div className="space-y-5">
           {messages.map((msg, idx) => {
             // Attach build button to the last assistant message
