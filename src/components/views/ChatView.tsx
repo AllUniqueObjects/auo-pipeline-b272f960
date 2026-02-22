@@ -479,7 +479,7 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
   const parseLine = (line: string) => {
     // Split by signal tags [title|id] and bold **text**
     const segments: React.ReactNode[] = [];
-    const regex = /(\*\*[^*]+\*\*|\[[^\]|]+\|[^\]]+\])/g;
+    const regex = /(\*\*[^*]+\*\*|\[([^\]|]+)\|(scan-[a-f0-9]+)\])/g;
     let lastIdx = 0;
     let match: RegExpExecArray | null;
 
@@ -490,11 +490,9 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
       const token = match[0];
       if (token.startsWith('**') && token.endsWith('**')) {
         segments.push(<strong key={`b${match.index}`} className="font-semibold">{token.slice(2, -2)}</strong>);
-      } else if (token.startsWith('[') && token.includes('|')) {
-        const inner = token.slice(1, -1);
-        const pipeIdx = inner.lastIndexOf('|');
-        const title = inner.slice(0, pipeIdx);
-        const id = inner.slice(pipeIdx + 1);
+      } else if (token.startsWith('[') && match[2] && match[3]) {
+        const title = match[2];
+        const id = match[3];
         segments.push(
           <button
             key={`s${match.index}`}
