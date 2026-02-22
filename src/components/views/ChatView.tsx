@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { type MockChatMessage } from '@/data/mock';
 import { LiveSignalSurface } from '@/components/views/LiveSignalSurface';
 import { supabase } from '@/integrations/supabase/client';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 const TIER_DOT: Record<string, string> = {
   breaking: 'bg-tier-breaking',
@@ -276,7 +277,7 @@ export function ChatView({
         <div className="space-y-5">
           {messages.map((msg, idx) => {
             // Attach build button to the last assistant message
-            const isLastAssistant = showBuildButton && !positionReady && msg.role === 'assistant' &&
+            const isLastAssistant = showBuildButton && !positionReady && !isBuildingPosition && msg.role === 'assistant' &&
               !messages.slice(idx + 1).some(m => m.role === 'assistant');
             return (
               <MessageBubble
@@ -479,7 +480,7 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
   const parseLine = (line: string) => {
     const segments: React.ReactNode[] = [];
     // Match: **bold**, [title|scan-id], or [scan-id1, scan-id2, ...]
-    const regex = /(\*\*[^*]+\*\*|\[([^\]|]+)\|(scan-[a-f0-9]+)\]|\[((?:scan-[a-f0-9]+)(?:,\s*scan-[a-f0-9]+)*)\])/g;
+    const regex = /(\*\*[^*]+\*\*|\[([^\]|]+)\|(scan-[a-f0-9]+)\]|\[((?:scan-[a-f0-9]+)(?:,\s*scan-[a-f0-9]+)*)\])\.?/g;
     let lastIdx = 0;
     let match: RegExpExecArray | null;
 
@@ -487,7 +488,7 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
       if (match.index > lastIdx) {
         segments.push(<span key={`t${lastIdx}`}>{line.slice(lastIdx, match.index)}</span>);
       }
-      const token = match[0];
+      const token = match[1]; // use capture group 1 (without trailing dot)
       if (token.startsWith('**') && token.endsWith('**')) {
         segments.push(<strong key={`b${match.index}`} className="font-semibold">{token.slice(2, -2)}</strong>);
       } else if (match[2] && match[3]) {
@@ -495,28 +496,36 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
         const title = match[2];
         const id = match[3];
         segments.push(
-          <button
-            key={`s${match.index}`}
-            onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-            className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
-            style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
-          >
-            {title}
-          </button>
+          <Tooltip key={`s${match.index}`}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
+                className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline overflow-hidden text-ellipsis whitespace-nowrap"
+                style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px', maxWidth: '200px' }}
+              >
+                {title}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs">{title}</TooltipContent>
+          </Tooltip>
         );
       } else if (match[4]) {
         // [scan-id1, scan-id2] format — render each as a chip
         const ids = match[4].split(/,\s*/);
         ids.forEach((id, i) => {
           segments.push(
-            <button
-              key={`s${match!.index}-${i}`}
-              onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-              className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
-              style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
-            >
-              {id}
-            </button>
+            <Tooltip key={`s${match!.index}-${i}`}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
+                  className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline overflow-hidden text-ellipsis whitespace-nowrap"
+                  style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px', maxWidth: '200px' }}
+                >
+                  {id}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs">{id}</TooltipContent>
+            </Tooltip>
           );
           if (i < ids.length - 1) segments.push(<span key={`sep${match!.index}-${i}`}>{' '}</span>);
         });
