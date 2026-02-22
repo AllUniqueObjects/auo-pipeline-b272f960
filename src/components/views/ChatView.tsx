@@ -500,8 +500,8 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
             <TooltipTrigger asChild>
               <button
                 onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-                className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline overflow-hidden text-ellipsis whitespace-nowrap"
-                style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px', maxWidth: '220px' }}
+                className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
+                style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
               >
                 {title}
               </button>
@@ -518,8 +518,8 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
               <TooltipTrigger asChild>
                 <button
                   onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-                  className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline overflow-hidden text-ellipsis whitespace-nowrap"
-                  style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px', maxWidth: '220px' }}
+                  className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
+                   style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
                 >
                   {id}
                 </button>
