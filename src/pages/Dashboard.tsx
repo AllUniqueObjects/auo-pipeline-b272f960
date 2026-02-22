@@ -353,22 +353,6 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
         )}
       </header>
 
-      {/* Floating DEV panel — bottom-right, outside product UI */}
-      <div className="fixed bottom-4 right-4 z-50 flex gap-1 opacity-30 hover:opacity-100 transition-opacity">
-        <button
-          onClick={handleDevNext}
-          className="px-2 py-1 text-[9px] font-mono bg-background border border-dashed border-border rounded text-muted-foreground hover:text-foreground transition-colors"
-          title={`dev state: ${DEV_STATES[devStateIndex]}`}
-        >
-          dev: {DEV_STATES[devStateIndex]}
-        </button>
-        <button
-          onClick={handleDevReset}
-          className="px-2 py-1 text-[9px] font-mono bg-background border border-dashed border-border rounded text-muted-foreground hover:text-foreground transition-colors"
-        >
-          reset
-        </button>
-      </div>
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
