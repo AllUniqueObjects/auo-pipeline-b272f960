@@ -499,7 +499,7 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
           <button
             key={`s${match.index}`}
             onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-            className="inline items-baseline text-[12px] leading-snug cursor-pointer text-foreground/70 hover:text-foreground underline decoration-foreground/20 hover:decoration-foreground/50 underline-offset-2 transition-colors duration-150"
+            className="inline text-sm leading-relaxed cursor-pointer text-foreground/70 hover:text-foreground underline decoration-foreground/20 hover:decoration-foreground/50 underline-offset-2 transition-colors duration-150"
           >
             {title}<span className="text-[10px] opacity-40 ml-0.5">↗</span>
           </button>
@@ -512,7 +512,7 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
             <button
               key={`s${match!.index}-${i}`}
               onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-              className="inline items-baseline text-[12px] leading-snug cursor-pointer text-foreground/70 hover:text-foreground underline decoration-foreground/20 hover:decoration-foreground/50 underline-offset-2 transition-colors duration-150"
+              className="inline text-sm leading-relaxed cursor-pointer text-foreground/70 hover:text-foreground underline decoration-foreground/20 hover:decoration-foreground/50 underline-offset-2 transition-colors duration-150"
             >
               {id}<span className="text-[10px] opacity-40 ml-0.5">↗</span>
             </button>
