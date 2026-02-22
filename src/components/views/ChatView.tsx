@@ -496,36 +496,26 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
         const title = match[2];
         const id = match[3];
         segments.push(
-          <Tooltip key={`s${match.index}`}>
-            <TooltipTrigger asChild>
-              <button
-                onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-                className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
-                style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
-              >
-                {title}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs text-xs">{title}</TooltipContent>
-          </Tooltip>
+          <button
+            key={`s${match.index}`}
+            onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
+            className="inline items-baseline text-[12px] leading-snug cursor-pointer text-foreground/70 hover:text-foreground underline decoration-foreground/20 hover:decoration-foreground/50 underline-offset-2 transition-colors duration-150"
+          >
+            {title}<span className="text-[10px] opacity-40 ml-0.5">↗</span>
+          </button>
         );
       } else if (match[4]) {
         // [scan-id1, scan-id2] format — render each as a chip
         const ids = match[4].split(/,\s*/);
         ids.forEach((id, i) => {
           segments.push(
-            <Tooltip key={`s${match!.index}-${i}`}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
-                  className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
-                   style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
-                >
-                  {id}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs text-xs">{id}</TooltipContent>
-            </Tooltip>
+            <button
+              key={`s${match!.index}-${i}`}
+              onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
+              className="inline items-baseline text-[12px] leading-snug cursor-pointer text-foreground/70 hover:text-foreground underline decoration-foreground/20 hover:decoration-foreground/50 underline-offset-2 transition-colors duration-150"
+            >
+              {id}<span className="text-[10px] opacity-40 ml-0.5">↗</span>
+            </button>
           );
           if (i < ids.length - 1) segments.push(<span key={`sep${match!.index}-${i}`}>{' '}</span>);
         });
