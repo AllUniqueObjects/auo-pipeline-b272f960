@@ -1,55 +1,61 @@
 
 
-# PositionPanel — Design Polish
+## Briefing Panel Query Improvements
 
-Nine targeted refinements to `src/components/views/PositionPanel.tsx` only. No other files touched.
+**File: `src/components/views/BriefingPanel.tsx` only**
 
----
+### Changes
 
-## Changes
+1. Add `URGENCY_ORDER` constant and `processInsights()` helper function (sorting by urgency priority, then `created_at` desc; max 3 per cluster; max 12 total).
 
-### 1. Title: larger, more commanding
-Current `text-xl` (20px) is undersized for the primary artifact. Bump to `text-2xl` with `leading-snug` for better wrapping on long titles.
+2. Update `fetchInsights`:
+   - Increase query `.limit(50)` (from 20) for enough candidates.
+   - Calculate `sinceYesterday` from the **raw** fetched data (before filtering).
+   - Apply `processInsights(data)` for the display list only.
 
-### 2. Tighter title-to-tone spacing
-Title and tone row are a semantic unit. Replace the blanket `space-y-5` container with explicit per-section margins:
-- Title to Tone: `mt-2` (8px — paired)
-- Tone to Quote: `mt-5`
-- Quote to Key Numbers: `mt-5`
-- Key Numbers to Memo: `mt-6` (breathing room before main body)
-- Memo to Evidence: `mt-6` plus a faint `border-t border-border/30` separator
-- Evidence to Actions: keep existing `border-t`
+3. "Since yesterday" count uses raw data:
+```typescript
+const yesterday = new Date();
+yesterday.setDate(yesterday.getDate() - 1);
+const count = rows.filter(r => r.created_at && r.created_at > yesterday.toISOString()).length;
+setSinceYesterday(count);
 
-### 3. Owner Quote border: gray to amber
-The style intent is "human voice, not machine." Change `border-l border-border/60` to `border-l-2 border-amber-500/30` — warm, subtle, clearly distinct from structural borders.
+const processed = processInsights(rows);
+setInsights(processed);
+```
 
-### 4. Key number index: move to top-right
-The "01" label currently sits at `top-1.5 left-2`, colliding with values like "$18.40". Move to `top-1.5 right-2.5` so the index never overlaps with content.
+### Technical Details
 
-### 5. Memo body text: slightly larger
-Bump from `text-sm` (14px) to `text-[15px]` with `leading-[1.75]` for better readability on the primary reading surface.
+**New helper (added above the component):**
 
-### 6. Remove duplicate share icon from tone row
-The Share2 icon in the tone/date row duplicates the bottom action bar. Remove it — the tone row should be: dot + label + date only. The bottom buttons remain.
+```typescript
+const URGENCY_ORDER: Record<string, number> = { urgent: 0, emerging: 1, monitor: 2 };
 
-### 7. Credibility bar: widen
-Increase from `w-10` (40px) to `w-14` (56px) so the fill difference between 50% and 75% is actually perceivable.
+function processInsights(raw: InsightRow[]): InsightRow[] {
+  const sorted = [...raw].sort((a, b) => {
+    const ua = URGENCY_ORDER[a.urgency] ?? 3;
+    const ub = URGENCY_ORDER[b.urgency] ?? 3;
+    if (ua !== ub) return ua - ub;
+    return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+  });
 
-### 8. Content-shaped skeleton loader
-Replace the 3 identical pulse blocks with a skeleton that mirrors the real layout:
-- Wide bar for title
-- Short bar for tone/date
-- Border-left block for quote
-- 2x2 grid of small boxes for key numbers
-- 3 paragraph-width bars for memo
+  const result: InsightRow[] = [];
+  const clusterCount: Record<string, number> = {};
 
-### 9. Warmer empty state copy
-Change "Start a conversation and ask AUO to build a position." to "When you're ready, ask AUO to build a position from your conversation."
+  for (const row of sorted) {
+    if (result.length >= 12) break;
+    const key = row.cluster_name;
+    if (key) {
+      const count = clusterCount[key] ?? 0;
+      if (count >= 3) continue;
+      clusterCount[key] = count + 1;
+    }
+    result.push(row);
+  }
+  return result;
+}
+```
 
----
+**Modified `fetchInsights`:** Only the post-fetch logic changes -- sinceYesterday computed from raw `data`, then `processInsights(data)` applied separately for `setInsights`. Query limit bumped from 20 to 50.
 
-## Technical Details
-
-All changes are CSS class and markup adjustments within `PositionPanel.tsx`. No new dependencies, no data changes, no other files modified.
-
-The `space-y-5` on the outer `<div>` in `ActiveState` will be removed entirely. Each section div will receive its own `mt-X` class instead, creating a deliberate spacing rhythm rather than uniform gaps.
+No other files touched.
