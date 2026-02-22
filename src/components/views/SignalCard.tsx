@@ -29,20 +29,26 @@ interface SignalCardProps {
 }
 
 // Parse nb_relevance prefix: [CRITICAL], [HIGH], [WATCH], [FYI]
-const NB_PREFIX_COLORS: Record<string, string> = {
-  CRITICAL: 'bg-tier-breaking',
-  HIGH: 'bg-tier-developing',
-  WATCH: 'bg-muted-foreground',
-  FYI: 'bg-muted-foreground/50',
-};
-
-function parseNbRelevance(raw: string | null | undefined): { dot: string | null; text: string | null } {
-  if (!raw) return { dot: null, text: null };
+function parseNbRelevance(raw: string | null | undefined): { dotColor: string | null; text: string | null } {
+  if (!raw) return { dotColor: null, text: null };
   const match = raw.match(/^\[(CRITICAL|HIGH|WATCH|FYI)\]\s*/);
   if (match) {
-    return { dot: NB_PREFIX_COLORS[match[1]], text: raw.slice(match[0].length) };
+    const colors: Record<string, string> = {
+      CRITICAL: '#c0392b',
+      HIGH: '#e67e22',
+      WATCH: '#aaa',
+      FYI: '#aaa',
+    };
+    return { dotColor: colors[match[1]], text: raw.slice(match[0].length) };
   }
-  return { dot: null, text: raw };
+  // No prefix → gray dot, show full text
+  return { dotColor: '#aaa', text: raw };
+}
+
+function credBarColor(cred: number): string {
+  if (cred > 0.6) return '#27ae60';
+  if (cred >= 0.3) return '#f39c12';
+  return '#c0392b';
 }
 
 const STALE_DAYS = 7;
@@ -50,13 +56,12 @@ const STALE_DAYS = 7;
 export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveBadge }: SignalCardProps) {
   const cred = signal.credibility ?? 0;
   const credPct = Math.round(cred * 100);
-  const barColor = credPct > 50 ? 'bg-ring' : credPct > 30 ? 'bg-tier-developing' : 'bg-tier-breaking';
   const relTime = signal.created_at ? formatRelative(new Date(signal.created_at)) : '';
   const analysisText = Array.isArray(signal.analysis_context)
     ? signal.analysis_context.join('\n')
     : signal.analysis_context;
 
-  const { dot: nbDot, text: nbText } = parseNbRelevance(signal.nb_relevance);
+  const { dotColor: nbDotColor, text: nbText } = parseNbRelevance(signal.nb_relevance);
 
   // Stale: older than 7 days → dimmed
   const isStale = signal.created_at
@@ -73,13 +78,20 @@ export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveB
       )}
       style={{ overflowWrap: 'break-word' }}
     >
-      <div className="flex items-start justify-between gap-2 mb-1.5">
+      <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex items-center gap-2 min-w-0">
           {showLiveBadge && (
             <span className="inline-flex items-center gap-1 flex-shrink-0">
               <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--live-blue))] animate-pulse" />
               <span className="text-[10px] font-mono text-[hsl(var(--live-blue))] uppercase tracking-wider">Live</span>
             </span>
+          )}
+          {nbDotColor && (
+            <span
+              className="h-2 w-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: nbDotColor }}
+              title={signal.nb_relevance ?? ''}
+            />
           )}
           <h3 className={cn('text-sm font-medium text-card-foreground leading-snug', !expanded && 'line-clamp-2')}>{signal.title}</h3>
         </div>
@@ -93,15 +105,18 @@ export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveB
           {relTime && <span className="text-xs text-muted-foreground whitespace-nowrap">{relTime}</span>}
         </div>
       </div>
+
+      {/* Credibility bar — 4px, full width */}
+      <div className="w-full h-1 rounded-full bg-muted overflow-hidden mb-1.5">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${Math.max(credPct, 3)}%`, backgroundColor: credBarColor(cred) }}
+        />
+      </div>
+
       <div className="flex items-center gap-4 mb-1.5 text-xs text-muted-foreground whitespace-nowrap">
         <span>{signal.sources} sources</span>
-        <span className="flex items-center gap-1.5">
-          Credibility
-          <span className="inline-block w-12 h-1.5 rounded-full bg-muted overflow-hidden">
-            <span className={cn('block h-full rounded-full', barColor)} style={{ width: `${Math.max(credPct, 5)}%` }} />
-          </span>
-          <span className="text-[10px]">{credPct}%</span>
-        </span>
+        <span>{credPct}% credibility</span>
       </div>
       {expanded && analysisText && (
         <p className="text-xs text-foreground/60 leading-relaxed mb-1.5" style={{ overflowWrap: 'break-word' }}>{analysisText}</p>
@@ -121,10 +136,7 @@ export function SignalCard({ signal, expanded, onToggle, commentCount, showLiveB
         </div>
       )}
       {nbText && (
-        <div className={cn('flex items-start gap-1.5 mt-1.5', !expanded && 'line-clamp-1')}>
-          {nbDot && <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0 mt-1', nbDot)} />}
-          <p className="text-xs text-emerging italic leading-relaxed" style={{ overflowWrap: 'break-word' }}>{nbText}</p>
-        </div>
+        <p className={cn('text-xs text-emerging italic mt-1.5 leading-relaxed', !expanded && 'line-clamp-1')} style={{ overflowWrap: 'break-word' }}>{nbText}</p>
       )}
     </div>
   );
