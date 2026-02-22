@@ -312,13 +312,11 @@ function ActiveState({
             {sections.key_numbers.map((kn, i) => (
               <div
                 key={i}
-                className="border border-border rounded-lg px-3 py-2.5 flex flex-col relative"
+                className="border border-border rounded-lg px-3 py-2.5 flex flex-col"
+                style={{ height: 'auto' }}
               >
-                <span className="absolute top-1.5 right-2.5 text-[10px] text-muted-foreground/30 font-mono leading-none">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
                 <span className="text-lg font-bold text-foreground leading-none">{kn.value}</span>
-                <span className="text-[11px] text-muted-foreground mt-1 leading-tight">{kn.label}</span>
+                <span className="text-[11px] text-muted-foreground mt-1 leading-snug">{kn.label}</span>
               </div>
             ))}
           </div>
