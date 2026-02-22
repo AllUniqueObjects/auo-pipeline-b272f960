@@ -477,9 +477,9 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
 
   // Parse a line into segments: plain text, bold, and signal chips
   const parseLine = (line: string) => {
-    // Split by signal tags [title|id] and bold **text**
     const segments: React.ReactNode[] = [];
-    const regex = /(\*\*[^*]+\*\*|\[([^\]|]+)\|(scan-[a-f0-9]+)\])/g;
+    // Match: **bold**, [title|scan-id], or [scan-id1, scan-id2, ...]
+    const regex = /(\*\*[^*]+\*\*|\[([^\]|]+)\|(scan-[a-f0-9]+)\]|\[((?:scan-[a-f0-9]+)(?:,\s*scan-[a-f0-9]+)*)\])/g;
     let lastIdx = 0;
     let match: RegExpExecArray | null;
 
@@ -490,7 +490,8 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
       const token = match[0];
       if (token.startsWith('**') && token.endsWith('**')) {
         segments.push(<strong key={`b${match.index}`} className="font-semibold">{token.slice(2, -2)}</strong>);
-      } else if (token.startsWith('[') && match[2] && match[3]) {
+      } else if (match[2] && match[3]) {
+        // [title|scan-id] format
         const title = match[2];
         const id = match[3];
         segments.push(
@@ -503,6 +504,22 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
             {title}
           </button>
         );
+      } else if (match[4]) {
+        // [scan-id1, scan-id2] format — render each as a chip
+        const ids = match[4].split(/,\s*/);
+        ids.forEach((id, i) => {
+          segments.push(
+            <button
+              key={`s${match!.index}-${i}`}
+              onClick={(e) => { e.stopPropagation(); onOpenSignal?.(id); }}
+              className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] leading-snug cursor-pointer align-baseline"
+              style={{ background: '#f0f0ee', border: '1px solid #e5e5e5', color: '#555', borderRadius: '100px', padding: '2px 8px' }}
+            >
+              {id}
+            </button>
+          );
+          if (i < ids.length - 1) segments.push(<span key={`sep${match!.index}-${i}`}>{' '}</span>);
+        });
       }
       lastIdx = regex.lastIndex;
     }
