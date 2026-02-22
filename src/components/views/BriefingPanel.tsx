@@ -14,18 +14,18 @@ interface InsightRow {
   created_at: string | null;
 }
 
-// ─── Tier badge config ────────────────────────────────────────────────────────
+// ─── Urgency badge config ─────────────────────────────────────────────────────
 
-const TIER_BADGE: Record<string, { pill: string; label: string } | null> = {
-  breaking:    { pill: 'bg-tier-breaking/10 text-tier-breaking border border-tier-breaking/20',   label: 'BREAKING' },
-  developing:  { pill: 'bg-tier-developing/10 text-tier-developing border border-tier-developing/20', label: 'DEVELOPING' },
-  established: null,
+const URGENCY_BADGE: Record<string, { bg: string; label: string } | null> = {
+  urgent:   { bg: '#c0392b', label: 'URGENT' },
+  emerging: { bg: '#e67e22', label: 'EMERGING' },
+  monitor:  { bg: '#999',    label: 'MONITOR' },
 };
 
-const TIER_ACCENT: Record<string, string> = {
-  breaking:    'border-l-tier-breaking',
-  developing:  'border-l-tier-developing',
-  established: 'border-l-border',
+const URGENCY_ACCENT: Record<string, string> = {
+  urgent:   'border-l-[#c0392b]',
+  emerging: 'border-l-[#e67e22]',
+  monitor:  'border-l-border',
 };
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -52,22 +52,24 @@ interface InsightCardProps {
 }
 
 function InsightCard({ insight, onOpen, onDiscuss }: InsightCardProps) {
-  const badge = TIER_BADGE[insight.tier ?? 'established'];
+  const badge = URGENCY_BADGE[insight.urgency] ?? null;
 
   return (
     <div
       onClick={() => onOpen(insight.id)}
       className={cn(
         'group rounded-xl border border-border hover:border-muted-foreground/30 transition-all duration-150 cursor-pointer overflow-hidden',
-        insight.tier === 'breaking'
-          ? 'bg-tier-breaking/[0.03] hover:bg-tier-breaking/[0.06]'
+        insight.urgency === 'urgent'
+          ? 'bg-[#c0392b]/[0.03] hover:bg-[#c0392b]/[0.06]'
           : 'hover:bg-accent/30'
       )}
     >
-      {/* Tier badge + Title */}
       <div className="px-4 py-4">
         {badge && (
-          <span className={cn('text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-1.5 inline-block', badge.pill)}>
+          <span
+            className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-1.5 inline-block text-white"
+            style={{ backgroundColor: badge.bg }}
+          >
             {badge.label}
           </span>
         )}
@@ -110,14 +112,14 @@ interface ClusterBlockProps {
 }
 
 function ClusterBlock({ name, insights, onOpenInsight, onDiscuss }: ClusterBlockProps) {
-  const dominantTier = insights.some(i => i.tier === 'breaking')
-    ? 'breaking'
-    : insights.some(i => i.tier === 'developing')
-    ? 'developing'
-    : 'established';
+  const dominantUrgency = insights.some(i => i.urgency === 'urgent')
+    ? 'urgent'
+    : insights.some(i => i.urgency === 'emerging')
+    ? 'emerging'
+    : 'monitor';
 
   return (
-    <div className={cn('mb-8 pl-3 border-l-2', TIER_ACCENT[dominantTier])}>
+    <div className={cn('mb-8 pl-3 border-l-2', URGENCY_ACCENT[dominantUrgency])}>
       <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground mb-3">
         {name}
       </h2>
