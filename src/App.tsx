@@ -40,8 +40,7 @@ function AppWithAuth() {
     return <AuthPage />;
   }
 
-  const onboardingComplete = localStorage.getItem('onboardingComplete') === 'true';
-  return onboardingComplete ? <Dashboard /> : <Onboarding />;
+  return <Dashboard />;
 }
 
 const App = () => (

@@ -77,6 +77,85 @@ export function ChatView({
     return () => { abortRef.current?.abort(); };
   }, []);
 
+  // Auto session_open on first mount — triggers briefing from responder
+  const sessionOpenFired = useRef(false);
+  useEffect(() => {
+    if (sessionOpenFired.current || messages.length > 0) return;
+    sessionOpenFired.current = true;
+
+    const responderUrl = import.meta.env.VITE_RESPONDER_URL;
+    if (!responderUrl) return;
+
+    const userId = localStorage.getItem('userId') ?? undefined;
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setTyping(true);
+
+    (async () => {
+      try {
+        const response = await fetch(responderUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: '__session_open__',
+            history: [],
+            session_type: 'briefing',
+            user_id: userId,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulated = '';
+
+        setTyping(false);
+        setIsStreaming(true);
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let parsed: Record<string, unknown> = {};
+            try { parsed = JSON.parse(line.slice(6)); } catch { continue; }
+            if (parsed.type === 'token') {
+              accumulated += (parsed.content as string) ?? '';
+              setStreamingText(accumulated);
+            } else if (parsed.type === 'done') {
+              onAppendMessage({ id: crypto.randomUUID(), role: 'assistant', content: accumulated || '' });
+              if (parsed.conversation_id && onConversationId) {
+                onConversationId(parsed.conversation_id as string);
+              }
+              setIsStreaming(false);
+              setStreamingText('');
+              accumulated = '';
+            }
+          }
+        }
+        if (accumulated) {
+          onAppendMessage({ id: crypto.randomUUID(), role: 'assistant', content: accumulated });
+          setIsStreaming(false);
+          setStreamingText('');
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        console.error('Session open error:', err);
+        setTyping(false);
+        setIsStreaming(false);
+        setStreamingText('');
+      }
+    })();
+  }, []);
+
   const resetTextareaHeight = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };

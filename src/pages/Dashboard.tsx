@@ -7,6 +7,7 @@ import { usePositionRealtime } from '@/hooks/usePositionRealtime';
 import { ChatView } from '@/components/views/ChatView';
 import { PositionPanel, type PositionState } from '@/components/views/PositionPanel';
 import { BriefingPanel } from '@/components/views/BriefingPanel';
+import { PrimarySurface } from '@/components/views/PrimarySurface';
 import { TopicDetailPanel } from '@/components/views/TopicDetailPanel';
 import { InsightDetailPanel } from '@/components/views/InsightDetailPanel';
 import { PositionStarter } from '@/components/views/PositionStarter';
@@ -444,11 +445,8 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
               {/* Right panel content */}
               <div className="flex-1 overflow-hidden">
                 {rightView === 'briefing' && (
-                  <BriefingPanel
-                    activeLens={activeLens}
-                    onExplore={handleExplore}
+                  <PrimarySurface
                     onOpenInsight={(id) => handleOpenInsight(id)}
-                    onBuildPosition={handleBuildPositionFromTopic}
                     onDiscuss={handleDiscuss}
                   />
                 )}
