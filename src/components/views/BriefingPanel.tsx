@@ -12,6 +12,8 @@ interface InsightRow {
   urgency: string;
   cluster_name: string | null;
   created_at: string | null;
+  signal_ids: string[];
+  decision_question: string | null;
 }
 
 // ─── Urgency badge config ─────────────────────────────────────────────────────
@@ -79,6 +81,10 @@ interface InsightCardProps {
 
 function InsightCard({ insight, onOpen, onDiscuss }: InsightCardProps) {
   const badge = URGENCY_BADGE[insight.urgency] ?? null;
+  const signalCount = insight.signal_ids?.length ?? 0;
+  const dateLabel = insight.created_at
+    ? new Date(insight.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null;
 
   return (
     <div
@@ -90,27 +96,46 @@ function InsightCard({ insight, onOpen, onDiscuss }: InsightCardProps) {
           : 'hover:bg-accent/30'
       )}
     >
-      <div className="px-4 py-4">
-        {badge && (
-          <span
-            className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-1.5 inline-block text-white"
-            style={{ backgroundColor: badge.bg }}
-          >
-            {badge.label}
+      <div className="px-4 py-3">
+        {/* Top row: badge left, meta right */}
+        <div className="flex items-center justify-between mb-1.5">
+          <div>
+            {badge && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full text-white"
+                style={{ backgroundColor: badge.bg }}
+              >
+                {badge.label}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] text-muted-foreground tabular-nums">
+            {dateLabel}{signalCount > 0 && ` · ${signalCount} signal${signalCount !== 1 ? 's' : ''}`}
           </span>
-        )}
+        </div>
+
+        {/* Title */}
         <p className="text-sm font-medium text-foreground leading-snug">
           {insight.title}
         </p>
+
+        {/* Why-now */}
         {insight.user_relevance && (
           <p className="text-[11px] text-emerging leading-snug mt-1">
             {insight.user_relevance}
           </p>
         )}
+
+        {/* Decision question */}
+        {insight.decision_question && (
+          <p className="text-[12px] italic text-[hsl(0,0%,53%)] leading-snug mt-1.5 truncate">
+            {insight.decision_question}
+          </p>
+        )}
       </div>
 
       {/* Hover actions */}
-      <div className="px-4 pb-3 pt-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+      <div className="px-4 pb-2.5 pt-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
         <button
           onClick={e => { e.stopPropagation(); onDiscuss(insight); }}
           className="text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border rounded-md px-2.5 py-1 hover:bg-background transition-colors"
@@ -185,7 +210,7 @@ export function BriefingPanel({ onOpenInsight, onDiscuss }: BriefingPanelProps) 
 
     const { data, error } = await supabase
       .from('insights')
-      .select('id, title, tier, user_relevance, urgency, cluster_name, created_at')
+      .select('id, title, tier, user_relevance, urgency, cluster_name, created_at, signal_ids, decision_question')
       .not('tier', 'is', null)
       .not('title', 'like', '[PROTO]%')
       .order('created_at', { ascending: false })
