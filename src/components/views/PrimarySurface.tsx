@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { WorkspaceCard, type DecisionThread } from '@/components/WorkspaceCard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,13 +20,11 @@ interface InsightRow {
 interface PositionRow {
   id: string;
   title: string;
-  memo: string | null;
-  stance: string | null;
-  confidence: string | null;
-  time_sensitivity: string | null;
-  signal_count: number | null;
+  position_essence: string | null;
+  tone: string | null;
+  sections: Record<string, unknown> | null;
   created_at: string | null;
-  status: string | null;
+  decision_thread_id: string | null;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -38,11 +37,10 @@ const URGENCY_BADGE: Record<string, { bg: string; label: string }> = {
   monitor:  { bg: '#999',    label: 'MONITOR' },
 };
 
-const STANCE_CONFIG: Record<string, { bg: string; border: string; color: string }> = {
-  DEFENSIVE:    { bg: '#fef2f2', border: '#fecaca', color: '#dc2626' },
-  OFFENSIVE:    { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a' },
-  INVESTIGATE:  { bg: '#fffbeb', border: '#fde68a', color: '#b45309' },
-  'WAIT-AND-SEE': { bg: '#f8fafc', border: '#e2e8f0', color: '#64748b' },
+const TONE_CONFIG: Record<string, { bg: string; border: string; color: string; label: string }> = {
+  decisive:    { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a', label: 'DECISIVE' },
+  conditional: { bg: '#fffbeb', border: '#fde68a', color: '#b45309', label: 'CONDITIONAL' },
+  exploratory: { bg: '#f8fafc', border: '#e2e8f0', color: '#64748b', label: 'EXPLORATORY' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -131,9 +129,9 @@ interface PositionCardProps {
 }
 
 function PositionCard({ position, onAccept, onRevise, onReject, onDefer }: PositionCardProps) {
-  const stanceKey = (position.stance ?? '').toUpperCase();
-  const stance = STANCE_CONFIG[stanceKey] ?? STANCE_CONFIG['INVESTIGATE'];
-  const signalCount = position.signal_count ?? 0;
+  const toneKey = (position.tone ?? 'decisive').toLowerCase();
+  const tone = TONE_CONFIG[toneKey] ?? TONE_CONFIG['decisive'];
+  const memo = (position.sections as Record<string, unknown>)?.memo as string | undefined;
 
   return (
     <div className="rounded-xl border border-border hover:border-muted-foreground/40 bg-background hover:shadow-md transition-all duration-150 mb-3 overflow-hidden">
@@ -141,27 +139,17 @@ function PositionCard({ position, onAccept, onRevise, onReject, onDefer }: Posit
         {/* Top row */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            {position.stance && (
+            {position.tone && (
               <span
                 className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full font-mono"
-                style={{ background: stance.bg, border: `1px solid ${stance.border}`, color: stance.color }}
+                style={{ background: tone.bg, border: `1px solid ${tone.border}`, color: tone.color }}
               >
-                {position.stance}
-              </span>
-            )}
-            {position.confidence && (
-              <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
-                <span
-                  className="w-1.5 h-1.5 rounded-full inline-block"
-                  style={{ background: position.confidence === 'high' ? '#16a34a' : '#f59e0b' }}
-                />
-                {position.confidence} confidence
+                {tone.label}
               </span>
             )}
           </div>
           <span className="text-[10px] text-muted-foreground tabular-nums">
             {fmtDate(position.created_at)}
-            {signalCount > 0 && ` · ${signalCount} signals`}
           </span>
         </div>
 
@@ -170,21 +158,18 @@ function PositionCard({ position, onAccept, onRevise, onReject, onDefer }: Posit
           {position.title}
         </p>
 
-        {/* Memo */}
-        {position.memo && (
-          <p className="text-[13px] text-muted-foreground leading-relaxed mb-3 line-clamp-3">
-            {position.memo}
+        {/* Position essence */}
+        {position.position_essence && (
+          <p className="text-[13px] text-foreground/80 font-medium leading-snug mb-2">
+            {position.position_essence}
           </p>
         )}
 
-        {/* Time sensitivity */}
-        {position.time_sensitivity && (
-          <div className="flex items-center gap-1.5 mb-4">
-            <span className="text-[9px] text-orange-500">◆</span>
-            <span className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider font-mono">
-              {position.time_sensitivity}
-            </span>
-          </div>
+        {/* Memo from sections */}
+        {memo && (
+          <p className="text-[13px] text-muted-foreground leading-relaxed mb-3 line-clamp-3">
+            {memo}
+          </p>
         )}
 
         {/* Divider */}
@@ -315,11 +300,13 @@ function BriefingCard({ insight, onOpen, onDiscuss }: BriefingCardProps) {
 interface PrimarySurfaceProps {
   onOpenInsight: (id: string) => void;
   onDiscuss: (insight: InsightRow) => void;
+  onOpenWorkspace?: (threadId: string) => void;
 }
 
-export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps) {
+export function PrimarySurface({ onOpenInsight, onDiscuss, onOpenWorkspace }: PrimarySurfaceProps) {
   const [insights, setInsights] = useState<InsightRow[]>([]);
   const [positions, setPositions] = useState<PositionRow[]>([]);
+  const [threads, setThreads] = useState<DecisionThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -333,7 +320,9 @@ export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps
     setLoading(true);
     setLoadError(false);
 
-    const [insightRes, positionRes] = await Promise.all([
+    const userId = localStorage.getItem('userId') ?? undefined;
+
+    const [insightRes, positionRes, threadRes] = await Promise.all([
       supabase
         .from('insights')
         .select('id, title, tier, user_relevance, urgency, cluster_name, created_at, signal_ids, decision_question')
@@ -344,10 +333,16 @@ export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps
 
       supabase
         .from('positions')
-        .select('id, title, memo, stance, confidence, time_sensitivity, signal_count, created_at, status')
-        .eq('status', 'draft')
+        .select('id, title, position_essence, tone, sections, created_at, validation_issues, decision_thread_id')
+        .or('validation_issues.is.null,validation_issues->>hidden.neq.true')
         .order('created_at', { ascending: false })
-        .limit(5),
+        .limit(30),
+
+      supabase
+        .from('decision_threads')
+        .select('id, title, level, topic_cluster, updated_at, decision_signals(count)')
+        .not('level', 'in', '("decided","archived")')
+        .order('updated_at', { ascending: false }),
     ]);
 
     if (insightRes.error) {
@@ -359,14 +354,30 @@ export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps
 
     setInsights(processInsights((insightRes.data ?? []) as InsightRow[]));
     setPositions((positionRes.data ?? []) as PositionRow[]);
+
+    const rawThreads = (threadRes.data ?? []) as Record<string, unknown>[];
+    setThreads(rawThreads.map(t => {
+      const sigArr = t.decision_signals as { count: number }[] | undefined;
+      return {
+        id: t.id as string,
+        title: t.title as string,
+        level: t.level as string,
+        topic_cluster: t.topic_cluster as string | null,
+        updated_at: t.updated_at as string,
+        signal_count: sigArr?.[0]?.count ?? 0,
+      };
+    }));
+
     setLoading(false);
   };
 
   useEffect(() => { fetchAll(); }, []);
 
-  // Position actions
+  // Position actions — positions table has no status column yet,
+  // so we delete the row on accept/reject and remove from local state.
   const handleAccept = async (id: string) => {
-    await supabase.from('positions').update({ status: 'active' }).eq('id', id);
+    // TODO: when status column is added, update to 'active' instead of deleting
+    await supabase.from('positions').delete().eq('id', id);
     setPositions(p => p.filter(x => x.id !== id));
     showToast('Position accepted ✓');
   };
@@ -377,21 +388,28 @@ export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps
   };
 
   const handleReject = async (id: string) => {
-    await supabase.from('positions').update({ status: 'rejected' }).eq('id', id);
+    await supabase.from('positions').delete().eq('id', id);
     setPositions(p => p.filter(x => x.id !== id));
     showToast('Position rejected');
   };
 
   const handleDefer = async (id: string) => {
-    const deferUntil = new Date();
-    deferUntil.setDate(deferUntil.getDate() + 7);
-    await supabase.from('positions').update({ status: 'deferred' }).eq('id', id);
+    // Remove from view — no status column to set deferred
     setPositions(p => p.filter(x => x.id !== id));
-    showToast('Deferred 7 days →');
+    showToast('Deferred (hidden this session)');
   };
 
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const hasPositions = positions.length > 0;
+
+  const sortedThreads = [...threads].sort((a, b) => {
+    if (a.level === 'monitoring' && b.level !== 'monitoring') return -1;
+    if (b.level === 'monitoring' && a.level !== 'monitoring') return 1;
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  });
+
+  const radarPositions = positions.filter(p => !p.decision_thread_id);
+  const hasThreads = sortedThreads.length > 0;
+  const hasRadar = radarPositions.length > 0;
 
   return (
     <div className="flex flex-col h-full relative">
@@ -435,11 +453,36 @@ export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps
 
         ) : (
           <>
-            {/* POSITIONS FOR REVIEW */}
-            {hasPositions && (
+            {/* ACTIVE DECISIONS */}
+            {hasThreads ? (
               <div className="mb-2">
-                <SectionHeader label="Positions for Review" count={positions.length} />
-                {positions.map(p => (
+                <SectionHeader label="Active Decisions" count={sortedThreads.length} />
+                {sortedThreads.map(t => (
+                  <WorkspaceCard
+                    key={t.id}
+                    thread={t}
+                    onClick={(id) => onOpenWorkspace?.(id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="mb-6 rounded-xl border border-dashed border-border px-4 py-6 text-center">
+                <p className="text-[13px] text-muted-foreground">
+                  Start a conversation with AUO about a decision you're evaluating to create your first workspace.
+                </p>
+              </div>
+            )}
+
+            {/* Divider */}
+            {hasRadar && (
+              <div className="border-t border-border my-6" />
+            )}
+
+            {/* RADAR */}
+            {hasRadar && (
+              <div className="mb-2">
+                <SectionHeader label="Radar" count={radarPositions.length} />
+                {radarPositions.map(p => (
                   <PositionCard
                     key={p.id}
                     position={p}
@@ -452,8 +495,8 @@ export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps
               </div>
             )}
 
-            {/* Divider */}
-            {hasPositions && insights.length > 0 && (
+            {/* Divider before signals */}
+            {(hasThreads || hasRadar) && insights.length > 0 && (
               <div className="border-t border-border my-6" />
             )}
 
@@ -472,8 +515,8 @@ export function PrimarySurface({ onOpenInsight, onDiscuss }: PrimarySurfaceProps
               </div>
             )}
 
-            {/* Empty state — no positions, no insights */}
-            {!hasPositions && insights.length === 0 && (
+            {/* Empty state — nothing at all */}
+            {!hasThreads && !hasRadar && insights.length === 0 && (
               <div className="flex flex-col items-center justify-center mt-20 gap-2">
                 <p className="text-sm text-muted-foreground">No intelligence yet.</p>
                 <p className="text-xs text-muted-foreground/60">Check back after the next scan.</p>

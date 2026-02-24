@@ -86,7 +86,6 @@ export function ChatView({
     const responderUrl = import.meta.env.VITE_RESPONDER_URL;
     if (!responderUrl) return;
 
-    const userId = localStorage.getItem('userId') ?? undefined;
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -94,6 +93,9 @@ export function ChatView({
 
     (async () => {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id ?? localStorage.getItem('userId') ?? undefined;
+
         const response = await fetch(responderUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -180,7 +182,7 @@ export function ChatView({
 
   const handleSend = async (retryText?: string) => {
     const text = retryText ?? input.trim();
-    if (!text || typing || isStreaming) return;
+    if (!text || typing) return;
 
     setSendError(false);
     lastFailedTextRef.current = null;
@@ -212,7 +214,9 @@ export function ChatView({
     setIsStreaming(false);
 
     try {
-      const userId = localStorage.getItem('userId') ?? undefined;
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id ?? localStorage.getItem('userId') ?? undefined;
+
       const response = await fetch(responderUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -425,7 +429,7 @@ export function ChatView({
               onKeyDown={handleKeyDown}
               placeholder="Reply to AUO..."
               rows={1}
-              disabled={typing || isStreaming}
+              disabled={typing}
               className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none overflow-y-auto disabled:opacity-50"
               style={{ maxHeight: inputExpanded ? '120px' : '38px' }}
             />
@@ -437,7 +441,7 @@ export function ChatView({
             </button>
             <button
               onClick={() => handleSend()}
-              disabled={!input.trim() || typing || isStreaming}
+              disabled={!input.trim() || typing}
               className="p-2.5 rounded-lg bg-accent text-foreground hover:bg-accent/80 transition-colors disabled:opacity-40"
             >
               <Send className="h-4 w-4" />
@@ -527,26 +531,27 @@ function MessageBubble({
           </div>
         )}
 
-        {/* Build Position button (from message data) */}
-        {message.showBuildButton && !showInlineBuild && (
-          <button
-            onClick={onBuildPosition}
-            className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
-          >
-            Build Position ✦
-          </button>
-        )}
-
-        {/* Inline build button (appended to last assistant bubble) */}
-        {showInlineBuild && (
-          <button
-            onClick={onBuildClick}
-            className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
-          >
-            Build Position →
-          </button>
-        )}
       </div>
+
+      {/* Build Position button — outside bubble */}
+      {message.showBuildButton && !showInlineBuild && (
+        <button
+          onClick={onBuildPosition}
+          className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
+        >
+          Build Position →
+        </button>
+      )}
+
+      {/* Inline build button — outside bubble, below last assistant msg */}
+      {showInlineBuild && (
+        <button
+          onClick={onBuildClick}
+          className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerging/15 text-emerging text-xs font-semibold hover:bg-emerging/25 transition-colors"
+        >
+          Build Position →
+        </button>
+      )}
     </div>
   );
 }

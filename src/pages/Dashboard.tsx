@@ -12,13 +12,14 @@ import { TopicDetailPanel } from '@/components/views/TopicDetailPanel';
 import { InsightDetailPanel } from '@/components/views/InsightDetailPanel';
 import { PositionStarter } from '@/components/views/PositionStarter';
 import { SingleSignalPanel } from '@/components/views/SingleSignalPanel';
+import { WorkspaceView } from '@/components/views/WorkspaceView';
 import {
   LENS_LABELS, LENS_DESCRIPTIONS, LENS_MESSAGE,
   type MockChatMessage, type LensType, type MockTopic, type TopicInsight,
 } from '@/data/mock';
 
 
-type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'signal_detail' | 'generating' | 'position_active' | 'position_starter';
+type RightPanelView = 'briefing' | 'topic_detail' | 'insight_detail' | 'signal_detail' | 'generating' | 'position_active' | 'position_starter' | 'workspace_view';
 
 type DevState =
   | 'session_open'
@@ -77,6 +78,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
   const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [insightSourceName, setInsightSourceName] = useState("Today's Briefing");
 
   // Position panel state (used when rightView = generating | position_active)
@@ -145,6 +147,11 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const handleOpenSignal = (signalId: string) => {
     setSelectedSignalId(signalId);
     setRightView('signal_detail');
+  };
+
+  const handleOpenWorkspace = (threadId: string) => {
+    setSelectedThreadId(threadId);
+    setRightView('workspace_view');
   };
 
   // Build position — open PositionStarter with context
@@ -430,6 +437,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                   {rightView === 'signal_detail' && "Signal"}
                   {rightView === 'generating' && "Building"}
                   {rightView === 'position_active' && "Position"}
+                  {rightView === 'workspace_view' && "Workspace"}
                 </span>
                 <button
                   onClick={() => setRightCollapsed(true)}
@@ -448,6 +456,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                   <PrimarySurface
                     onOpenInsight={(id) => handleOpenInsight(id)}
                     onDiscuss={handleDiscuss}
+                    onOpenWorkspace={handleOpenWorkspace}
                   />
                 )}
 
@@ -455,6 +464,13 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                   <SingleSignalPanel
                     signalId={selectedSignalId}
                     onBack={handleBackToBriefing}
+                  />
+                )}
+
+                {rightView === 'workspace_view' && selectedThreadId && (
+                  <WorkspaceView
+                    threadId={selectedThreadId}
+                    onClose={handleBackToBriefing}
                   />
                 )}
 

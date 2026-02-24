@@ -36,6 +36,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
       .from('positions')
       .select('*')
       .eq('user_id', userId)
+      .or('validation_issues.is.null,validation_issues->>hidden.neq.true')
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -118,6 +119,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         .select('*')
         .eq('user_id', userId)
         .eq('conversation_id', conversationId)
+        .or('validation_issues.is.null,validation_issues->>hidden.neq.true')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
