@@ -37,7 +37,7 @@ export function WorkspaceCard({ thread, onClick }: WorkspaceCardProps) {
     <div
       onClick={() => onClick(thread.id)}
       className={cn(
-        'rounded-xl border border-border border-l-[3px] hover:border-muted-foreground/30 hover:shadow-sm',
+        'rounded-xl border border-border border-l-[3px] hover:border-l-4 hover:border-muted-foreground/30 hover:shadow-sm',
         'bg-background transition-all duration-150 cursor-pointer mb-2 overflow-hidden',
         level.border
       )}

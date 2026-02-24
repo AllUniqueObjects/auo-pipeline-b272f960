@@ -340,7 +340,7 @@ export function PrimarySurface({ onOpenInsight, onDiscuss, onOpenWorkspace }: Pr
 
       supabase
         .from('decision_threads')
-        .select('id, title, level, topic_cluster, updated_at, decision_signals(count)')
+        .select('id, title, level, topic_cluster, updated_at')
         .not('level', 'in', '("decided","archived")')
         .order('updated_at', { ascending: false }),
     ]);
@@ -355,18 +355,31 @@ export function PrimarySurface({ onOpenInsight, onDiscuss, onOpenWorkspace }: Pr
     setInsights(processInsights((insightRes.data ?? []) as InsightRow[]));
     setPositions((positionRes.data ?? []) as PositionRow[]);
 
-    const rawThreads = (threadRes.data ?? []) as Record<string, unknown>[];
-    setThreads(rawThreads.map(t => {
-      const sigArr = t.decision_signals as { count: number }[] | undefined;
-      return {
-        id: t.id as string,
-        title: t.title as string,
-        level: t.level as string,
-        topic_cluster: t.topic_cluster as string | null,
-        updated_at: t.updated_at as string,
-        signal_count: sigArr?.[0]?.count ?? 0,
-      };
-    }));
+    const threadsData = (threadRes.data ?? []) as Record<string, unknown>[];
+    const threadIds = threadsData.map(t => t.id as string);
+
+    // Fetch signal counts separately (embedded aggregation breaks with anon key)
+    let signalCountMap: Record<string, number> = {};
+    if (threadIds.length > 0) {
+      const { data: signalCountData } = await supabase
+        .from('decision_signals')
+        .select('decision_thread_id')
+        .in('decision_thread_id', threadIds);
+      signalCountMap = (signalCountData ?? []).reduce((acc, row) => {
+        const key = (row as Record<string, unknown>).decision_thread_id as string;
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+    }
+
+    setThreads(threadsData.map(t => ({
+      id: t.id as string,
+      title: t.title as string,
+      level: t.level as string,
+      topic_cluster: t.topic_cluster as string | null,
+      updated_at: t.updated_at as string,
+      signal_count: signalCountMap[t.id as string] ?? 0,
+    })));
 
     setLoading(false);
   };
