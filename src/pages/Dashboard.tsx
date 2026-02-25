@@ -80,6 +80,8 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [insightSourceName, setInsightSourceName] = useState("Today's Briefing");
+  const [signalSourceView, setSignalSourceView] = useState<'briefing' | 'workspace'>('briefing');
+  const [signalBackLabel, setSignalBackLabel] = useState<string | null>(null);
 
   // Position panel state (used when rightView = generating | position_active)
   const [positionState, setPositionState] = useState<PositionState>('empty');
@@ -144,8 +146,9 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
     setRightView('insight_detail');
   };
 
-  const handleOpenSignal = (signalId: string) => {
+  const handleOpenSignal = (signalId: string, source?: 'briefing' | 'workspace') => {
     setSelectedSignalId(signalId);
+    setSignalSourceView(source ?? 'briefing');
     setRightView('signal_detail');
   };
 
@@ -401,6 +404,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                 onOpenSignal={handleOpenSignal}
                 isBuildingPosition={isGenerating}
                 positionReady={rightView === 'position_active'}
+                activeThreadId={selectedThreadId}
               />
             </div>
           )
@@ -463,7 +467,14 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                 {rightView === 'signal_detail' && selectedSignalId && (
                   <SingleSignalPanel
                     signalId={selectedSignalId}
-                    onBack={handleBackToBriefing}
+                    backLabel={signalSourceView === 'workspace' && signalBackLabel ? signalBackLabel : undefined}
+                    onBack={() => {
+                      if (signalSourceView === 'workspace' && selectedThreadId) {
+                        setRightView('workspace_view');
+                      } else {
+                        handleBackToBriefing();
+                      }
+                    }}
                   />
                 )}
 
@@ -471,6 +482,11 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
                   <WorkspaceView
                     threadId={selectedThreadId}
                     onClose={handleBackToBriefing}
+                    onOpenSignal={(id, meta) => {
+                      setSignalBackLabel(meta?.backLabel ?? null);
+                      handleOpenSignal(id, 'workspace');
+                    }}
+                    onDiscuss={handleDiscuss}
                   />
                 )}
 

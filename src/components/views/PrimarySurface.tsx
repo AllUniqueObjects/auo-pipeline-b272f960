@@ -334,7 +334,7 @@ export function PrimarySurface({ onOpenInsight, onDiscuss, onOpenWorkspace }: Pr
       supabase
         .from('positions')
         .select('id, title, position_essence, tone, sections, created_at, validation_issues, decision_thread_id')
-        .or('validation_issues.is.null,validation_issues->>hidden.neq.true')
+        .or('validation_issues.is.null,validation_issues->>hidden.is.null,validation_issues->>hidden.neq.true')
         .order('created_at', { ascending: false })
         .limit(30),
 

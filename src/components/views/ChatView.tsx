@@ -30,6 +30,7 @@ interface ChatViewProps {
   onOpenSignal?: (signalId: string) => void;
   isBuildingPosition?: boolean;
   positionReady?: boolean;
+  activeThreadId?: string | null;
 }
 
 export function ChatView({
@@ -44,6 +45,7 @@ export function ChatView({
   onOpenSignal,
   isBuildingPosition = false,
   positionReady = false,
+  activeThreadId = null,
 }: ChatViewProps) {
 
   const [input, setInput] = useState('');
@@ -105,6 +107,7 @@ export function ChatView({
             session_type: 'briefing',
             user_id: userId,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            active_thread_id: activeThreadId ?? undefined,
           }),
           signal: controller.signal,
         });
@@ -220,7 +223,7 @@ export function ChatView({
       const response = await fetch(responderUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, session_type: 'follow_up', user_id: userId }),
+        body: JSON.stringify({ message: text, history, session_type: 'follow_up', user_id: userId, active_thread_id: activeThreadId ?? undefined }),
         signal: abortRef.current.signal,
       });
 
