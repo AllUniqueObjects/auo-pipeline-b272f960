@@ -4,46 +4,15 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimePosition } from '@/hooks/usePositionRealtime';
+import { parseSections, type SignalEvidence, type SignalSource } from '@/lib/position-utils';
 
 export type PositionState = 'empty' | 'generating' | 'active';
-
-// New sections shape
-interface KeyNumber {
-  value: string;
-  label: string;
-}
 
 interface RawSource {
   domain?: string;
   url?: string;
   title?: string;
   source_date?: string | null;
-}
-
-interface SignalSource {
-  name: string;
-  url: string;
-  date?: string | null;
-}
-
-interface SignalEvidence {
-  title: string;
-  credibility: number;
-  one_liner: string;
-  sources?: SignalSource[];
-}
-
-interface PositionSections {
-  key_numbers?: KeyNumber[];
-  memo?: string;
-  signal_evidence?: SignalEvidence[];
-}
-
-// Legacy section shape (backward compat)
-interface LegacySection {
-  title: string;
-  content: string;
-  signal_refs?: string[];
 }
 
 interface PositionPanelProps {
@@ -53,27 +22,6 @@ interface PositionPanelProps {
   onToggleCollapse: () => void;
   activeLens?: string;
   onBack?: () => void;
-}
-
-function parseSections(raw: unknown): { parsed: PositionSections | null; legacy: LegacySection[] | null } {
-  if (!raw) return { parsed: null, legacy: null };
-
-  let obj: unknown = raw;
-  if (typeof raw === 'string') {
-    try { obj = JSON.parse(raw); } catch { return { parsed: null, legacy: null }; }
-  }
-
-  // Legacy: array of {title, content}
-  if (Array.isArray(obj)) {
-    return { parsed: null, legacy: obj as LegacySection[] };
-  }
-
-  // New format: object with key_numbers, memo, signal_evidence
-  if (typeof obj === 'object' && obj !== null) {
-    return { parsed: obj as PositionSections, legacy: null };
-  }
-
-  return { parsed: null, legacy: null };
 }
 
 export function PositionPanel({ state, position, collapsed, onToggleCollapse, onBack }: PositionPanelProps) {
@@ -193,9 +141,13 @@ function GeneratingState({ onRetry }: { onRetry?: () => void }) {
 }
 
 const TONE_CONFIG: Record<string, { dot: string; label: string }> = {
-  decisive:    { dot: 'bg-tier-breaking',   label: 'LOCKING' },
-  conditional: { dot: 'bg-tier-developing', label: 'EVALUATING' },
-  exploratory: { dot: 'bg-blue-400',        label: 'EXPLORING' },
+  'BREAKING':    { dot: 'bg-red-500',         label: 'BREAKING' },
+  'ACT NOW':     { dot: 'bg-tier-breaking',   label: 'ACT NOW' },
+  'WATCH':       { dot: 'bg-tier-developing', label: 'WATCH' },
+  'CONSIDER':    { dot: 'bg-blue-400',        label: 'CONSIDER' },
+  decisive:      { dot: 'bg-tier-breaking',   label: 'ACT NOW' },
+  conditional:   { dot: 'bg-tier-developing', label: 'WATCH' },
+  exploratory:   { dot: 'bg-blue-400',        label: 'CONSIDER' },
 };
 
 function ActiveState({

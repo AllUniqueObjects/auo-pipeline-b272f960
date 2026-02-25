@@ -38,9 +38,13 @@ const URGENCY_BADGE: Record<string, { bg: string; label: string }> = {
 };
 
 const TONE_CONFIG: Record<string, { bg: string; border: string; color: string; label: string }> = {
-  decisive:    { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a', label: 'DECISIVE' },
-  conditional: { bg: '#fffbeb', border: '#fde68a', color: '#b45309', label: 'CONDITIONAL' },
-  exploratory: { bg: '#f8fafc', border: '#e2e8f0', color: '#64748b', label: 'EXPLORATORY' },
+  'BREAKING':    { bg: '#fef2f2', border: '#fecaca', color: '#dc2626', label: 'BREAKING' },
+  'ACT NOW':     { bg: '#fff7ed', border: '#fed7aa', color: '#ea580c', label: 'ACT NOW' },
+  'WATCH':       { bg: '#fffbeb', border: '#fde68a', color: '#b45309', label: 'WATCH' },
+  'CONSIDER':    { bg: '#eff6ff', border: '#bfdbfe', color: '#2563eb', label: 'CONSIDER' },
+  decisive:      { bg: '#fff7ed', border: '#fed7aa', color: '#ea580c', label: 'ACT NOW' },
+  conditional:   { bg: '#fffbeb', border: '#fde68a', color: '#b45309', label: 'WATCH' },
+  exploratory:   { bg: '#eff6ff', border: '#bfdbfe', color: '#2563eb', label: 'CONSIDER' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
