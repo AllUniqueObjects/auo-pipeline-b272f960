@@ -195,12 +195,38 @@ export function WorkspaceView({ threadId, onClose, onOpenSignal, onDiscuss }: Wo
     toast({ title: 'Position accepted', description: 'Removed from active decisions.' });
   };
 
-  const handleReject = async (id: string) => {
-    await supabase.from('positions').delete().eq('id', id);
+  const handleReject = async (id: string, reason: string) => {
+    const { data: existing } = await supabase
+      .from('positions')
+      .select('validation_issues')
+      .eq('id', id)
+      .single();
+
+    const currentIssues = Array.isArray(existing?.validation_issues)
+      ? existing.validation_issues
+      : [];
+
+    await supabase
+      .from('positions')
+      .update({
+        validation_issues: {
+          hidden: true,
+          issues: [
+            ...currentIssues,
+            {
+              type: 'user_rejected',
+              reason: reason.trim() || 'No reason provided',
+              rejected_at: new Date().toISOString(),
+            },
+          ],
+        },
+      })
+      .eq('id', id);
+
     setPositions(prev => prev.filter(p => p.id !== id));
     setSelectedPositionId(null);
     setSelectedPosition(null);
-    toast({ title: 'Position rejected', description: 'Removed from active decisions.' });
+    toast({ title: 'Position rejected', description: reason.trim() ? 'AUO will avoid this angle next time.' : 'Removed from active decisions.' });
   };
 
   const handleDefer = (id: string) => {
@@ -286,7 +312,7 @@ export function WorkspaceView({ threadId, onClose, onOpenSignal, onDiscuss }: Wo
             <PositionDetail
               position={selectedPosition}
               onAccept={() => handleAccept(selectedPosition.id)}
-              onReject={() => handleReject(selectedPosition.id)}
+              onReject={(reason: string) => handleReject(selectedPosition.id, reason)}
               onDefer={() => handleDefer(selectedPosition.id)}
               onRevise={handleRevise}
             />
@@ -484,10 +510,12 @@ function PositionDetail({
 }: {
   position: FullPosition;
   onAccept: () => void;
-  onReject: () => void;
+  onReject: (reason: string) => void;
   onDefer: () => void;
   onRevise: () => void;
 }) {
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const tone = TONE_CONFIG[(position.tone ?? '').toLowerCase()] ?? null;
   const timestamp = position.created_at
     ? new Date(position.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -604,31 +632,60 @@ function PositionDetail({
       )}
 
       {/* Action buttons */}
-      <div className="flex items-center gap-2 border-t border-border/40 pt-4">
-        <button
-          onClick={onAccept}
-          className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-        >
-          Accept
-        </button>
-        <button
-          onClick={onRevise}
-          className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-accent/50 transition-colors"
-        >
-          Revise
-        </button>
-        <button
-          onClick={onReject}
-          className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-        >
-          Reject
-        </button>
-        <button
-          onClick={onDefer}
-          className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-accent/50 transition-colors"
-        >
-          Defer
-        </button>
+      <div className="border-t border-border/40 pt-4">
+        {rejecting ? (
+          <div>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Why reject? (optional — helps AUO learn)"
+              className="w-full px-2.5 py-2 text-[13px] border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              style={{ height: 64, fontFamily: 'inherit' }}
+              autoFocus
+            />
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={() => { onReject(rejectReason); setRejecting(false); setRejectReason(''); }}
+                className="text-[11px] font-medium px-3 py-1.5 rounded-md bg-foreground text-background hover:opacity-90 transition-opacity"
+              >
+                Confirm reject
+              </button>
+              <button
+                onClick={() => { setRejecting(false); setRejectReason(''); }}
+                className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-accent/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onAccept}
+              className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+            >
+              Accept
+            </button>
+            <button
+              onClick={onRevise}
+              className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-accent/50 transition-colors"
+            >
+              Revise
+            </button>
+            <button
+              onClick={() => setRejecting(true)}
+              className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+            >
+              Reject
+            </button>
+            <button
+              onClick={onDefer}
+              className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:bg-accent/50 transition-colors"
+            >
+              Defer
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -405,7 +405,33 @@ export function PrimarySurface({ onOpenInsight, onDiscuss, onOpenWorkspace }: Pr
   };
 
   const handleReject = async (id: string) => {
-    await supabase.from('positions').delete().eq('id', id);
+    const { data: existing } = await supabase
+      .from('positions')
+      .select('validation_issues')
+      .eq('id', id)
+      .single();
+
+    const currentIssues = Array.isArray(existing?.validation_issues)
+      ? existing.validation_issues
+      : [];
+
+    await supabase
+      .from('positions')
+      .update({
+        validation_issues: {
+          hidden: true,
+          issues: [
+            ...currentIssues,
+            {
+              type: 'user_rejected',
+              reason: 'No reason provided',
+              rejected_at: new Date().toISOString(),
+            },
+          ],
+        },
+      })
+      .eq('id', id);
+
     setPositions(p => p.filter(x => x.id !== id));
     showToast('Position rejected');
   };
