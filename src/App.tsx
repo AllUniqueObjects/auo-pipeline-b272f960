@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import AuthPage from './pages/AuthPage';
-import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
+import AlertSources from './pages/AlertSources';
 
 function AppWithAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -40,7 +40,13 @@ function AppWithAuth() {
     return <AuthPage />;
   }
 
-  return <Dashboard />;
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/alert-sources" element={<AlertSources />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
 const App = () => (
