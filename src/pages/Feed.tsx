@@ -450,19 +450,71 @@ function BreakingCard({ thread, onOpen }: { thread: DecisionThread; onOpen: (id:
 // ─── New Decision Modal ───────────────────────────────────────────────────────
 
 function NewDecisionModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
   const [input, setInput] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [messages, setMessages] = useState<{ role: 'auo' | 'user'; text: string }[]>([
     { role: 'auo', text: "What's important to you this week?" },
   ]);
   const PILLS = ['Tariff impact', 'New certification', 'Supplier decision', 'Innovation watch', 'Sourcing risk'];
-  const handleSend = () => {
-    if (!input.trim()) return;
-    setMessages(prev => [...prev, { role: 'user', text: input }]);
+  const handleSend = async () => {
+    const query = input.trim();
+    if (!query || submitting) return;
+    setMessages(prev => [...prev, { role: 'user', text: query }]);
     setInput('');
-    setTimeout(() => {
+    setSubmitting(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSubmitting(false); return; }
+
+      // Check for existing active thread with similar title
+      const searchWords = query.split(' ').slice(0, 4).join('%');
+      const { data: existing } = await supabase
+        .from('decision_threads')
+        .select('id, title')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .ilike('title', `%${searchWords}%`)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        console.log(`[NewDecision] Thread already exists: ${existing[0].title}`);
+        setMessages(prev => [...prev, { role: 'auo', text: `You already have "${existing[0].title}" — opening it now.` }]);
+        setTimeout(() => { onClose(); navigate(`/workspace/${existing[0].id}`); }, 1200);
+        return;
+      }
+
+      // Create new thread
+      const { data: thread, error } = await supabase
+        .from('decision_threads')
+        .insert({
+          user_id: user.id,
+          title: query,
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (error || !thread) {
+        console.error('[NewDecision] Failed to create thread:', error);
+        setMessages(prev => [...prev, { role: 'auo', text: 'Something went wrong. Try again.' }]);
+        setSubmitting(false);
+        return;
+      }
+
+      // Trigger scan_priority
+      supabase.functions.invoke('scan_priority', { body: { thread_id: thread.id } }).catch(err =>
+        console.warn('[NewDecision] scan_priority invoke failed (non-blocking):', err)
+      );
+
       setMessages(prev => [...prev, { role: 'auo', text: "Got it. I'll start monitoring this and build your first positions. Give me a few minutes." }]);
-      setTimeout(onClose, 2000);
-    }, 800);
+      setTimeout(() => { onClose(); navigate(`/workspace/${thread.id}`); }, 2000);
+    } catch (err) {
+      console.error('[NewDecision] Error:', err);
+      setMessages(prev => [...prev, { role: 'auo', text: 'Something went wrong. Try again.' }]);
+      setSubmitting(false);
+    }
   };
   return (
     <>
@@ -486,7 +538,7 @@ function NewDecisionModal({ onClose }: { onClose: () => void }) {
         </div>
         <div style={{ padding: '0 20px 20px', display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Or describe what you want to track..." style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 12, padding: '10px 14px', fontSize: 14, resize: 'none', height: 44, fontFamily: 'inherit', outline: 'none', color: '#111', lineHeight: 1.5, transition: 'border-color 0.15s' }} onFocus={e => (e.currentTarget.style.borderColor = '#111')} onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')} />
-          <button onClick={handleSend} disabled={!input.trim()} style={{ background: input.trim() ? '#111' : '#e5e7eb', color: input.trim() ? '#fff' : '#9ca3af', border: 'none', borderRadius: 10, width: 44, height: 44, fontSize: 18, cursor: input.trim() ? 'pointer' : 'default', flexShrink: 0, transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>→</button>
+          <button onClick={handleSend} disabled={!input.trim() || submitting} style={{ background: input.trim() && !submitting ? '#111' : '#e5e7eb', color: input.trim() && !submitting ? '#fff' : '#9ca3af', border: 'none', borderRadius: 10, width: 44, height: 44, fontSize: 18, cursor: input.trim() && !submitting ? 'pointer' : 'default', flexShrink: 0, transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{submitting ? '…' : '→'}</button>
         </div>
       </div>
     </>
@@ -575,7 +627,10 @@ export default function Feed() {
   };
   const handleOpen = (threadId: string) => navigate(`/workspace/${threadId}`);
 
-  const filteredThreads = threads.filter(t => {
+  // Hide threads with no visible position (still building)
+  const renderableThreads = threads.filter(t => t.latest_position !== null);
+
+  const filteredThreads = renderableThreads.filter(t => {
     if (activeFilter === 'all') return true;
     const tone = t.latest_position?.tone || 'CONSIDER';
     if (activeFilter === 'ACT NOW') return ['ACT_NOW', 'ACT NOW', 'BREAKING'].includes(tone);
