@@ -6,9 +6,10 @@ import { SignalCard, type SignalCardData } from './SignalCard';
 interface SingleSignalPanelProps {
   signalId: string;
   onBack: () => void;
+  backLabel?: string;
 }
 
-export function SingleSignalPanel({ signalId, onBack }: SingleSignalPanelProps) {
+export function SingleSignalPanel({ signalId, onBack, backLabel }: SingleSignalPanelProps) {
   const [signal, setSignal] = useState<SignalCardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -66,10 +67,10 @@ export function SingleSignalPanel({ signalId, onBack }: SingleSignalPanelProps) 
     <div className="h-full overflow-y-auto px-4 py-6">
       <button
         onClick={onBack}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors truncate max-w-[300px]"
       >
-        <ArrowLeft className="h-3 w-3" />
-        Back
+        <ArrowLeft className="h-3 w-3 flex-shrink-0" />
+        {backLabel ?? 'Back'}
       </button>
       <SignalCard signal={signal} expanded onToggle={() => {}} />
     </div>

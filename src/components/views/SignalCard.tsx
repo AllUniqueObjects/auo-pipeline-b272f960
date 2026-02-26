@@ -45,7 +45,7 @@ function parseNbRelevance(raw: string | null | undefined): { dotColor: string | 
   return { dotColor: '#aaa', text: raw };
 }
 
-function credBarColor(cred: number): string {
+export function credBarColor(cred: number): string {
   if (cred > 0.6) return '#27ae60';
   if (cred >= 0.3) return '#f39c12';
   return '#c0392b';
