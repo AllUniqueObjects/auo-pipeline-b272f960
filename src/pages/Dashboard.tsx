@@ -44,9 +44,10 @@ const DEV_STATES: DevState[] = [
 interface DashboardProps {
   initialLens?: LensType;
   justCompletedOnboarding?: boolean;
+  initialThreadId?: string;
 }
 
-export default function Dashboard({ initialLens, justCompletedOnboarding }: DashboardProps) {
+export default function Dashboard({ initialLens, justCompletedOnboarding, initialThreadId }: DashboardProps) {
   const isMobile = useIsMobile();
   const userId = localStorage.getItem('userId');
   const [lastConversationId, setLastConversationId] = useState<string | null>(null);
@@ -73,12 +74,12 @@ export default function Dashboard({ initialLens, justCompletedOnboarding }: Dash
   const [leftCollapsed, setLeftCollapsed] = useState(false);
 
   // Right panel view state machine
-  const [rightView, setRightView] = useState<RightPanelView>('briefing');
+  const [rightView, setRightView] = useState<RightPanelView>(initialThreadId ? 'workspace_view' : 'briefing');
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
   const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreadId ?? null);
   const [insightSourceName, setInsightSourceName] = useState("Today's Briefing");
   const [signalSourceView, setSignalSourceView] = useState<'briefing' | 'workspace'>('briefing');
   const [signalBackLabel, setSignalBackLabel] = useState<string | null>(null);
