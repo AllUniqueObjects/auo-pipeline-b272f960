@@ -102,8 +102,8 @@ function getUrgencyReason(tone: string, position: DecisionThread['latest_positio
 
 interface CardProps {
   thread: DecisionThread;
-  onAccept: (positionId: string) => void;
-  onReject: (positionId: string, reason?: string) => void;
+  onAccept: (positionId: string, threadId: string) => void;
+  onReject: (positionId: string, threadId: string, reason?: string) => void;
   onOpen: (threadId: string) => void;
 }
 
@@ -114,6 +114,7 @@ function ThreadCard({ thread, onAccept, onReject, onOpen }: CardProps) {
   const [rejectReason, setRejectReason] = useState('');
   const [imageLoaded, setImageLoaded] = useState(false);
   const [done, setDone] = useState(false);
+  const [accepting, setAccepting] = useState(false);
 
   if (done) return null;
 
@@ -294,7 +295,7 @@ function ThreadCard({ thread, onAccept, onReject, onOpen }: CardProps) {
                 />
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                   <button
-                    onClick={() => { onReject(position.id, rejectReason); setDone(true); }}
+                    onClick={() => { onReject(position.id, thread.id, rejectReason); setDone(true); }}
                     style={{
                       flex: 1, background: 'rgba(255,255,255,0.9)',
                       color: '#111', border: 'none', borderRadius: 7,
@@ -314,29 +315,41 @@ function ThreadCard({ thread, onAccept, onReject, onOpen }: CardProps) {
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => { onAccept(position.id); setDone(true); }}
-                  style={{
-                    flex: 1, background: 'rgba(255,255,255,0.15)',
-                    border: '1px solid rgba(255,255,255,0.35)',
-                    color: '#fff', borderRadius: 8, padding: '8px 0',
-                    ...T.cardBtn, cursor: 'pointer', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-                >Accept</button>
-                <button
-                  onClick={() => setRejectingId(position.id)}
-                  style={{
-                    flex: 1, background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: 8, padding: '8px 0',
-                    ...T.cardBtn, color: 'rgba(255,255,255,0.5)',
-                    cursor: 'pointer', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >Reject</button>
+                {accepting ? (
+                  <div style={{
+                    flex: 1, background: 'rgba(255,255,255,0.92)', borderRadius: 8,
+                    padding: '8px 0', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 6, ...T.cardBtn, color: '#111',
+                  }}>
+                    <span>✓</span> Accepted
+                  </div>
+                ) : (
+                  <button
+                    onClick={async () => { setAccepting(true); await new Promise(r => setTimeout(r, 350)); onAccept(position.id, thread.id); }}
+                    style={{
+                      flex: 1, background: 'rgba(255,255,255,0.15)',
+                      border: '1px solid rgba(255,255,255,0.35)',
+                      color: '#fff', borderRadius: 8, padding: '8px 0',
+                      ...T.cardBtn, cursor: 'pointer', transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+                  >Accept</button>
+                )}
+                {!accepting && (
+                  <button
+                    onClick={() => setRejectingId(position.id)}
+                    style={{
+                      flex: 1, background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: 8, padding: '8px 0',
+                      ...T.cardBtn, color: 'rgba(255,255,255,0.5)',
+                      cursor: 'pointer', transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >Reject</button>
+                )}
               </div>
             )}
           </div>
@@ -500,9 +513,9 @@ export default function Feed() {
     if (!user) return;
     const { data: threadData } = await supabase
       .from('decision_threads')
-      .select('id, title, lens, key_question, cover_image_url, updated_at, level')
+      .select('id, title, lens, key_question, cover_image_url, updated_at, level, status')
       .eq('user_id', user.id)
-      .not('level', 'in', '("decided","archived")')
+      .eq('status', 'active')
       .order('updated_at', { ascending: false });
     if (!threadData) { setLoading(false); return; }
 
@@ -540,19 +553,25 @@ export default function Feed() {
 
   useEffect(() => { loadFeed(); const i = setInterval(loadFeed, 30000); return () => clearInterval(i); }, [loadFeed]);
 
-  const handleAccept = async (positionId: string) => {
-    await supabase.from('positions').update({ validated_at: new Date().toISOString() }).eq('id', positionId);
-    toast({ description: 'Position accepted' });
-    setTimeout(loadFeed, 500);
+  const handleAccept = async (positionId: string, threadId: string) => {
+    await supabase.from('positions').update({
+      status: 'accepted',
+      accepted_at: new Date().toISOString(),
+      validated_at: new Date().toISOString(),
+    }).eq('id', positionId);
+    navigate(`/workspace/${threadId}`);
   };
-  const handleReject = async (positionId: string, reason?: string) => {
+  const handleReject = async (positionId: string, threadId: string, reason?: string) => {
     const { data: existing } = await supabase.from('positions').select('validation_issues').eq('id', positionId).single();
     const currentIssues = (existing?.validation_issues as Record<string, unknown>)?.issues as unknown[] ?? [];
     await supabase.from('positions').update({
+      status: 'rejected',
+      rejected_at: new Date().toISOString(),
+      rejected_reason: reason || null,
       validation_issues: { hidden: true, issues: [...currentIssues, { type: 'user_rejected', reason: reason || 'No reason provided', rejected_at: new Date().toISOString() }] },
     }).eq('id', positionId);
     toast({ description: 'Position rejected — AUO will learn from this' });
-    setTimeout(loadFeed, 500);
+    setTimeout(loadFeed, 400);
   };
   const handleOpen = (threadId: string) => navigate(`/workspace/${threadId}`);
 
@@ -573,11 +592,11 @@ export default function Feed() {
   const nonBreaking = sortedThreads.filter(t => t.latest_position?.tone !== 'BREAKING');
 
   if (loading) {
-    return <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT }}><p style={{ color: '#9ca3af', fontSize: 14 }}>Loading…</p></div>;
+    return <div style={{ minHeight: '100vh', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT }}><p style={{ color: '#9ca3af', fontSize: 14 }}>Loading…</p></div>;
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f9fa', fontFamily: FONT }}>
+    <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: FONT }}>
 
       {/* HEADER */}
       <header style={{
