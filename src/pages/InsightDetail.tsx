@@ -254,6 +254,24 @@ const getMemoContent = (sections: unknown, reasoning: string | null, essence: st
   return reasoning || essence || '';
 };
 
+// ─── Signal dedup + URL filter ────────────────────────────────────────────────
+
+const dedupSignals = (sigs: Signal[]): Signal[] => {
+  const result: Signal[] = [];
+  for (const sig of sigs) {
+    const words = new Set(sig.title.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+    const isDupe = result.some(existing => {
+      const existWords = new Set(existing.title.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+      const smaller = Math.min(words.size, existWords.size);
+      if (smaller === 0) return false;
+      const overlap = [...words].filter(w => existWords.has(w)).length;
+      return overlap / smaller >= 0.8;
+    });
+    if (!isDupe) result.push(sig);
+  }
+  return result;
+};
+
 // ─── SignalTooltip ────────────────────────────────────────────────────────────
 
 function SignalTooltip({
@@ -438,6 +456,7 @@ export default function InsightDetail() {
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [hoveredSignal, setHoveredSignal] = useState<string | null>(null);
   const [hoveredExpand, setHoveredExpand] = useState(false);
+  const [hoveredCrossChecked, setHoveredCrossChecked] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -509,7 +528,9 @@ export default function InsightDetail() {
     );
   }
 
-  const visibleSignals = showAllSignals ? signals : signals.slice(0, 3);
+  // Fix 2: exclude signals without a source URL; Fix 4: dedup by title overlap
+  const filteredSignals = dedupSignals(signals.filter(s => getBestUrl(s.raw_sources) !== null));
+  const visibleSignals = showAllSignals ? filteredSignals : filteredSignals.slice(0, 3);
 
   // ─── Parse sections ──────────────────────────────────────────────────────
 
@@ -565,7 +586,7 @@ export default function InsightDetail() {
       {/* Sub-nav — back link */}
       <div style={{
         padding: '12px 24px',
-        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        borderBottom: 'none',
       }}>
         <button
           onClick={() => navigate('/')}
@@ -593,7 +614,7 @@ export default function InsightDetail() {
                 <span style={{ fontSize: 13, color: '#666' }}>{formatLens(thread.lens)}</span>
               )}
               <span style={{ fontSize: 13, color: '#aaa' }}>·</span>
-              <span style={{ fontSize: 13, color: '#aaa' }}>{signals.length} signal{signals.length !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 13, color: '#aaa' }}>{filteredSignals.length} signal{filteredSignals.length !== 1 ? 's' : ''}</span>
               <span style={{ fontSize: 13, color: '#aaa' }}>·</span>
               <span style={{ fontSize: 13, color: '#aaa' }}>{timeAgo(position.created_at)}</span>
             </div>
@@ -657,7 +678,20 @@ export default function InsightDetail() {
                   Signals
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>
-                  {position.signal_basis.signal_count} independent signal{position.signal_basis.signal_count !== 1 ? 's' : ''}
+                  {(() => {
+                    const sourceCount = position.signal_basis!.source_names?.length || 0;
+                    const signalCount = position.signal_basis!.signal_count;
+                    const sourceLabel = sourceCount >= 3
+                      ? `${sourceCount} independent sources`
+                      : sourceCount >= 2
+                      ? `${sourceCount} sources`
+                      : sourceCount === 1
+                      ? '1 source'
+                      : '';
+                    return sourceLabel
+                      ? `${sourceLabel} · ${signalCount} signal${signalCount !== 1 ? 's' : ''}`
+                      : `${signalCount} signal${signalCount !== 1 ? 's' : ''}`;
+                  })()}
                 </div>
               </div>
 
@@ -686,13 +720,42 @@ export default function InsightDetail() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
                   {([
-                    { label: 'Source quality', value: position.signal_basis.source_quality },
-                    { label: 'Recency', value: position.signal_basis.recency_score },
-                    { label: 'Convergence', value: position.signal_basis.convergence_score },
-                  ] as const).map(({ label, value }) => (
+                    { label: 'Source quality', key: 'source_quality', value: position.signal_basis.source_quality },
+                    { label: 'Recency', key: 'recency', value: position.signal_basis.recency_score },
+                    { label: 'Cross-checked', key: 'cross_checked', value: position.signal_basis.convergence_score },
+                  ] as const).map(({ label, key, value }) => (
                     <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: '#888', width: 110, flexShrink: 0 }}>
+                      <span
+                        style={{
+                          fontSize: 12, color: '#888', width: 110, flexShrink: 0,
+                          position: 'relative' as const,
+                          cursor: key === 'cross_checked' ? 'help' : 'default',
+                          borderBottom: key === 'cross_checked' ? '1px dotted #ccc' : 'none',
+                        }}
+                        onMouseEnter={() => key === 'cross_checked' && setHoveredCrossChecked(true)}
+                        onMouseLeave={() => key === 'cross_checked' && setHoveredCrossChecked(false)}
+                      >
                         {label}
+                        {key === 'cross_checked' && hoveredCrossChecked && (
+                          <span style={{
+                            position: 'absolute',
+                            bottom: 'calc(100% + 6px)',
+                            left: 0,
+                            width: 220,
+                            padding: '8px 10px',
+                            borderRadius: radius.sm,
+                            background: colors.text.primary.light,
+                            color: '#fff',
+                            fontSize: 11,
+                            lineHeight: 1.4,
+                            fontWeight: typography.weight.regular,
+                            boxShadow: shadow.md,
+                            zIndex: 10,
+                            pointerEvents: 'none' as const,
+                          }}>
+                            {filteredSignals.length} source{filteredSignals.length !== 1 ? 's' : ''} confirm this insight from different angles.
+                          </span>
+                        )}
                       </span>
                       <div style={{
                         flex: 1, height: 4, borderRadius: 2,
@@ -800,13 +863,13 @@ export default function InsightDetail() {
           )}
 
           {/* SIGNALS */}
-          {signals.length > 0 && (
+          {filteredSignals.length > 0 && (
             <div style={{ padding: 24 }}>
               <h3 style={{
                 fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
                 color: '#999', marginBottom: 16, textTransform: 'uppercase' as const,
               }}>
-                Signals ({signals.length})
+                Signals ({filteredSignals.length})
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -897,7 +960,7 @@ export default function InsightDetail() {
                 })}
               </div>
 
-              {signals.length > 3 && !showAllSignals && (
+              {filteredSignals.length > 3 && !showAllSignals && (
                 <button
                   onClick={() => setShowAllSignals(true)}
                   onMouseEnter={() => setHoveredExpand(true)}
@@ -911,7 +974,7 @@ export default function InsightDetail() {
                     transition: transition.base,
                   }}
                 >
-                  + {signals.length - 3} more signals
+                  + {filteredSignals.length - 3} more signals
                 </button>
               )}
             </div>
