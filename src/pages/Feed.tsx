@@ -197,11 +197,11 @@ function PositionCard({
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.06em',
-              color: '#fff',
+              color: colors.text.primary.dark,
             }}>
               <span className="auo-pulse-dot" style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: '#fff', display: 'inline-block',
+                background: colors.text.primary.dark, display: 'inline-block',
               }} />
               BREAKING
             </div>
@@ -260,7 +260,7 @@ function PositionCard({
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
-          color: '#fff',
+          color: colors.text.primary.dark,
           margin: 0,
           textShadow: '0 1px 8px rgba(0,0,0,0.4)',
         }}>
@@ -414,26 +414,26 @@ function NewTopicModal({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 100 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(600px, 90vw)', background: '#fff', borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)', zIndex: 101, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
-        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>Add topic</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, padding: '2px 6px', borderRadius: 6 }}>×</button>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(600px, 90vw)', background: colors.bg.light, borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)', zIndex: 101, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+        <div style={{ padding: '18px 20px 14px', borderBottom: `1px solid ${colors.border.light}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: colors.text.primary.light }}>Add topic</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.text.muted.light, fontSize: 18, padding: '2px 6px', borderRadius: 6 }}>×</button>
         </div>
         <div style={{ padding: '20px 20px 12px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {messages.map((msg, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{ maxWidth: '80%', background: msg.role === 'auo' ? '#f8f9fa' : '#111', color: msg.role === 'auo' ? '#111' : '#fff', borderRadius: msg.role === 'auo' ? '4px 16px 16px 16px' : '16px 4px 16px 16px', padding: '10px 14px', fontSize: 14, lineHeight: 1.5 }}>{msg.text}</div>
+              <div style={{ maxWidth: '80%', background: msg.role === 'auo' ? colors.bg.surface : colors.text.primary.light, color: msg.role === 'auo' ? colors.text.primary.light : colors.text.primary.dark, borderRadius: msg.role === 'auo' ? '4px 16px 16px 16px' : '16px 4px 16px 16px', padding: '10px 14px', fontSize: 14, lineHeight: 1.5 }}>{msg.text}</div>
             </div>
           ))}
         </div>
         <div style={{ padding: '0 20px 12px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {PILLS.map(pill => (
-            <button key={pill} onClick={() => setInput(pill)} style={{ background: input === pill ? '#111' : '#f3f4f6', color: input === pill ? '#fff' : '#374151', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}>{pill}</button>
+            <button key={pill} onClick={() => setInput(pill)} style={{ background: input === pill ? colors.text.primary.light : colors.bg.surface, color: input === pill ? colors.text.primary.dark : colors.text.secondary.light, border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: transition.fast }}>{pill}</button>
           ))}
         </div>
         <div style={{ padding: '0 20px 20px', display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Or describe what you want to track..." style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 12, padding: '10px 14px', fontSize: 14, resize: 'none', height: 44, fontFamily: 'inherit', outline: 'none', color: '#111', lineHeight: 1.5, transition: 'border-color 0.15s' }} onFocus={e => (e.currentTarget.style.borderColor = '#111')} onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')} />
-          <button onClick={handleSend} disabled={!input.trim() || submitting} style={{ background: input.trim() && !submitting ? '#111' : '#e5e7eb', color: input.trim() && !submitting ? '#fff' : '#9ca3af', border: 'none', borderRadius: 10, width: 44, height: 44, fontSize: 18, cursor: input.trim() && !submitting ? 'pointer' : 'default', flexShrink: 0, transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{submitting ? '…' : '→'}</button>
+          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Or describe what you want to track..." style={{ flex: 1, border: `1px solid ${colors.border.medium}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, resize: 'none', height: 44, fontFamily: 'inherit', outline: 'none', color: colors.text.primary.light, lineHeight: 1.5, transition: transition.fast }} onFocus={e => (e.currentTarget.style.borderColor = colors.text.primary.light)} onBlur={e => (e.currentTarget.style.borderColor = colors.border.medium)} />
+          <button onClick={handleSend} disabled={!input.trim() || submitting} style={{ background: input.trim() && !submitting ? colors.text.primary.light : colors.border.medium, color: input.trim() && !submitting ? colors.text.primary.dark : colors.text.muted.light, border: 'none', borderRadius: 10, width: 44, height: 44, fontSize: 18, cursor: input.trim() && !submitting ? 'pointer' : 'default', flexShrink: 0, transition: transition.fast, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{submitting ? '…' : '→'}</button>
         </div>
       </div>
     </>
@@ -586,39 +586,39 @@ export default function Feed() {
 
 
   if (loading) {
-    return <div style={{ minHeight: '100vh', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT }}><p style={{ color: '#9ca3af', fontSize: 14 }}>Loading…</p></div>;
+    return <div style={{ minHeight: '100vh', background: colors.bg.light, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT }}><p style={{ color: colors.text.muted.light, fontSize: 14 }}>Loading…</p></div>;
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: FONT }}>
+    <div style={{ minHeight: '100vh', background: colors.bg.light, fontFamily: FONT }}>
 
       {/* HEADER */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: '#fff', borderBottom: '1px solid #f0f0f0',
+        background: colors.bg.light, borderBottom: `1px solid ${colors.border.light}`,
         padding: '0 32px', height: 60,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ ...T.logo, color: '#111' }}>AUO</span>
+        <span style={{ ...T.logo, color: colors.text.primary.light }}>AUO</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 13, color: '#9ca3af' }}>
+          <span style={{ fontSize: 13, color: colors.text.muted.light }}>
             {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
           <button
             onClick={() => setShowNewTopic(true)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: '#111', color: '#fff', border: 'none',
+              background: colors.text.primary.light, color: colors.text.primary.dark, border: 'none',
               borderRadius: 20, padding: '8px 18px',
-              ...T.newBtn, cursor: 'pointer', transition: 'background 0.15s',
+              ...T.newBtn, cursor: 'pointer', transition: transition.fast,
             }}
             onMouseEnter={e => (e.currentTarget.style.background = '#374151')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#111')}
+            onMouseLeave={e => (e.currentTarget.style.background = colors.text.primary.light)}
           >
             <span style={{ fontSize: 17, lineHeight: 1 }}>+</span> Add topic
           </button>
           <div onClick={() => navigate('/alert-sources')} style={{
-            width: 34, height: 34, borderRadius: '50%', background: '#111', color: '#fff',
+            width: 34, height: 34, borderRadius: '50%', background: colors.text.primary.light, color: colors.text.primary.dark,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 14, fontWeight: 700, cursor: 'pointer',
           }}>D</div>
@@ -649,7 +649,7 @@ export default function Feed() {
           </div>
           <select value={sortBy} onChange={e => setSortBy(e.target.value as 'urgent' | 'recent')} style={{
             ...T.filterTab, padding: '6px 28px 6px 12px', borderRadius: 8,
-            border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151',
+            border: `1.5px solid ${colors.border.medium}`, background: colors.bg.light, color: colors.text.secondary.light,
             cursor: 'pointer', outline: 'none',
             WebkitAppearance: 'none', appearance: 'none' as never,
             backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%239ca3af' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")`,
@@ -704,7 +704,7 @@ export default function Feed() {
           <div style={{
             textAlign: 'center',
             padding: '60px 24px',
-            color: 'rgba(0,0,0,0.3)',
+            color: colors.text.muted.light,
             fontSize: 14,
           }}>
             AUO will suggest new topics to monitor here.
@@ -723,12 +723,12 @@ export default function Feed() {
         {/* Empty */}
         {activeFilter !== '✦ Suggested' && displayPositions.length === 0 && (
           <div style={{ textAlign: 'center', padding: '80px 0' }}>
-            <p style={{ fontSize: 16, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+            <p style={{ fontSize: 16, fontWeight: 600, color: colors.text.secondary.light, marginBottom: 8 }}>
               {activeFilter === 'All' && activeLens === null
                 ? 'AUO is building your first positions.'
                 : `No matching insights right now.`}
             </p>
-            <p style={{ fontSize: 14, color: '#9ca3af' }}>
+            <p style={{ fontSize: 14, color: colors.text.muted.light }}>
               {activeFilter === 'All' && activeLens === null
                 ? 'Check back in a few minutes.'
                 : 'Try changing the filters above.'}

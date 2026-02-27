@@ -284,11 +284,11 @@ function SignalTooltip({
         left: '50%',
         transform: 'translateX(-50%)',
         width: 280,
-        background: '#111',
-        borderRadius: 10,
+        background: colors.text.primary.light,
+        borderRadius: radius.md,
         padding: '12px 14px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-        color: '#fff',
+        boxShadow: shadow.lg,
+        color: colors.text.primary.dark,
       }}>
         {/* Arrow */}
         <div style={{
@@ -298,7 +298,7 @@ function SignalTooltip({
           transform: 'translateX(-50%) rotate(45deg)',
           width: 12,
           height: 12,
-          background: '#111',
+          background: colors.text.primary.light,
           borderRadius: 2,
         }} />
 
@@ -330,8 +330,8 @@ function SignalTooltip({
             rel="noopener noreferrer"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: 11, fontWeight: 600,
-              color: '#D97706', textDecoration: 'none',
+              fontSize: 11, fontWeight: typography.weight.semibold,
+              color: colors.accent.amber, textDecoration: 'none',
             }}
           >
             Read source ↗
@@ -370,24 +370,24 @@ function HighlightMark({
         onMouseLeave={() => setHovered(false)}
         style={{
           background: hovered
-            ? 'rgba(217,119,6,0.3)'
-            : 'rgba(217,119,6,0.15)',
+            ? colors.accent.amberHover
+            : colors.accent.amberLight,
           color: 'inherit',
           borderRadius: 2,
           padding: '1px 2px',
-          fontWeight: 600,
+          fontWeight: typography.weight.semibold,
           cursor: isClickable ? 'pointer' : 'default',
           borderBottom: isClickable
-            ? '1px solid rgba(217,119,6,0.6)'
+            ? `1px solid ${colors.accent.amber}`
             : 'none',
-          transition: 'background 0.15s ease',
+          transition: transition.fast,
         }}
       >
         {phrase}
         {isClickable && (
           <span style={{
             fontSize: 9, verticalAlign: 'super',
-            color: '#D97706', marginLeft: 2, fontWeight: 700,
+            color: colors.accent.amber, marginLeft: 2, fontWeight: typography.weight.bold,
           }}>
             ↗
           </span>
@@ -527,13 +527,13 @@ export default function InsightDetail() {
       {/* Header — matches Feed */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: '#fff', borderBottom: '1px solid #f0f0f0',
+        background: colors.bg.light, borderBottom: `1px solid ${colors.border.light}`,
         padding: '0 32px', height: 60,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span
           onClick={() => navigate('/')}
-          style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', color: '#111', cursor: 'pointer' }}
+          style={{ fontSize: 24, fontWeight: 900, letterSpacing: typography.letterSpacing.tight, color: colors.text.primary.light, cursor: 'pointer' }}
         >
           AUO
         </span>
@@ -702,10 +702,10 @@ export default function InsightDetail() {
                           height: '100%', borderRadius: 2,
                           width: `${Math.round((value || 0) * 100)}%`,
                           background: (value || 0) >= 0.75
-                            ? '#22C55E'
+                            ? colors.evidence.strong
                             : (value || 0) >= 0.5
-                            ? '#D97706'
-                            : '#EF4444',
+                            ? colors.evidence.moderate
+                            : colors.evidence.weak,
                           transition: 'width 0.4s ease',
                         }} />
                       </div>
@@ -774,7 +774,7 @@ export default function InsightDetail() {
 
           {/* Key numbers grid */}
           {keyNumbers && keyNumbers.length > 0 && (
-            <div style={{ padding: '24px 24px', background: '#FAFAFA' }}>
+            <div style={{ padding: `${spacing["6"]} ${spacing["6"]}`, background: colors.bg.surface }}>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
@@ -783,9 +783,9 @@ export default function InsightDetail() {
                 {keyNumbers.map((kn, i) => (
                   <div key={i} style={{
                     padding: '14px 16px',
-                    borderRadius: 10,
-                    background: '#fff',
-                    border: '1px solid rgba(0,0,0,0.08)',
+                    borderRadius: radius.md,
+                    background: colors.bg.card.light,
+                    border: `1px solid ${colors.border.light}`,
                   }}>
                     <div style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 4 }}>
                       {kn.value}
@@ -928,17 +928,17 @@ export default function InsightDetail() {
         zIndex: 100,
         display: 'flex',
         justifyContent: 'center',
-        padding: '12px 16px',
+        padding: `${spacing["3"]} ${spacing["4"]}`,
         background: 'rgba(255,255,255,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-        borderTop: '1px solid rgba(0,0,0,0.08)',
+        borderTop: `1px solid ${colors.border.light}`,
       }}>
         <div style={{
           width: '100%',
           maxWidth: 640,
           display: 'flex',
-          gap: 8,
+          gap: spacing["2"],
           alignItems: 'center',
         }}>
           <input
@@ -946,24 +946,25 @@ export default function InsightDetail() {
             style={{
               flex: 1,
               padding: '10px 14px',
-              borderRadius: 10,
-              border: '1px solid rgba(0,0,0,0.12)',
-              fontSize: 14,
-              background: '#F8F8F8',
+              borderRadius: radius.md,
+              border: `1px solid ${colors.border.medium}`,
+              fontSize: typography.size.md,
+              background: colors.bg.surface,
               outline: 'none',
-              color: '#111',
-              fontFamily: FONT,
+              color: colors.text.primary.light,
+              fontFamily: typography.fontFamily,
             }}
             disabled
           />
           <button style={{
             padding: '10px 16px',
-            borderRadius: 10,
-            background: '#111',
-            color: '#fff',
+            borderRadius: radius.md,
+            background: colors.text.primary.light,
+            color: colors.text.primary.dark,
             border: 'none',
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: typography.size.base,
+            fontWeight: typography.weight.semibold,
+            fontFamily: typography.fontFamily,
             cursor: 'not-allowed',
             opacity: 0.4,
           }}>
