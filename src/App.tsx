@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import Feed from './pages/Feed';
 import Workspace from './pages/Workspace';
 import AlertSources from './pages/AlertSources';
+import InsightDetail from './pages/InsightDetail';
 
 function AppWithAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -44,6 +45,7 @@ function AppWithAuth() {
   return (
     <Routes>
       <Route path="/" element={<Feed />} />
+      <Route path="/insights/:id" element={<InsightDetail />} />
       <Route path="/workspace/:threadId" element={<Workspace />} />
       <Route path="/alert-sources" element={<AlertSources />} />
       <Route path="*" element={<Navigate to="/" replace />} />
