@@ -6,6 +6,13 @@ const FONT = typography.fontFamily;
 
 type Message = { role: 'user' | 'auo'; content: string };
 
+interface ConversationRecord {
+  id: string;
+  messages: Message[];
+  addedTopic: string;
+  timestamp: number;
+}
+
 interface TopicChatBoxProps {
   onThreadCreated: (thread: { id: string; title: string; lens: string; cover_image_url: string | null }) => void;
 }
@@ -49,7 +56,6 @@ async function agentReply(messages: Message[], userId?: string): Promise<AgentRe
   };
 }
 
-// ─── Lens inference ──────────────────────────────────────────────────────────
 function inferLens(title: string): string {
   const t = title.toLowerCase();
   if (t.includes('certif') || t.includes('bluesign') || t.includes('material')) return 'textile_innovation';
@@ -59,22 +65,63 @@ function inferLens(title: string): string {
   return 'sourcing';
 }
 
+// ─── localStorage history helpers ────────────────────────────────────────────
+const HISTORY_KEY = 'auo_topic_history';
+const HISTORY_TTL = 86400000; // 24h
+const HISTORY_MAX = 3;
+
+function loadHistory(): ConversationRecord[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const records: ConversationRecord[] = JSON.parse(raw);
+    return records.filter(r => Date.now() - r.timestamp < HISTORY_TTL).slice(0, HISTORY_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(topic: string, msgs: Message[]) {
+  const existing = loadHistory();
+  const record: ConversationRecord = {
+    id: crypto.randomUUID(),
+    messages: msgs,
+    addedTopic: topic,
+    timestamp: Date.now(),
+  };
+  const updated = [record, ...existing].slice(0, HISTORY_MAX);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [proposedTopic, setProposedTopic] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
-  const [isAdded, setIsAdded] = useState(false);
+  const [addedTopic, setAddedTopic] = useState<string | null>(null);
+  const [isRefining, setIsRefining] = useState(false);
+  const [refineInput, setRefineInput] = useState('');
+  const [history, setHistory] = useState<ConversationRecord[]>(() => loadHistory());
+  const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const refineRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll chat to bottom
+  // Auto-scroll chat
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  // Focus refine input when entering refine mode
+  useEffect(() => {
+    if (isRefining) {
+      setTimeout(() => refineRef.current?.focus(), 0);
+    }
+  }, [isRefining]);
 
   const handleSend = async (overrideMessage?: string) => {
     const userMessage = overrideMessage || input.trim();
@@ -82,6 +129,8 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
 
     setInput('');
     setOptions([]);
+    setIsRefining(false);
+    setRefineInput('');
 
     const newMessages: Message[] = [...messages, { role: 'user', content: userMessage }];
     setMessages(newMessages);
@@ -119,7 +168,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
         return;
       }
 
-      // Check for duplicates
+      // Duplicate check
       const searchWords = proposedTopic.split(' ').slice(0, 4).join('%');
       const { data: existing } = await (supabase as any)
         .from('decision_threads')
@@ -156,12 +205,27 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
         return;
       }
 
-      // Trigger scan (non-blocking)
+      // Trigger scan via edge function (non-blocking)
       supabase.functions.invoke('scan_priority', { body: { thread_id: thread.id } }).catch(err =>
         console.warn('[TopicChatBox] scan_priority invoke failed:', err)
       );
 
-      setIsAdded(true);
+      // Also trigger Modal scan if configured
+      const scanUrl = import.meta.env.VITE_MODAL_SCAN_PRIORITY_URL;
+      if (scanUrl) {
+        fetch(scanUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread_id: thread.id, user_id: user.id, topic: proposedTopic }),
+        }).catch(() => {});
+      }
+
+      // Save to history
+      saveHistory(proposedTopic, messages);
+      setHistory(loadHistory());
+
+      // Show success state
+      setAddedTopic(proposedTopic);
       onThreadCreated({ id: thread.id, title: thread.title, lens: thread.lens, cover_image_url: null });
     } catch (err) {
       console.error('[TopicChatBox] Add topic error:', err);
@@ -171,18 +235,23 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
   };
 
   const handleRefine = () => {
+    setIsRefining(true);
+    setRefineInput(proposedTopic || '');
     setProposedTopic(null);
-    // Let user continue chatting
+    setOptions([]);
   };
 
   const handleReset = () => {
     setMessages([]);
     setProposedTopic(null);
     setOptions([]);
-    setIsAdded(false);
+    setAddedTopic(null);
+    setIsRefining(false);
+    setRefineInput('');
     setInput('');
   };
 
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{
       border: '1px solid #e8e8e8',
@@ -192,36 +261,82 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
       marginBottom: 0,
       marginTop: 10,
     }}>
-      {/* Label */}
-      <div style={{
-        fontSize: 13,
-        color: isAdded ? '#16a34a' : '#999',
-        fontWeight: 500,
-        marginBottom: messages.length > 0 || isAdded ? 12 : 0,
-        fontFamily: FONT,
-        transition: transition.fast,
-      }}>
-        {isAdded ? '✓ Added — AUO will scan for this' : 'What are you thinking about this week?'}
-      </div>
 
-      {/* Added state */}
-      {isAdded ? (
-        <button
-          onClick={handleReset}
-          style={{
-            fontSize: 13,
-            color: '#999',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-            fontFamily: FONT,
-          }}
-        >
-          Add another topic
-        </button>
+      {/* ── Success state ── */}
+      {addedTopic ? (
+        <div>
+          <div style={{ fontSize: 13, color: '#999', marginBottom: 6, fontFamily: FONT }}>
+            ✓ AUO is now tracking
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 16, fontFamily: FONT }}>
+            &ldquo;{addedTopic}&rdquo;
+          </div>
+          <button
+            onClick={handleReset}
+            style={{
+              fontSize: 13,
+              color: '#666',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              fontFamily: FONT,
+            }}
+          >
+            + Track another topic
+          </button>
+        </div>
       ) : (
         <>
+          {/* Label */}
+          <div style={{
+            fontSize: 13,
+            color: '#999',
+            fontWeight: 500,
+            marginBottom: messages.length > 0 ? 12 : 0,
+            fontFamily: FONT,
+            transition: transition.fast,
+          }}>
+            What are you thinking about this week?
+          </div>
+
+          {/* History toggle (only when idle) */}
+          {history.length > 0 && messages.length === 0 && !isRefining && (
+            <div style={{ marginBottom: 12, marginTop: 8 }}>
+              <button
+                onClick={() => setHistoryOpen(!historyOpen)}
+                style={{
+                  fontSize: 12,
+                  color: '#999',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontFamily: FONT,
+                }}
+              >
+                {historyOpen ? '▾' : '▸'} {history.length} recent {history.length === 1 ? 'topic' : 'topics'}
+              </button>
+
+              {historyOpen && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {history.map(record => (
+                    <div key={record.id} style={{
+                      fontSize: 13,
+                      color: '#666',
+                      padding: '6px 0',
+                      borderBottom: '1px solid #f0f0f0',
+                      fontFamily: FONT,
+                    }}>
+                      <span style={{ color: '#999', marginRight: 6 }}>✓</span>
+                      {record.addedTopic}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Message history */}
           {messages.length > 0 && (
             <div
@@ -364,8 +479,39 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
             </div>
           )}
 
-          {/* Input */}
-          {!proposedTopic && options.length === 0 && (
+          {/* Refine input */}
+          {isRefining && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 13, color: '#999', marginBottom: 8, fontFamily: FONT }}>
+                What would you like to adjust?
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  ref={refineRef}
+                  value={refineInput}
+                  onChange={e => setRefineInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && refineInput.trim()) {
+                      handleSend(refineInput.trim());
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: '1px solid #e8e8e8',
+                    fontSize: 14,
+                    fontFamily: FONT,
+                    outline: 'none',
+                    color: '#111',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Normal input (hide when proposal or options or refine showing) */}
+          {!proposedTopic && options.length === 0 && !isRefining && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 ref={inputRef}
@@ -387,7 +533,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
               />
               {input.trim() && (
                 <button
-                  onClick={handleSend}
+                  onClick={() => handleSend()}
                   disabled={isLoading}
                   style={{
                     fontSize: 13,

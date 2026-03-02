@@ -5,6 +5,7 @@ type Mode = 'signin' | 'signup';
 
 export default function AuthPage() {
   const [mode, setMode] = useState<Mode>('signin');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,7 +25,10 @@ export default function AuthPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin },
+        options: {
+          emailRedirectTo: window.location.origin,
+          ...(name ? { data: { full_name: name } } : {}),
+        },
       });
       if (error) {
         setError(error.message);
@@ -111,6 +115,38 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {mode === 'signup' && (
+            <div>
+              <label
+                className="block mb-1.5"
+                style={{
+                  fontSize: 12,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: '#888',
+                }}
+              >
+                Full name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Jane Smith"
+                className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                style={{
+                  background: '#fafaf9',
+                  border: '1px solid #e5e5e5',
+                  borderRadius: 8,
+                  color: '#1a1a1a',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#1a1a1a')}
+                onBlur={(e) => (e.target.style.borderColor = '#e5e5e5')}
+              />
+            </div>
+          )}
+
           <div>
             <label
               className="block mb-1.5"

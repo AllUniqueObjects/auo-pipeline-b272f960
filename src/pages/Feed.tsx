@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { colors, typography, spacing, radius, transition, shadow, pillStyle } from '../design-tokens';
+import { colors, typography, transition, shadow, pillStyle } from '../design-tokens';
+import { TopicChatBox } from '../components/TopicChatBox';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ function PositionCard({
   const lens = pos.decision_threads?.lens || '';
   const imageUrl = pos.cover_image_url || pos.decision_threads?.cover_image_url;
   const isBreaking = tone === 'BREAKING';
+  const isTracked = Boolean(pos.decision_thread_id);
 
   return (
     <div
@@ -264,6 +266,9 @@ function PositionCard({
               · just now
             </span>
           )}
+          {isTracked && (
+            <span style={{ fontSize: 11, color: '#d4a017', lineHeight: 1, flexShrink: 0 }}>★</span>
+          )}
           <span
             onClick={(e) => {
               e.stopPropagation();
@@ -367,9 +372,10 @@ function PositionCard({
               color: 'rgba(255,255,255,0.45)',
             }}>
               · {pos.signal_basis.signal_count} signal{pos.signal_basis.signal_count !== 1 ? 's' : ''}
-              {pos.signal_basis.most_recent_date && (
-                ` · ${formatRecency(pos.signal_basis.most_recent_date)}`
-              )}
+              {' · '}
+              {pos.signal_basis.most_recent_date
+                ? `latest ${new Date(pos.signal_basis.most_recent_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                : `updated ${formatRecency(pos.created_at)}`}
             </span>
           )}
           {getSignalMomentum(pos) && (
@@ -488,20 +494,6 @@ function NewTopicModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Split positions by alignment ────────────────────────────────────────────
-
-function splitByAlignment(positions: FeedPosition[]) {
-  const confirms: FeedPosition[] = [];
-  const counter: FeedPosition[] = [];
-  for (const p of positions) {
-    if (p.direction_alignment === 'contradicts') {
-      counter.push(p);
-    } else {
-      confirms.push(p);
-    }
-  }
-  return { confirms, counter };
-}
 
 // ─── Agent event type for direction_changed banners ─────────────────────────
 
@@ -570,16 +562,6 @@ function DirectionChangedBanner({
       </button>
     </div>
   );
-}
-
-// ─── Counter-evidence label helper ──────────────────────────────────────────
-
-function getCounterLabel(counter: FeedPosition[], threadMap: Record<string, FeedPosition['decision_threads']>): string {
-  // If all counter-evidence comes from the same thread as confirms, it's "Counter-evidence"
-  // If it comes from different threads, it's "Alternative evidence"
-  const counterThreads = new Set(counter.map(p => p.decision_thread_id));
-  if (counterThreads.size > 1) return 'Alternative evidence';
-  return 'Counter-evidence';
 }
 
 // TODO: Cross-thread signal surfacing — when a signal_ref appears in positions
@@ -700,23 +682,31 @@ function SkeletonCard() {
 
 export default function Feed() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [positions, setPositions] = useState<FeedPosition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showNewTopic, setShowNewTopic] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('All');
-  const [activeLens, setActiveLens] = useState<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'urgent' | 'recent'>('urgent');
+  const [topicsOpen, setTopicsOpen] = useState(false);
   const [hoveredPill, setHoveredPill] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
-  const [contextQuery, setContextQuery] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [contextSaved, setContextSaved] = useState(false);
-  const [scanSubmitted, setScanSubmitted] = useState(false);
-  const [inputFocused, setInputFocused] = useState(false);
+  const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [directionEvents, setDirectionEvents] = useState<DirectionEvent[]>([]);
   const [monitorAlerts, setMonitorAlerts] = useState<{ id: string; thread_id: string; payload: Record<string, unknown>; created_at: string }[]>([]);
   const justOnboarded = sessionStorage.getItem('justOnboarded') === 'true';
+
+  // Scanning state from URL params
+  const isScanning = searchParams.get('scanning') === 'true';
+  const scanningThreadId = searchParams.get('thread');
+
+  // Auto-select thread from URL param
+  useEffect(() => {
+    const threadParam = searchParams.get('thread');
+    if (threadParam && !isScanning) {
+      setActiveThreadId(threadParam);
+    }
+  }, [searchParams, isScanning]);
 
   // Fetch user name on mount
   useEffect(() => {
@@ -847,6 +837,28 @@ export default function Feed() {
     return () => { supabase.removeChannel(channel); };
   }, [loadFeed]);
 
+  // Poll for positions while scanning a new thread
+  useEffect(() => {
+    if (!isScanning || !scanningThreadId) return;
+
+    const poll = setInterval(async () => {
+      const { data } = await (supabase as any)
+        .from('positions')
+        .select('id')
+        .eq('decision_thread_id', scanningThreadId)
+        .not('validated_at', 'is', null)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        clearInterval(poll);
+        setSearchParams({ thread: scanningThreadId }, { replace: true });
+        loadFeed();
+      }
+    }, 15000);
+
+    return () => clearInterval(poll);
+  }, [isScanning, scanningThreadId, loadFeed, setSearchParams]);
+
   // ─── Poll agent_events for direction_changed (last 24h, unread) ────────
   const loadDirectionEvents = useCallback(async () => {
     try {
@@ -919,16 +931,7 @@ export default function Feed() {
 
   const handleClick = (positionId: string) => navigate(`/insights/${positionId}`);
 
-  // ─── Derive lens options from positions ──────────────────────────────────
-  const lensOptions = Array.from(
-    new Set(
-      positions
-        .map(p => p.decision_threads?.lens)
-        .filter((l): l is string => Boolean(l))
-    )
-  );
-
-  // ─── Filter: urgency + lens ──────────────────────────────────────────────
+  // ─── Filter: urgency + thread ─────────────────────────────────────────
   const filtered = positions.filter(pos => {
     const rawTone = pos.tone || '';
 
@@ -948,12 +951,12 @@ export default function Feed() {
       return false;
     })();
 
-    // Lens filter
-    const lensMatch = activeLens === null
+    // Thread filter (sidebar)
+    const threadMatch = activeThreadId === null
       ? true
-      : pos.decision_threads?.lens === activeLens;
+      : pos.decision_thread_id === activeThreadId;
 
-    return urgencyMatch && lensMatch;
+    return urgencyMatch && threadMatch;
   });
 
   // ─── Re-sort for display ─────────────────────────────────────────────────
@@ -967,77 +970,27 @@ export default function Feed() {
   });
 
 
-  // ─── Derive unique threads from positions ─────────────────────────────
-  const threads = Array.from(
+  // ─── Derive unique threads from positions + manually added ────────────
+  const positionThreads = Array.from(
     new Map(
       positions
         .filter(p => p.decision_threads)
         .map(p => [p.decision_threads!.id, p.decision_threads!])
     ).values()
   );
+  const positionThreadIds = new Set(positionThreads.map(t => t.id));
+  const threads = [
+    ...positionThreads,
+    ...manualThreads.filter(t => !positionThreadIds.has(t.id)),
+  ];
 
-  // ─── Context input handlers ──────────────────────────────────────────
-  const handleSaveContext = useCallback(async () => {
-    if (!contextQuery.trim() || isSaving) return;
-    setIsSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  const activeThread = activeThreadId ? threads.find(t => t.id === activeThreadId) || null : null;
 
-      const { data: existing } = await (supabase as any)
-        .from('user_tactical_context')
-        .select('decisions_in_progress')
-        .eq('user_id', user.id)
-        .single();
-
-      const prev = existing?.decisions_in_progress || '';
-      const updated = prev ? `${prev}\n${contextQuery.trim()}` : contextQuery.trim();
-
-      await (supabase as any)
-        .from('user_tactical_context')
-        .upsert({
-          user_id: user.id,
-          decisions_in_progress: updated,
-          updated_at: new Date().toISOString(),
-        });
-
-      setContextSaved(true);
-    } catch (err) {
-      console.error('[Feed] Context save failed:', err);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [contextQuery, isSaving]);
-
-  const handleScanNow = useCallback(async () => {
-    if (!contextQuery.trim() || isScanning) return;
-    setIsScanning(true);
-    setScanSubmitted(false);
-
-    try {
-      // Save context first
-      if (!contextSaved) await handleSaveContext();
-
-      // Target thread: use active lens filter, otherwise first thread
-      const targetThread = activeLens
-        ? threads.find(t => t.lens === activeLens)
-        : threads[0];
-
-      // Trigger priority scan via existing Supabase Edge Function
-      await supabase.functions.invoke('scan_priority', {
-        body: {
-          thread_id: targetThread?.id || null,
-          priority_query: contextQuery.trim(),
-        },
-      }).catch(err => console.warn('[Feed] scan_priority invoke failed (non-blocking):', err));
-
-      setScanSubmitted(true);
-    } catch (err) {
-      console.error('[Feed] Scan now failed:', err);
-    } finally {
-      setIsScanning(false);
-    }
-  }, [contextQuery, isScanning, contextSaved, handleSaveContext, activeLens, threads]);
+  // Map lens click on card → select thread in sidebar
+  const handleLensClick = useCallback((lens: string) => {
+    const thread = threads.find(t => t.lens === lens);
+    if (thread) setActiveThreadId(thread.id);
+  }, [threads]);
 
   if (loading) {
     return <div style={{ minHeight: '100vh', background: colors.bg.light, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT }}><p style={{ color: colors.text.muted.light, fontSize: 14 }}>Loading…</p></div>;
@@ -1047,228 +1000,310 @@ export default function Feed() {
     <div style={{ minHeight: '100vh', background: colors.bg.light, fontFamily: FONT }}>
 
       {/* HEADER */}
-      <header style={{
+      <header className="feed-header" style={{
         position: 'sticky', top: 0, zIndex: 50,
         background: colors.bg.light, borderBottom: `1px solid ${colors.border.light}`,
-        padding: '0 32px', height: 60,
+        padding: '0 32px', height: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span style={{ ...T.logo, color: colors.text.primary.light }}>AUO</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 13, color: colors.text.muted.light }}>
+          <span className="feed-header-date" style={{ fontSize: 13, color: colors.text.muted.light }}>
             {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
-          <button
-            onClick={() => setShowNewTopic(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: colors.text.primary.light, color: colors.text.primary.dark, border: 'none',
-              borderRadius: 20, padding: '8px 18px',
-              ...T.newBtn, cursor: 'pointer', transition: transition.fast,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#374151')}
-            onMouseLeave={e => (e.currentTarget.style.background = colors.text.primary.light)}
-          >
-            <span style={{ fontSize: 17, lineHeight: 1 }}>+</span> Add topic
-          </button>
           <AvatarMenu userName={userName} onNavigate={navigate} />
         </div>
       </header>
 
-      {/* BODY */}
-      <main style={{ maxWidth: 960, margin: '0 auto', padding: '36px 28px' }}>
+      {/* BODY — flex row: sidebar + content */}
+      <div className="feed-layout" style={{ display: 'flex' }}>
 
-        {/* Controls: Row 1 — urgency filter + sort */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0, gap: 12 }}>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {filterTabs.map(tab => {
-              const isActive = activeFilter === tab;
-              const isHovered = hoveredPill === `urgency-${tab}`;
-              const isBreakingTab = tab === 'BREAKING';
+        {/* ─── Left sidebar — topic list ─── */}
+        <aside className="feed-sidebar" style={{
+          width: 220,
+          flexShrink: 0,
+          padding: '24px 20px',
+          borderRight: `1px solid ${colors.border.light}`,
+          position: 'sticky',
+          top: 56,
+          height: 'calc(100vh - 56px)',
+          overflowY: 'auto',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* All Topics */}
+            <button
+              onClick={() => setActiveThreadId(null)}
+              onMouseEnter={() => setHoveredPill('sidebar-all')}
+              onMouseLeave={() => setHoveredPill(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: 'none',
+                background: hoveredPill === 'sidebar-all' && activeThreadId !== null ? 'rgba(0,0,0,0.04)' : 'transparent',
+                cursor: 'pointer',
+                transition: transition.fast,
+                fontFamily: FONT,
+                textAlign: 'left',
+                width: '100%',
+              }}
+            >
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                background: activeThreadId === null ? colors.text.primary.light : 'transparent',
+                border: activeThreadId === null ? 'none' : `1.5px solid ${colors.text.muted.light}`,
+              }} />
+              <span style={{
+                fontSize: 13, fontWeight: activeThreadId === null ? 600 : 400,
+                color: activeThreadId === null ? colors.text.primary.light : colors.text.secondary.light,
+                lineHeight: 1.4,
+              }}>
+                All Topics
+              </span>
+            </button>
+
+            {/* Per-thread items */}
+            {threads.map(t => {
+              const isActive = activeThreadId === t.id;
+              const isHovered = hoveredPill === `sidebar-${t.id}`;
+              const count = positions.filter(p => p.decision_thread_id === t.id).length;
               return (
                 <button
-                  key={tab}
-                  onClick={() => setActiveFilter(tab)}
-                  onMouseEnter={() => setHoveredPill(`urgency-${tab}`)}
+                  key={t.id}
+                  onClick={() => setActiveThreadId(t.id)}
+                  onMouseEnter={() => setHoveredPill(`sidebar-${t.id}`)}
                   onMouseLeave={() => setHoveredPill(null)}
-                  style={isBreakingTab ? {
-                    padding: '6px 14px',
-                    borderRadius: '9999px',
-                    border: '1px solid',
-                    borderColor: isActive ? 'transparent' : isHovered ? 'rgba(220,38,38,0.4)' : 'rgba(220,38,38,0.25)',
-                    background: isActive ? 'rgba(220,38,38,0.9)' : isHovered ? 'rgba(220,38,38,0.08)' : 'transparent',
-                    color: isActive ? '#fff' : '#dc2626',
-                    fontSize: typography.size.base,
-                    fontWeight: typography.weight.semibold,
-                    cursor: 'pointer' as const,
-                    transition: transition.base,
-                    fontFamily: typography.fontFamily,
-                    display: 'flex' as const,
-                    alignItems: 'center' as const,
-                    gap: '6px',
-                  } : pillStyle(isActive, isHovered)}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: isHovered && !isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: transition.fast,
+                    fontFamily: FONT,
+                    textAlign: 'left',
+                    width: '100%',
+                  }}
                 >
-                  {isBreakingTab && (
-                    <span className="auo-pulse-dot" style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: isActive ? '#fff' : '#dc2626',
-                      display: 'inline-block',
-                    }} />
-                  )}
-                  {tab}
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 4,
+                    background: isActive ? colors.text.primary.light : 'transparent',
+                    border: isActive ? 'none' : `1.5px solid ${colors.text.muted.light}`,
+                  }} />
+                  <span style={{
+                    flex: 1, minWidth: 0,
+                    fontSize: 13, fontWeight: isActive ? 600 : 400,
+                    color: isActive ? colors.text.primary.light : colors.text.secondary.light,
+                    lineHeight: 1.4,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}>
+                    {t.title}
+                  </span>
+                  <span style={{
+                    fontSize: 11, color: colors.text.muted.light, flexShrink: 0, marginTop: 2,
+                  }}>
+                    {count === 0 && (t as any).created_at && (Date.now() - new Date((t as any).created_at).getTime() < 300000)
+                      ? <span style={{ color: '#999', fontStyle: 'italic' }}>scanning...</span>
+                      : count}
+                  </span>
                 </button>
               );
             })}
           </div>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as 'urgent' | 'recent')} style={{
-            ...T.filterTab, padding: '6px 28px 6px 12px', borderRadius: 8,
-            border: `1.5px solid ${colors.border.medium}`, background: colors.bg.light, color: colors.text.secondary.light,
-            cursor: 'pointer', outline: 'none',
-            WebkitAppearance: 'none', appearance: 'none' as never,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%239ca3af' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
-          }}>
-            <option value="urgent">Most urgent</option>
-            <option value="recent">Most recent</option>
-          </select>
-        </div>
+        </aside>
 
-        {/* Row 2 — Lens filter */}
-        {lensOptions.length > 0 && (
+        {/* ─── Right content area ─── */}
+        <main className="feed-content" style={{ flex: 1, padding: '0 32px 24px', minWidth: 0 }}>
+
+          {/* Controls: sticky filter bar */}
+          <div className="feed-filter-bar" style={{
+            position: 'sticky', top: 56, zIndex: 40,
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            padding: '14px 0',
+          }}>
+          <div className="feed-filter-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div className="feed-filter-pills" style={{ display: 'flex', gap: 4, flexShrink: 1, minWidth: 0 }}>
+              {filterTabs.map(tab => {
+                const isActive = activeFilter === tab;
+                const isHovered = hoveredPill === `urgency-${tab}`;
+                const isBreakingTab = tab === 'BREAKING';
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveFilter(tab)}
+                    onMouseEnter={() => setHoveredPill(`urgency-${tab}`)}
+                    onMouseLeave={() => setHoveredPill(null)}
+                    style={isBreakingTab ? {
+                      padding: '6px 14px',
+                      borderRadius: '9999px',
+                      border: '1px solid',
+                      borderColor: isActive ? 'transparent' : isHovered ? 'rgba(220,38,38,0.4)' : 'rgba(220,38,38,0.25)',
+                      background: isActive ? 'rgba(220,38,38,0.9)' : isHovered ? 'rgba(220,38,38,0.08)' : 'transparent',
+                      color: isActive ? '#fff' : '#dc2626',
+                      fontSize: typography.size.base,
+                      fontWeight: typography.weight.semibold,
+                      cursor: 'pointer' as const,
+                      transition: transition.base,
+                      fontFamily: typography.fontFamily,
+                      display: 'flex' as const,
+                      alignItems: 'center' as const,
+                      gap: '6px',
+                    } : pillStyle(isActive, isHovered)}
+                  >
+                    {isBreakingTab && (
+                      <span className="auo-pulse-dot" style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: isActive ? '#fff' : '#dc2626',
+                        display: 'inline-block',
+                      }} />
+                    )}
+                    {tab}
+                  </button>
+                );
+              })}
+            </div>
+            <select className="feed-sort-select" value={sortBy} onChange={e => setSortBy(e.target.value as 'urgent' | 'recent')} style={{
+              ...T.filterTab, padding: '6px 28px 6px 12px', borderRadius: 8,
+              border: `1.5px solid ${colors.border.medium}`, background: colors.bg.light, color: colors.text.secondary.light,
+              cursor: 'pointer', outline: 'none', flexShrink: 0,
+              WebkitAppearance: 'none', appearance: 'none' as never,
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%239ca3af' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
+            }}>
+              <option value="urgent">Most urgent</option>
+              <option value="recent">Most recent</option>
+            </select>
+            {/* Topics toggle — mobile only */}
+            <button
+              className="feed-topics-toggle"
+              onClick={() => {
+                if (activeThreadId) {
+                  setActiveThreadId(null);
+                  setTopicsOpen(false);
+                } else {
+                  setTopicsOpen(!topicsOpen);
+                }
+              }}
+              style={{
+                display: 'none',
+                alignItems: 'center',
+                flexShrink: 0,
+                padding: '4px 10px',
+                borderRadius: 20,
+                border: '1px solid',
+                borderColor: activeThread ? '#111' : '#ddd',
+                background: activeThread ? '#111' : 'transparent',
+                color: activeThread ? '#fff' : '#666',
+                fontSize: 12,
+                fontWeight: 600,
+                whiteSpace: 'nowrap' as const,
+                cursor: 'pointer',
+                fontFamily: FONT,
+              }}
+            >
+              {activeThread ? `${activeThread.title.slice(0, 14)}${activeThread.title.length > 14 ? '…' : ''} ×` : '⊞ Topics'}
+            </button>
+          </div>
+          {/* Conversational topic input */}
+          <TopicChatBox
+            onThreadCreated={(thread) => {
+              setManualThreads(prev => [...prev, { ...thread, created_at: new Date().toISOString() }]);
+              setSearchParams({ thread: thread.id, scanning: 'true' }, { replace: true });
+            }}
+          />
+          </div>{/* end feed-filter-bar */}
+
+          {/* Topics drawer — mobile only, not sticky */}
+          {topicsOpen && (
+            <div className="feed-topics-drawer" style={{
+              background: '#fafafa',
+              borderBottom: '1px solid #f0f0f0',
+              padding: '10px 0',
+              display: 'flex',
+              gap: 8,
+              overflowX: 'auto',
+              scrollbarWidth: 'none' as const,
+            }}>
+              <button
+                onClick={() => { setActiveThreadId(null); setTopicsOpen(false); }}
+                style={{
+                  ...pillStyle(activeThreadId === null, false),
+                  whiteSpace: 'nowrap' as const,
+                  flexShrink: 0,
+                }}
+              >
+                All Topics
+              </button>
+              {threads.map(t => {
+                const count = positions.filter(p => p.decision_thread_id === t.id).length;
+                const label = t.title.length > 20 ? t.title.slice(0, 20) + '…' : t.title;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => { setActiveThreadId(t.id); setTopicsOpen(false); }}
+                    style={{
+                      ...pillStyle(activeThreadId === t.id, false),
+                      whiteSpace: 'nowrap' as const,
+                      flexShrink: 0,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {label}
+                    {count > 0 && (
+                      <span style={{ fontSize: 11, opacity: 0.6 }}>{count}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+        {/* ─── Scanning loading screen ─── */}
+        {isScanning && scanningThreadId && (
           <div style={{
             display: 'flex',
-            gap: 8,
-            marginTop: 10,
-            marginBottom: 24,
-            flexWrap: 'wrap',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '60vh',
+            gap: 24,
+            textAlign: 'center',
+            maxWidth: 400,
+            margin: '0 auto',
           }}>
-            <button
-              onClick={() => setActiveLens(null)}
-              onMouseEnter={() => setHoveredPill('lens-all')}
-              onMouseLeave={() => setHoveredPill(null)}
-              style={pillStyle(activeLens === null, hoveredPill === 'lens-all')}
-            >
-              All Topics
-            </button>
-            {lensOptions.map(lens => {
-              const isActive = activeLens === lens;
-              const pillId = `lens-${lens}`;
-              const isHovered = hoveredPill === pillId;
-              return (
-                <button
-                  key={lens}
-                  onClick={() => setActiveLens(lens)}
-                  onMouseEnter={() => setHoveredPill(pillId)}
-                  onMouseLeave={() => setHoveredPill(null)}
-                  style={pillStyle(isActive, isHovered)}
-                >
-                  {formatLens(lens)}
-                </button>
-              );
-            })}
+            <div className="auo-scan-pulse" style={{
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              background: '#111',
+            }} />
+
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#111', marginBottom: 8, fontFamily: FONT }}>
+                AUO is scanning
+              </div>
+              <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, fontFamily: FONT }}>
+                Checking 246 sources across material science, competitor positioning, and supply chain...
+              </div>
+            </div>
+
+            <div style={{ fontSize: 13, color: '#999', fontFamily: FONT }}>
+              First insights in ~2 minutes
+            </div>
           </div>
         )}
 
-        {/* Add margin when no lens options */}
-        {lensOptions.length === 0 && <div style={{ marginBottom: 24 }} />}
-
-        {/* Inline contextual input */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            background: inputFocused ? '#fff' : colors.bg.surface,
-            borderRadius: 12,
-            padding: '12px 16px',
-            border: `1px solid ${inputFocused ? colors.border.medium : 'transparent'}`,
-            boxShadow: inputFocused ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-            transition: transition.base,
-          }}>
-            <input
-              type="text"
-              value={contextQuery}
-              onChange={e => {
-                setContextQuery(e.target.value);
-                setContextSaved(false);
-                setScanSubmitted(false);
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && contextQuery.trim()) handleSaveContext();
-              }}
-              onFocus={() => setInputFocused(true)}
-              onBlur={() => {
-                setInputFocused(false);
-                if (contextQuery.trim() && !contextSaved) handleSaveContext();
-              }}
-              placeholder="What are you thinking about this week?"
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                fontSize: 14,
-                color: colors.text.primary.light,
-                fontFamily: FONT,
-              }}
-            />
-            {contextQuery && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {!contextSaved && (
-                  <button
-                    onClick={handleSaveContext}
-                    disabled={isSaving}
-                    style={{
-                      background: 'transparent',
-                      color: isSaving ? '#ccc' : colors.text.secondary.light,
-                      border: `1px solid ${colors.border.medium}`,
-                      borderRadius: 8,
-                      padding: '6px 12px',
-                      fontSize: 12,
-                      fontWeight: typography.weight.medium,
-                      cursor: isSaving ? 'default' : 'pointer',
-                      fontFamily: FONT,
-                      whiteSpace: 'nowrap',
-                      transition: transition.fast,
-                    }}
-                  >
-                    {isSaving ? 'Saving...' : 'Save'}
-                  </button>
-                )}
-                <button
-                  onClick={handleScanNow}
-                  disabled={isScanning}
-                  style={{
-                    background: isScanning ? '#ccc' : colors.text.primary.light,
-                    color: colors.text.primary.dark,
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '6px 14px',
-                    fontSize: 13,
-                    fontWeight: typography.weight.semibold,
-                    cursor: isScanning ? 'default' : 'pointer',
-                    transition: transition.base,
-                    fontFamily: FONT,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {isScanning ? 'Scanning...' : 'Scan now \u2192'}
-                </button>
-              </div>
-            )}
-          </div>
-          {contextSaved && !scanSubmitted && (
-            <div style={{ fontSize: 12, color: colors.text.muted.light, marginTop: 8, paddingLeft: 4 }}>
-              \u2713 Context saved \u2014 will be picked up in next scan
-            </div>
-          )}
-          {scanSubmitted && (
-            <div style={{ fontSize: 12, color: colors.text.muted.light, marginTop: 8, paddingLeft: 4 }}>
-              \u2713 Scanning for \u201c{contextQuery}\u201d \u2014 insights will appear shortly
-            </div>
-          )}
-        </div>
-
+        {/* ─── Normal feed content (hidden while scanning) ─── */}
+        {!isScanning && (
+          <>
         {/* Direction-changed banners */}
         {directionEvents.length > 0 && directionEvents.map(evt => {
           const threadData = threads.find(t => t.id === evt.thread_id);
@@ -1323,53 +1358,18 @@ export default function Feed() {
           </div>
         )}
 
-        {/* Position cards — split confirms & counter-evidence */}
-        {activeFilter !== '✦ Suggested' && (() => {
-          const { confirms, counter } = splitByAlignment(displayPositions);
-          const counterLabel = getCounterLabel(counter, {});
-          return (
-            <>
-              {/* Confirming positions */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing["6"] }}>
-                {confirms.map(p => (
-                  <PositionCard key={p.id} pos={p} onClick={handleClick} onLensClick={setActiveLens} />
-                ))}
-              </div>
-
-              {/* Counter-evidence divider + cards */}
-              {counter.length > 0 && (
-                <>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    margin: `${spacing["8"]} 0 ${spacing["4"]}`,
-                  }}>
-                    <div style={{ flex: 1, height: 1, background: colors.border.medium }} />
-                    <span style={{
-                      fontSize: 12, fontWeight: 600, color: colors.text.muted.light,
-                      letterSpacing: '0.06em', textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {counterLabel}
-                    </span>
-                    <div style={{ flex: 1, height: 1, background: colors.border.medium }} />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing["6"] }}>
-                    {counter.map(p => (
-                      <div key={p.id} style={{ opacity: 0.7 }}>
-                        <PositionCard pos={p} onClick={handleClick} onLensClick={setActiveLens} />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          );
-        })()}
+        {/* Position cards — continuous 2-column grid */}
+        {activeFilter !== '✦ Suggested' && displayPositions.length > 0 && (
+          <div className="feed-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
+            {displayPositions.map(p => (
+              <PositionCard key={p.id} pos={p} onClick={handleClick} onLensClick={handleLensClick} />
+            ))}
+          </div>
+        )}
 
         {/* Empty — skeleton cards for first-load or standard empty state */}
         {activeFilter !== '✦ Suggested' && displayPositions.length === 0 && (
-          activeFilter === 'All' && activeLens === null ? (
+          activeFilter === 'All' && activeThreadId === null ? (
             <div>
               <p style={{
                 fontSize: 15, fontWeight: 500, color: colors.text.secondary.light,
@@ -1377,7 +1377,8 @@ export default function Feed() {
               }}>
                 {justOnboarded ? 'Scanning 246 sources...' : 'AUO is building your first positions.'}
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing['6'] }}>
+              <div className="feed-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
+                <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />
@@ -1394,9 +1395,10 @@ export default function Feed() {
             </div>
           )
         )}
-      </main>
-
-      {showNewTopic && <NewTopicModal onClose={() => setShowNewTopic(false)} />}
+          </>
+        )}
+        </main>
+      </div>{/* end feed-layout */}
 
       <style>{`
         @keyframes auo-img-zoom {
@@ -1423,6 +1425,43 @@ export default function Feed() {
         }
         .auo-pulse-dot {
           animation: auo-pulse 1.5s ease-in-out infinite;
+        }
+        .auo-scan-pulse {
+          animation: auo-pulse 1.5s ease-in-out infinite;
+        }
+        /* ─── Feed responsive ─── */
+        @media (max-width: 768px) {
+          .feed-sidebar { display: none !important; }
+          .feed-grid { grid-template-columns: 1fr !important; }
+          .feed-content { padding: 0 12px 16px !important; }
+          .feed-header { padding: 0 16px !important; }
+          .feed-header-date { display: none !important; }
+          .feed-filter-bar {
+            padding: 8px 0 16px !important;
+            height: auto !important;
+          }
+          .feed-filter-row {
+            display: flex !important;
+            align-items: center !important;
+            flex-wrap: nowrap !important;
+            gap: 8px !important;
+          }
+          .feed-filter-pills {
+            flex: 1 !important;
+            min-width: 0 !important;
+            overflow-x: auto !important;
+            flex-wrap: nowrap !important;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+          }
+          .feed-filter-pills::-webkit-scrollbar { display: none; }
+          .feed-filter-pills button {
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+          }
+          .feed-sort-select { display: none !important; }
+          .feed-topics-toggle { display: inline-flex !important; }
+          .feed-topics-drawer::-webkit-scrollbar { display: none; }
         }
       `}</style>
     </div>

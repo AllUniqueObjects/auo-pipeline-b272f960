@@ -1,8 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { parseSections } from '@/lib/position-utils';
 import { colors, typography, spacing, radius, transition, shadow } from '../design-tokens';
+
+// ─── useMediaQuery ───────────────────────────────────────────────────────────
+
+const useMediaQuery = (query: string): boolean => {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [query]);
+  return matches;
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +44,10 @@ interface Position {
   sections: unknown | null;
   created_at: string;
   decision_thread_id: string;
+  is_monitored?: boolean | null;
+  monitor_set_at?: string | null;
+  monitor_alert_threshold?: string | null;
+  monitor_last_signal_count?: number | null;
 }
 
 interface ThreadInfo {
@@ -457,6 +476,12 @@ export default function InsightDetail() {
   const [hoveredSignal, setHoveredSignal] = useState<string | null>(null);
   const [hoveredExpand, setHoveredExpand] = useState(false);
   const [hoveredCrossChecked, setHoveredCrossChecked] = useState(false);
+  const [isMonitored, setIsMonitored] = useState(false);
+  const [monitorThreshold, setMonitorThreshold] = useState('normal');
+  const [showUrgencyPicker, setShowUrgencyPicker] = useState(false);
+  const [monitorLoading, setMonitorLoading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const isDesktop = useMediaQuery('(min-width: 900px)');
 
   useEffect(() => {
     if (!id) return;
@@ -465,12 +490,16 @@ export default function InsightDetail() {
         // Fetch position by ID
         const { data: posData } = await (supabase as any)
           .from('positions')
-          .select('id, title, tone, why_now, reasoning, position_essence, cover_image_url, signal_refs, fact_confidence, signal_basis, sections, validated_at, validation_issues, created_at, decision_thread_id')
+          .select('id, title, tone, why_now, reasoning, position_essence, cover_image_url, signal_refs, fact_confidence, signal_basis, sections, validated_at, validation_issues, created_at, decision_thread_id, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count')
           .eq('id', id)
           .single();
 
         const pos = posData;
-        if (pos) setPosition(pos);
+        if (pos) {
+          setPosition(pos);
+          setIsMonitored(pos.is_monitored || false);
+          setMonitorThreshold(pos.monitor_alert_threshold || 'normal');
+        }
 
         // Fetch thread info from position's decision_thread_id
         if (pos?.decision_thread_id) {
@@ -503,6 +532,81 @@ export default function InsightDetail() {
       }
     })();
   }, [id]);
+
+  // ─── Monitor handlers ────────────────────────────────────────────────────
+
+  const monitorDropdownRef = useRef<HTMLDivElement>(null);
+  const [pendingThreshold, setPendingThreshold] = useState<'normal' | 'high' | 'breaking' | null>(null);
+
+  const handleMonitorToggle = () => {
+    setShowUrgencyPicker(prev => {
+      if (!prev) {
+        // Opening: pre-select current saved threshold
+        setPendingThreshold(isMonitored ? (monitorThreshold as 'normal' | 'high' | 'breaking') : null);
+      }
+      return !prev;
+    });
+  };
+
+  const handleSaveMonitor = async () => {
+    if (!position || !pendingThreshold) return;
+    setMonitorLoading(true);
+    setShowUrgencyPicker(false);
+
+    const { error } = await (supabase as any)
+      .from('positions')
+      .update({
+        is_monitored: true,
+        monitor_set_at: new Date().toISOString(),
+        monitor_alert_threshold: pendingThreshold,
+        monitor_last_signal_count: position.signal_refs?.length || 0,
+      })
+      .eq('id', position.id);
+
+    if (!error) {
+      setIsMonitored(true);
+      setMonitorThreshold(pendingThreshold);
+    }
+    setMonitorLoading(false);
+  };
+
+  const handleStopMonitoring = async () => {
+    if (!position) return;
+    setShowUrgencyPicker(false);
+    setIsMonitored(false);
+    await (supabase as any)
+      .from('positions')
+      .update({ is_monitored: false, monitor_set_at: null, monitor_alert_threshold: null })
+      .eq('id', position.id);
+  };
+
+  // Close dropdown on outside click or Escape
+  useEffect(() => {
+    if (!showUrgencyPicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (monitorDropdownRef.current && !monitorDropdownRef.current.contains(e.target as Node)) {
+        setShowUrgencyPicker(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowUrgencyPicker(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [showUrgencyPicker]);
+
+  // ─── "Ready to share" logic ─────────────────────────────────────────────
+
+  const showReadyToShare = (
+    isMonitored &&
+    (position?.monitor_last_signal_count || 0) >= 3 &&
+    position?.monitor_set_at &&
+    Date.now() - new Date(position.monitor_set_at).getTime() > 86400000
+  );
 
   // ─── Loading / Error ─────────────────────────────────────────────────────
 
@@ -601,47 +705,178 @@ export default function InsightDetail() {
         </button>
       </div>
 
-      {/* Page content — with bottom padding for fixed chat bar */}
-      <div style={{ paddingBottom: 80 }}>
-        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+      {/* Two-column grid on desktop, single column on mobile */}
+      <div style={{
+        display: isDesktop ? 'grid' : 'block',
+        gridTemplateColumns: isDesktop ? '1fr 1fr' : undefined,
+        maxWidth: isDesktop ? 1200 : 680,
+        margin: '0 auto',
+        height: isDesktop ? 'calc(100vh - 120px)' : undefined,
+      }}>
 
-          {/* Hero */}
-          <div style={{ padding: '32px 24px 24px' }}>
-            {/* Meta row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-              <ToneBadge tone={position.tone || 'WATCH'} />
-              {thread?.lens && (
-                <span style={{ fontSize: 13, color: '#666' }}>{formatLens(thread.lens)}</span>
-              )}
-              <span style={{ fontSize: 13, color: '#aaa' }}>·</span>
-              <span style={{ fontSize: 13, color: '#aaa' }}>{filteredSignals.length} signal{filteredSignals.length !== 1 ? 's' : ''}</span>
-              <span style={{ fontSize: 13, color: '#aaa' }}>·</span>
-              <span style={{ fontSize: 13, color: '#aaa' }}>{timeAgo(position.created_at)}</span>
-            </div>
-
-            {/* Title */}
-            <h1 style={{
-              fontSize: 28, fontWeight: 700, lineHeight: 1.25,
-              marginBottom: 16, color: '#111', letterSpacing: '-0.02em',
-            }}>
-              {position.title}
-            </h1>
-
-            {/* why_now — full */}
-            {position.why_now && (
-              <p style={{
-                fontSize: 16, lineHeight: 1.6, color: '#444',
-                margin: 0, borderLeft: '3px solid #111', paddingLeft: 16,
-              }}>
-                {position.why_now}
-              </p>
+        {/* ─── LEFT COLUMN: Hero + Signal Basis ─────────────────────────── */}
+        <div style={{
+          padding: isDesktop ? '40px 40px 120px' : '32px 24px 24px',
+          borderRight: 'none',
+          overflowY: isDesktop ? 'auto' : undefined,
+          height: isDesktop ? '100%' : undefined,
+        }}>
+          {/* Meta row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <ToneBadge tone={position.tone || 'WATCH'} />
+            {thread?.lens && (
+              <span style={{ fontSize: 13, color: '#666' }}>{formatLens(thread.lens)}</span>
             )}
+            <span style={{ fontSize: 13, color: '#aaa' }}>·</span>
+            <span style={{ fontSize: 13, color: '#aaa' }}>{filteredSignals.length} signal{filteredSignals.length !== 1 ? 's' : ''}</span>
+            <span style={{ fontSize: 13, color: '#aaa' }}>·</span>
+            <span style={{ fontSize: 13, color: '#aaa' }}>{timeAgo(position.created_at)}</span>
+
+            <div ref={monitorDropdownRef} style={{ marginLeft: 'auto', position: 'relative' }}>
+              <button
+                onClick={handleMonitorToggle}
+                disabled={monitorLoading}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 16px', borderRadius: 20,
+                  border: isMonitored ? '1.5px solid #111' : '1.5px solid rgba(0,0,0,0.15)',
+                  background: isMonitored ? '#111' : 'transparent',
+                  color: isMonitored ? '#fff' : '#555',
+                  fontSize: 13, fontWeight: 500,
+                  cursor: 'pointer', transition: 'all 0.15s ease',
+                  fontFamily: FONT,
+                }}
+              >
+                {monitorLoading ? '...' : !isMonitored ? '◎ Monitor'
+                  : monitorThreshold === 'breaking' ? '⚡ Breaking'
+                  : monitorThreshold === 'high' ? '● Priority'
+                  : '◎ Standard'}
+                <span style={{ fontSize: 10, marginLeft: 2 }}>▾</span>
+              </button>
+
+              {/* Inline monitor dropdown */}
+              {showUrgencyPicker && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: 280,
+                  background: '#ffffff',
+                  border: '1px solid rgba(0,0,0,0.12)',
+                  borderRadius: 12,
+                  padding: 16,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  zIndex: 200,
+                  fontFamily: FONT,
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 12 }}>
+                    How closely should AUO watch this?
+                  </div>
+
+                  {([
+                    { id: 'normal' as const, label: 'Standard', description: 'Updates with regular scans', icon: '◎' },
+                    { id: 'high' as const, label: 'Priority', description: 'Frequent scans — email on new signals', icon: '●' },
+                    { id: 'breaking' as const, label: 'Breaking', description: 'Every 20 min — immediate email alert', icon: '⚡' },
+                  ]).map(option => {
+                    const selected = pendingThreshold === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => setPendingThreshold(option.id)}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          width: '100%', padding: '10px 12px', marginBottom: 4,
+                          background: selected ? '#f5f5f5' : 'transparent',
+                          border: 'none', borderRadius: 8,
+                          cursor: 'pointer', textAlign: 'left' as const,
+                          fontFamily: FONT, transition: transition.fast,
+                        }}
+                        onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f5f5f5'; }}
+                        onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <span style={{
+                          width: 14, height: 14, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+                          border: selected ? 'none' : '1.5px solid #ccc',
+                          background: selected ? '#111' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {selected && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: selected ? 600 : 500, color: '#111' }}>
+                            {option.icon} {option.label}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                            {option.description}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  {/* Save button — shown when selection differs from saved state */}
+                  {pendingThreshold && !(isMonitored && monitorThreshold === pendingThreshold) && (
+                    <button
+                      onClick={handleSaveMonitor}
+                      style={{
+                        width: '100%', padding: '10px 0', marginTop: 8,
+                        background: '#111', color: '#fff', border: 'none', borderRadius: 8,
+                        fontSize: 13, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#333'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#111'; }}
+                    >
+                      Save
+                    </button>
+                  )}
+
+                  {isMonitored && (
+                    <>
+                      <div style={{ height: 1, background: 'rgba(0,0,0,0.06)', margin: '8px 0' }} />
+                      <button
+                        onClick={handleStopMonitoring}
+                        style={{
+                          width: '100%', padding: '8px 12px',
+                          background: 'transparent', border: 'none', borderRadius: 8,
+                          fontSize: 12, fontWeight: 500, color: '#999',
+                          cursor: 'pointer', textAlign: 'left' as const,
+                          fontFamily: FONT, transition: transition.fast,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.05)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#999'; e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        Stop monitoring
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Title */}
+          <h1 style={{
+            fontSize: isDesktop ? 32 : 28, fontWeight: 700, lineHeight: 1.2,
+            marginBottom: 20, color: '#111', letterSpacing: '-0.02em',
+          }}>
+            {position.title}
+          </h1>
+
+          {/* why_now */}
+          {position.why_now && (
+            <p style={{
+              fontSize: 16, lineHeight: 1.6, color: '#444',
+              margin: '0 0 24px', borderLeft: '3px solid #111', paddingLeft: 16,
+            }}>
+              {position.why_now}
+            </p>
+          )}
 
           {/* SIGNAL BASIS */}
           {position.signal_basis && (
             <div style={{
-              padding: '20px 24px',
+              paddingTop: 20,
               borderTop: '1px solid rgba(0,0,0,0.06)',
               display: 'flex',
               gap: 24,
@@ -682,7 +917,7 @@ export default function InsightDetail() {
                     const sourceCount = position.signal_basis!.source_names?.length || 0;
                     const signalCount = position.signal_basis!.signal_count;
                     const sourceLabel = sourceCount >= 3
-                      ? `${sourceCount} independent sources`
+                      ? `${sourceCount} sources`
                       : sourceCount >= 2
                       ? `${sourceCount} sources`
                       : sourceCount === 1
@@ -753,7 +988,7 @@ export default function InsightDetail() {
                             zIndex: 10,
                             pointerEvents: 'none' as const,
                           }}>
-                            {filteredSignals.length} source{filteredSignals.length !== 1 ? 's' : ''} confirm this insight from different angles.
+                            {filteredSignals.length} source{filteredSignals.length !== 1 ? 's' : ''} confirm this insight.
                           </span>
                         )}
                       </span>
@@ -782,17 +1017,96 @@ export default function InsightDetail() {
             </div>
           )}
 
+          {/* Ready to share CTA */}
+          {showReadyToShare && position.monitor_set_at && (
+            <div style={{
+              margin: '24px 0 0',
+              padding: 16,
+              background: 'rgba(0,0,0,0.03)',
+              borderRadius: 12,
+              border: '1px solid rgba(0,0,0,0.06)',
+            }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                You've been monitoring this for{' '}
+                {Math.floor(
+                  (Date.now() - new Date(position.monitor_set_at).getTime()) / 86400000
+                )}{' '}
+                days · {position.monitor_last_signal_count} signals tracked
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 4 }}>
+                Opinion formed?
+              </div>
+              <div style={{ fontSize: 13, color: '#555', marginBottom: 14, lineHeight: 1.5 }}>
+                When you're ready, share this insight with your team.
+                AUO will continue tracking evidence.
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(
+                    `${window.location.origin}/insights/${position.id}`
+                  );
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2000);
+                }}
+                style={{
+                  width: '100%', padding: 12,
+                  background: '#111', color: '#fff', border: 'none',
+                  borderRadius: 10, fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', gap: 8,
+                  fontFamily: FONT,
+                }}
+              >
+                {linkCopied ? 'Link copied!' : 'Share with team \u2192'}
+              </button>
+            </div>
+          )}
+
+          {/* Key numbers grid */}
+          {keyNumbers && keyNumbers.length > 0 && (
+            <div style={{ paddingTop: 24, background: colors.bg.surface, marginTop: 24, borderRadius: radius.md, padding: 20 }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: 12,
+              }}>
+                {keyNumbers.map((kn, i) => (
+                  <div key={i} style={{
+                    padding: '14px 16px',
+                    borderRadius: radius.md,
+                    background: colors.bg.card.light,
+                    border: `1px solid ${colors.border.light}`,
+                  }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 4 }}>
+                      {kn.value}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      {kn.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── RIGHT COLUMN: Why This Matters + Signals ─────────────────── */}
+        <div style={{
+          padding: isDesktop ? '40px 40px 120px' : '0 24px 120px',
+          borderTop: isDesktop ? 'none' : `1px solid ${colors.border.light}`,
+          overflowY: isDesktop ? 'auto' : undefined,
+          height: isDesktop ? '100%' : undefined,
+        }}>
+
           {/* WHY THIS MATTERS — amber highlight section */}
           {memoBullets.length > 0 && (
             <div style={{
-              padding: `${spacing["6"]} ${spacing["6"]}`,
-              borderTop: `1px solid ${colors.border.light}`,
+              padding: spacing["6"],
               borderLeft: `3px solid ${colors.accent.amber}`,
               background: colors.accent.amberLight,
-              marginLeft: spacing["6"],
-              marginRight: spacing["6"],
-              marginTop: spacing["6"],
               borderRadius: `0 ${radius.md} ${radius.md} 0`,
+              marginBottom: 24,
+              marginTop: isDesktop ? 0 : 24,
             }}>
               <h3 style={{
                 fontSize: typography.size.xs,
@@ -835,36 +1149,9 @@ export default function InsightDetail() {
             </div>
           )}
 
-          {/* Key numbers grid */}
-          {keyNumbers && keyNumbers.length > 0 && (
-            <div style={{ padding: `${spacing["6"]} ${spacing["6"]}`, background: colors.bg.surface }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: 12,
-              }}>
-                {keyNumbers.map((kn, i) => (
-                  <div key={i} style={{
-                    padding: '14px 16px',
-                    borderRadius: radius.md,
-                    background: colors.bg.card.light,
-                    border: `1px solid ${colors.border.light}`,
-                  }}>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 4 }}>
-                      {kn.value}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
-                      {kn.label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* SIGNALS */}
           {filteredSignals.length > 0 && (
-            <div style={{ padding: 24 }}>
+            <div>
               <h3 style={{
                 fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
                 color: '#999', marginBottom: 16, textTransform: 'uppercase' as const,
@@ -980,17 +1267,18 @@ export default function InsightDetail() {
             </div>
           )}
         </div>
+
       </div>
 
-      {/* Fixed bottom ASK AUO chat bar */}
+      {/* Urgency picker modal */}
+
+      {/* Fixed bottom ASK AUO chat bar — outside grid, full width */}
       <div style={{
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
         zIndex: 100,
-        display: 'flex',
-        justifyContent: 'center',
         padding: `${spacing["3"]} ${spacing["4"]}`,
         background: 'rgba(255,255,255,0.95)',
         backdropFilter: 'blur(12px)',
@@ -998,8 +1286,8 @@ export default function InsightDetail() {
         borderTop: `1px solid ${colors.border.light}`,
       }}>
         <div style={{
-          width: '100%',
-          maxWidth: 640,
+          maxWidth: isDesktop ? 1200 : 640,
+          margin: '0 auto',
           display: 'flex',
           gap: spacing["2"],
           alignItems: 'center',
