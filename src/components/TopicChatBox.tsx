@@ -67,6 +67,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
   const [options, setOptions] = useState<string[]>([]);
   const [isAdded, setIsAdded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -255,12 +256,13 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
             </div>
           )}
 
-          {/* Options buttons */}
+          {/* Option pills */}
           {options.length > 0 && !proposedTopic && !isLoading && (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
+              gap: 8,
+              marginTop: 8,
               marginBottom: 12,
             }}>
               {options.map((opt, i) => (
@@ -269,7 +271,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
                   onClick={() => handleSend(opt)}
                   style={{
                     padding: '10px 14px',
-                    background: '#f9f9f9',
+                    background: '#fafafa',
                     border: '1px solid #e8e8e8',
                     borderRadius: 8,
                     fontSize: 14,
@@ -284,13 +286,32 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
                     e.currentTarget.style.borderColor = '#ccc';
                   }}
                   onMouseLeave={e => {
-                    e.currentTarget.style.background = '#f9f9f9';
+                    e.currentTarget.style.background = '#fafafa';
                     e.currentTarget.style.borderColor = '#e8e8e8';
                   }}
                 >
                   {opt}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  setOptions([]);
+                  setTimeout(() => inputRef.current?.focus(), 0);
+                }}
+                style={{
+                  padding: '10px 14px',
+                  background: 'transparent',
+                  border: '1px solid #e8e8e8',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  color: '#999',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: FONT,
+                }}
+              >
+                Something else...
+              </button>
             </div>
           )}
 
@@ -347,6 +368,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
           {!proposedTopic && options.length === 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
+                ref={inputRef}
                 style={{
                   flex: 1,
                   border: 'none',
