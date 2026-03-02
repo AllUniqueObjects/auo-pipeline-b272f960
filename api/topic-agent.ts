@@ -1,37 +1,77 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@supabase/supabase-js';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 interface Message {
   role: 'user' | 'auo';
   content: string;
 }
 
-const systemPrompt = `You are AUO, a strategic intelligence assistant for New Balance footwear executives.
+interface AgentResponse {
+  reply: string;
+  proposed_topic: string | null;
+  options: string[];
+}
 
-Your job: Help the user define a precise decision topic to track.
-Keep it SHORT — max 2 turns before proposing a topic.
+function buildSystemPrompt(activeThreads: string[]): string {
+  const threadList = activeThreads.length > 0
+    ? activeThreads.map(t => `- ${t}`).join('\n')
+    : '- (no topics yet)';
 
-Rules:
-1. First user message: Ask ONE clarifying question (season? region? decision deadline?)
-2. Second user message: Propose a final topic title and set proposed_topic
-3. Always respond in JSON format
+  return `You are AUO, a strategic intelligence assistant for a New Balance VP of Footwear & Apparel Product Development.
 
-Response format:
-{"reply": "Your conversational response to the user", "proposed_topic": "Final topic title (max 60 chars)" or null}
+The user is currently tracking these topics:
+${threadList}
 
-Topic title format: "[Subject] [context] for [season/deadline]"
-Examples:
-- "Vietnam tariff costs & FW27 capacity lock timing"
-- "BlueSign vs Ecotex certification for FW27 BOM"
-- "Indonesia alternative sourcing post-July tariffs"
+Your job: Help define a NEW topic to track. Be smart and specific.
 
-Keep replies SHORT — 1-2 sentences max.
-Never ask more than 1 clarifying question.
-After 2 user messages, always propose a topic.`;
+BEHAVIOR RULES:
+1. If input is broad (e.g. "textile innovation", "Vietnam", "pricing"):
+   - Propose 2-3 SPECIFIC trackable angles as options
+   - Reference existing threads where relevant
+   - Return options array
+
+2. If user picks an option or is already specific:
+   - Propose final topic title immediately
+   - Return proposed_topic
+
+3. Max 1 exchange before proposing. Never ask 2 clarifying questions.
+4. Replies: 1 sentence max (before options or proposal).
+5. Topic titles: specific, actionable, max 60 chars.
+   Format: "[Subject] [context] for [season/deadline]"
+
+RESPONSE FORMAT (strict JSON only, no markdown):
+{
+  "reply": "short message",
+  "proposed_topic": "Final title (60 chars max)" or null,
+  "options": ["Option A title", "Option B title", "Option C title"] or []
+}
+
+EXAMPLES:
+
+User already tracks: BlueSign vs Ecotex, Vietnam vs Indonesia
+
+Input: "textile innovation"
+Response: {"reply":"A few angles beyond your BlueSign work:","proposed_topic":null,"options":["Competitor textile strategies — Nike, Adidas, On","PFAS-alternative material pipeline for FW27","Bio-based & recycled supplier landscape 2026"]}
+
+Input: "first option" or "Competitor textile strategies — Nike, Adidas, On"
+Response: {"reply":"Got it.","proposed_topic":"Competitor textile strategies — Nike, Adidas, On FW27","options":[]}
+
+Input: "Nike FW27 shelf positioning in key accounts"
+Response: {"reply":"Got it.","proposed_topic":"Nike FW27 shelf positioning in key accounts","options":[]}
+
+Input: "pricing"
+Response: {"reply":"A few pricing angles:","proposed_topic":null,"options":["Consumer price elasticity at $130-$150 FW27","Nike & On pricing pressure on 880 positioning","Vietnam tariff impact on landed cost targets"]}`;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
@@ -42,10 +82,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages } = req.body as { messages?: Message[] };
+  const { messages, userId } = req.body as { messages?: Message[]; userId?: string };
 
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'No messages provided' });
+  }
+
+  // Fetch active threads for context
+  let activeThreads: string[] = [];
+  if (userId) {
+    try {
+      const { data } = await supabase
+        .from('decision_threads')
+        .select('title')
+        .eq('user_id', userId)
+        .neq('level', 'decided')
+        .neq('level', 'archived')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      activeThreads = data?.map(t => t.title) || [];
+    } catch (err) {
+      console.warn('Failed to fetch threads for context:', err);
+    }
   }
 
   const claudeMessages = messages.map((msg) => ({
@@ -56,26 +114,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
-      system: systemPrompt,
+      max_tokens: 300,
+      system: buildSystemPrompt(activeThreads),
       messages: claudeMessages,
     });
 
     const rawText =
       response.content[0].type === 'text' ? response.content[0].text : '';
 
-    let parsed: { reply: string; proposed_topic: string | null };
+    let parsed: AgentResponse;
     try {
       const cleaned = rawText.replace(/```json|```/g, '').trim();
       parsed = JSON.parse(cleaned);
+      if (!parsed.options) parsed.options = [];
     } catch {
-      // Fallback if Haiku doesn't return valid JSON
       parsed = {
         reply: rawText,
         proposed_topic:
           messages.filter((m) => m.role === 'user').length >= 2
             ? messages[0].content.slice(0, 60)
             : null,
+        options: [],
       };
     }
 
@@ -85,6 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({
       reply: 'I had trouble processing that. Can you try rephrasing?',
       proposed_topic: null,
+      options: [],
     });
   }
 }
