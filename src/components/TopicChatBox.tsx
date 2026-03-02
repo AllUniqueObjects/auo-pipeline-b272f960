@@ -100,6 +100,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [proposedTopic, setProposedTopic] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
   const [addedTopic, setAddedTopic] = useState<string | null>(null);
   const [isRefining, setIsRefining] = useState(false);
   const [refineInput, setRefineInput] = useState('');
@@ -157,14 +158,25 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
   };
 
   const handleAdd = async () => {
-    if (!proposedTopic) return;
-    setIsLoading(true);
+    if (!proposedTopic || isAdding) return;
+    setIsAdding(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('[TopicChatBox] Not authenticated');
-        setIsLoading(false);
+      // Get user — try getUser first, fall back to session
+      let userId: string | null = null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        userId = user?.id ?? null;
+      } catch {
+        // getUser can fail with expired token — try session
+      }
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id ?? null;
+      }
+      if (!userId) {
+        setMessages(prev => [...prev, { role: 'auo', content: 'You need to be logged in to add topics. Try refreshing the page.' }]);
+        setIsAdding(false);
         return;
       }
 
@@ -173,7 +185,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
       const { data: existing } = await (supabase as any)
         .from('decision_threads')
         .select('id, title')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('status', 'active')
         .ilike('title', `%${searchWords}%`)
         .limit(1);
@@ -181,7 +193,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
       if (existing && existing.length > 0) {
         setMessages(prev => [...prev, { role: 'auo', content: `This looks similar to "${existing[0].title}" which you're already tracking.` }]);
         setProposedTopic(null);
-        setIsLoading(false);
+        setIsAdding(false);
         return;
       }
 
@@ -189,7 +201,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
       const { data: thread, error } = await (supabase as any)
         .from('decision_threads')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           title: proposedTopic,
           key_question: `What should I know about: ${proposedTopic}?`,
           lens,
@@ -201,7 +213,9 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
 
       if (error || !thread) {
         console.error('[TopicChatBox] Failed to create thread:', error);
-        setIsLoading(false);
+        setMessages(prev => [...prev, { role: 'auo', content: `Something went wrong adding this topic. ${error?.message || 'Please try again.'}` }]);
+        setProposedTopic(null);
+        setIsAdding(false);
         return;
       }
 
@@ -216,7 +230,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
         fetch(scanUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ thread_id: thread.id, user_id: user.id, topic: proposedTopic }),
+          body: JSON.stringify({ thread_id: thread.id, user_id: userId, topic: proposedTopic }),
         }).catch(() => {});
       }
 
@@ -227,10 +241,12 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
       // Show success state
       setAddedTopic(proposedTopic);
       onThreadCreated({ id: thread.id, title: thread.title, lens: thread.lens, cover_image_url: null });
-    } catch (err) {
+    } catch (err: any) {
       console.error('[TopicChatBox] Add topic error:', err);
+      setMessages(prev => [...prev, { role: 'auo', content: `Something went wrong: ${err?.message || 'Unknown error'}. Please try again.` }]);
+      setProposedTopic(null);
     } finally {
-      setIsLoading(false);
+      setIsAdding(false);
     }
   };
 
@@ -246,6 +262,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
     setProposedTopic(null);
     setOptions([]);
     setAddedTopic(null);
+    setIsAdding(false);
     setIsRefining(false);
     setRefineInput('');
     setInput('');
@@ -430,8 +447,8 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
             </div>
           )}
 
-          {/* Proposed topic card */}
-          {proposedTopic && !isLoading && (
+          {/* Proposed topic card — stays visible during add */}
+          {proposedTopic && (
             <div style={{
               background: '#f9f9f9',
               borderRadius: 8,
@@ -446,35 +463,40 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={handleAdd}
+                  disabled={isAdding}
                   style={{
                     padding: '8px 16px',
-                    background: '#111',
+                    background: isAdding ? '#666' : '#111',
                     color: '#fff',
                     border: 'none',
                     borderRadius: 8,
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: isAdding ? 'default' : 'pointer',
                     fontFamily: FONT,
+                    opacity: isAdding ? 0.7 : 1,
+                    transition: transition.fast,
                   }}
                 >
-                  + Add to my topics
+                  {isAdding ? 'Adding...' : '+ Add to my topics'}
                 </button>
-                <button
-                  onClick={handleRefine}
-                  style={{
-                    padding: '8px 16px',
-                    background: 'transparent',
-                    color: '#666',
-                    border: '1px solid #e8e8e8',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  Refine
-                </button>
+                {!isAdding && (
+                  <button
+                    onClick={handleRefine}
+                    style={{
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      color: '#666',
+                      border: '1px solid #e8e8e8',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Refine
+                  </button>
+                )}
               </div>
             </div>
           )}
