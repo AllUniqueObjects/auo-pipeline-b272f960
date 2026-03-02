@@ -697,6 +697,9 @@ export default function Feed() {
   const [monitorAlerts, setMonitorAlerts] = useState<{ id: string; thread_id: string; payload: Record<string, unknown>; created_at: string }[]>([]);
   const justOnboarded = sessionStorage.getItem('justOnboarded') === 'true';
 
+  // Sidebar menu state
+  const [menuOpenThreadId, setMenuOpenThreadId] = useState<string | null>(null);
+
   // Scanning state — local state, not URL-derived
   const [scanningThreadId, setScanningThreadId] = useState<string | null>(null);
   const isScanning = scanningThreadId !== null;
@@ -744,6 +747,43 @@ export default function Feed() {
     if (activeFilter === 'BREAKING' && !hasBreaking) setActiveFilter('All');
   }, [hasBreaking, activeFilter]);
 
+  // Close sidebar menu on outside click
+  useEffect(() => {
+    if (!menuOpenThreadId) return;
+    const handleClick = () => setMenuOpenThreadId(null);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [menuOpenThreadId]);
+
+  // Archive a thread — optimistic removal
+  const handleArchiveThread = useCallback(async (threadId: string) => {
+    // Optimistic: remove from sidebar immediately
+    setDbThreads(prev => prev.filter(t => t.id !== threadId));
+    setManualThreads(prev => prev.filter(t => t.id !== threadId));
+
+    // If this was selected, go to All Topics
+    if (activeThreadId === threadId) {
+      setActiveThreadId(null);
+      setSearchParams({});
+    }
+
+    try {
+      await (supabase as any)
+        .from('decision_threads')
+        .update({ level: 'archived' })
+        .eq('id', threadId);
+
+      // Clear monitor on archived positions
+      await (supabase as any)
+        .from('positions')
+        .update({ is_monitored: false })
+        .eq('decision_thread_id', threadId);
+    } catch (e) {
+      console.error('[Feed] Archive failed:', e);
+      window.location.reload();
+    }
+  }, [activeThreadId, setSearchParams]);
+
   const loadFeed = useCallback(async () => {
     try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -752,9 +792,10 @@ export default function Feed() {
     // Step 1: Get user's active thread IDs + metadata
     const { data: threadData } = await (supabase as any)
       .from('decision_threads')
-      .select('id, title, lens, cover_image_url')
+      .select('id, title, lens, cover_image_url, created_at')
       .eq('user_id', user.id)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .neq('level', 'archived');
 
     setDbThreads(threadData || []);
     if (!threadData?.length) { setPositions([]); setLoading(false); return; }
@@ -1068,51 +1109,136 @@ export default function Feed() {
             {threads.map(t => {
               const isActive = activeThreadId === t.id;
               const isHovered = hoveredPill === `sidebar-${t.id}`;
+              const isMenuOpen = menuOpenThreadId === t.id;
               const count = positions.filter(p => p.decision_thread_id === t.id).length;
               return (
-                <button
+                <div
                   key={t.id}
-                  onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); }}
                   onMouseEnter={() => setHoveredPill(`sidebar-${t.id}`)}
                   onMouseLeave={() => setHoveredPill(null)}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '8px 10px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: isHovered && !isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
-                    cursor: 'pointer',
-                    transition: transition.fast,
-                    fontFamily: FONT,
-                    textAlign: 'left',
-                    width: '100%',
-                  }}
+                  style={{ position: 'relative' }}
                 >
-                  <span style={{
-                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 4,
-                    background: isActive ? colors.text.primary.light : 'transparent',
-                    border: isActive ? 'none' : `1.5px solid ${colors.text.muted.light}`,
-                  }} />
-                  <span style={{
-                    flex: 1, minWidth: 0,
-                    fontSize: 13, fontWeight: isActive ? 600 : 400,
-                    color: isActive ? colors.text.primary.light : colors.text.secondary.light,
-                    lineHeight: 1.4,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}>
-                    {t.title}
-                  </span>
-                  <span style={{
-                    fontSize: 11, color: colors.text.muted.light, flexShrink: 0, marginTop: 2,
-                  }}>
-                    {count === 0 && (t as any).created_at && (Date.now() - new Date((t as any).created_at).getTime() < 300000)
-                      ? <span style={{ color: '#999', fontStyle: 'italic' }}>scanning...</span>
-                      : count}
-                  </span>
-                </button>
+                  <button
+                    onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); }}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                      padding: '8px 10px',
+                      paddingRight: 30,
+                      borderRadius: 8,
+                      border: 'none',
+                      background: isHovered && !isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
+                      cursor: 'pointer',
+                      transition: transition.fast,
+                      fontFamily: FONT,
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 4,
+                      background: isActive ? colors.text.primary.light : 'transparent',
+                      border: isActive ? 'none' : `1.5px solid ${colors.text.muted.light}`,
+                    }} />
+                    <span style={{
+                      flex: 1, minWidth: 0,
+                      fontSize: 13, fontWeight: isActive ? 600 : 400,
+                      color: isActive ? colors.text.primary.light : colors.text.secondary.light,
+                      lineHeight: 1.4,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}>
+                      {t.title}
+                    </span>
+                    <span style={{
+                      fontSize: 11, color: colors.text.muted.light, flexShrink: 0, marginTop: 2,
+                    }}>
+                      {count === 0 && t.created_at && (Date.now() - new Date(t.created_at).getTime() < 300000)
+                        ? <span style={{ color: '#999', fontStyle: 'italic' }}>scanning...</span>
+                        : count}
+                    </span>
+                  </button>
+
+                  {/* ... menu button — shows on hover or when menu is open */}
+                  {(isHovered || isMenuOpen) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpenThreadId(isMenuOpen ? null : t.id);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        right: 4,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 24,
+                        height: 24,
+                        borderRadius: 4,
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#999',
+                        cursor: 'pointer',
+                        fontSize: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontFamily: FONT,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      &#x22EF;
+                    </button>
+                  )}
+
+                  {/* Dropdown menu */}
+                  {isMenuOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: '100%',
+                      zIndex: 100,
+                      background: '#fff',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: 8,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                      padding: '4px 0',
+                      minWidth: 160,
+                    }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleArchiveThread(t.id);
+                          setMenuOpenThreadId(null);
+                        }}
+                        style={{
+                          display: 'block', width: '100%',
+                          padding: '10px 16px', textAlign: 'left',
+                          background: 'none', border: 'none',
+                          fontSize: 14, color: '#111',
+                          cursor: 'pointer', fontFamily: FONT,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        Archive topic
+                      </button>
+                      <button
+                        disabled
+                        style={{
+                          display: 'block', width: '100%',
+                          padding: '10px 16px', textAlign: 'left',
+                          background: 'none', border: 'none',
+                          fontSize: 14, color: '#bbb',
+                          cursor: 'default', fontFamily: FONT,
+                        }}
+                      >
+                        Pin topic (soon)
+                      </button>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
