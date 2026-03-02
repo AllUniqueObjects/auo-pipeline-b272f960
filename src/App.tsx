@@ -44,21 +44,21 @@ function AppWithAuth() {
       return;
     }
 
-    // Check if user has any decision threads — if so, onboarding is done
+    // Check public.users.company — if set, onboarding is done
     (supabase as any)
-      .from('decision_threads')
-      .select('id')
-      .eq('user_id', session.user.id)
-      .limit(1)
+      .from('users')
+      .select('company')
+      .eq('id', session.user.id)
+      .maybeSingle()
       .then(({ data }: any) => {
-        const completed = data && data.length > 0;
+        const completed = data && data.company && data.company.trim() !== '';
         if (completed) localStorage.setItem('onboardingComplete', 'true');
         setNeedsOnboarding(!completed);
         setOnboardingChecked(true);
       })
       .catch(() => {
-        // If query fails, skip onboarding to avoid blocking the user
-        setNeedsOnboarding(false);
+        // If query fails, show onboarding to be safe (don't skip it)
+        setNeedsOnboarding(true);
         setOnboardingChecked(true);
       });
   }, [session, onboardingChecked]);
@@ -91,6 +91,10 @@ function AppWithAuth() {
       />
       <Route
         path="/"
+        element={needsOnboarding ? <Navigate to="/onboarding" replace /> : <Feed />}
+      />
+      <Route
+        path="/feed"
         element={needsOnboarding ? <Navigate to="/onboarding" replace /> : <Feed />}
       />
       <Route path="/insights/:id" element={<InsightDetail />} />

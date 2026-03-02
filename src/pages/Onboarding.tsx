@@ -139,6 +139,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       });
 
       const data = await response.json();
+      console.log('[Onboarding] scan result:', data);
 
       if (data.topics && data.topics.length > 0) {
         setTopics(data.topics.map((t: Topic) => ({ ...t, selected: true })));
@@ -167,18 +168,20 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
     const { data: { user } } = await supabase.auth.getUser();
     const selected = topics.filter(t => t.selected);
 
-    const rows = selected.map(t => ({
-      user_id: user?.id,
-      title: t.title,
-      lens: categoryToLens[t.category] || 'supply_chain_resilience',
-      level: 'listening',
-      status: 'active',
-    }));
+    if (selected.length > 0) {
+      const rows = selected.map(t => ({
+        user_id: user?.id,
+        title: t.title,
+        lens: categoryToLens[t.category] || 'supply_chain_resilience',
+        level: 'listening',
+        status: 'active',
+      }));
 
-    try {
-      await (supabase as any).from('decision_threads').insert(rows);
-    } catch (e) {
-      console.error('Thread creation failed:', e);
+      try {
+        await (supabase as any).from('decision_threads').insert(rows);
+      } catch (e) {
+        console.error('[Onboarding] Thread insert failed:', e);
+      }
     }
 
     // Save company + role
@@ -431,8 +434,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             <div style={{ marginBottom: 32 }}>
               <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
                 {topics.length > 0
-                  ? `AUO found ${topics.length} decisions to track`
-                  : 'What are you tracking?'
+                  ? `AUO found ${topics.length} decisions to track at ${company}`
+                  : `What are you tracking at ${company}?`
                 }
               </h1>
               <p style={{ fontSize: 15, color: '#666' }}>
@@ -587,27 +590,25 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             </button>
 
             {/* Skip */}
-            {topics.length === 0 && (
-              <button
-                onClick={() => {
-                  localStorage.setItem('onboardingComplete', 'true');
-                  onComplete();
-                  navigate('/feed', { replace: true });
-                }}
-                style={{
-                  display: 'block',
-                  margin: '16px auto 0',
-                  background: 'none',
-                  border: 'none',
-                  color: '#999',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Skip for now
-              </button>
-            )}
+            <button
+              onClick={() => {
+                localStorage.setItem('onboardingComplete', 'true');
+                onComplete();
+                navigate('/feed', { replace: true });
+              }}
+              style={{
+                display: 'block',
+                margin: '16px auto 0',
+                background: 'none',
+                border: 'none',
+                color: '#bbb',
+                fontSize: 13,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Skip for now
+            </button>
           </div>
         )}
       </div>

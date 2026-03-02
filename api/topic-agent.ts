@@ -48,6 +48,12 @@ BEHAVIOR RULES:
 4. Replies: 1 sentence max (before options or proposal).
 5. Topic titles: specific, actionable, max 60 chars.
    Format: "[Subject] [context] for [season/deadline]"
+6. Topic titles must NEVER repeat words from the user's input verbatim.
+   Rephrase and make specific.
+   BAD:  "foam technology — foam technology for FW27 season"
+   GOOD: "Proprietary vs licensed foam — FW27 material decision"
+   BAD:  "Vietnam — Vietnam sourcing for FW27"
+   GOOD: "Vietnam vs Indonesia sourcing lock-in — FW27"
 
 RESPONSE FORMAT (strict JSON only, no markdown):
 {
@@ -70,7 +76,15 @@ Input: "Nike FW27 shelf positioning in key accounts"
 Response: {"reply":"Got it.","proposed_topic":"Nike FW27 shelf positioning in key accounts","options":[]}
 
 Input: "pricing"
-Response: {"reply":"A few pricing angles:","proposed_topic":null,"options":["Consumer price elasticity at $130-$150 FW27","Nike & On pricing pressure on 880 positioning","Vietnam tariff impact on landed cost targets"]}`;
+Response: {"reply":"A few pricing angles:","proposed_topic":null,"options":["Consumer price elasticity at $130-$150 FW27","Nike & On pricing pressure on 880 positioning","Vietnam tariff impact on landed cost targets"]}
+
+Input: "foam technology"
+WRONG: {"reply":"Got it.","proposed_topic":"Foam technology — foam technology for FW27 season","options":[]}
+RIGHT: {"reply":"A few foam angles:","proposed_topic":null,"options":["Proprietary vs licensed foam — FW27 material decision","ZoomX & Lightstrike competitive foam benchmarking","Bio-based foam supplier readiness for FW27"]}
+
+Input: "Vietnam"
+WRONG: {"reply":"Got it.","proposed_topic":"Vietnam — Vietnam sourcing for FW27","options":[]}
+RIGHT: {"reply":"Some Vietnam-specific angles beyond your current thread:","proposed_topic":null,"options":["Vietnam vs Indonesia sourcing lock-in — FW27","Vietnam tariff exposure & contingency planning","Vietnam Tier-1 supplier capacity for FW27 ramp"]}`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
