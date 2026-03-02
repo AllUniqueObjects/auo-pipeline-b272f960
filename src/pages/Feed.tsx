@@ -692,21 +692,27 @@ export default function Feed() {
   const [hoveredPill, setHoveredPill] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
+  const [dbThreads, setDbThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [directionEvents, setDirectionEvents] = useState<DirectionEvent[]>([]);
   const [monitorAlerts, setMonitorAlerts] = useState<{ id: string; thread_id: string; payload: Record<string, unknown>; created_at: string }[]>([]);
   const justOnboarded = sessionStorage.getItem('justOnboarded') === 'true';
 
-  // Scanning state from URL params
-  const isScanning = searchParams.get('scanning') === 'true';
-  const scanningThreadId = searchParams.get('thread');
+  // Scanning state — local state, not URL-derived
+  const [scanningThreadId, setScanningThreadId] = useState<string | null>(null);
+  const isScanning = scanningThreadId !== null;
 
-  // Auto-select thread from URL param
+  // Auto-select thread from URL param (on page load / external navigation)
   useEffect(() => {
     const threadParam = searchParams.get('thread');
-    if (threadParam && !isScanning) {
+    if (threadParam) {
       setActiveThreadId(threadParam);
     }
-  }, [searchParams, isScanning]);
+    // Clear URL params once consumed
+    if (searchParams.toString()) {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch user name on mount
   useEffect(() => {
@@ -750,6 +756,7 @@ export default function Feed() {
       .eq('user_id', user.id)
       .eq('status', 'active');
 
+    setDbThreads(threadData || []);
     if (!threadData?.length) { setPositions([]); setLoading(false); return; }
 
     const threadIds = threadData.map((t: any) => t.id);
@@ -839,8 +846,9 @@ export default function Feed() {
 
   // Poll for positions while scanning a new thread
   useEffect(() => {
-    if (!isScanning || !scanningThreadId) return;
+    if (!scanningThreadId) return;
 
+    let cancelled = false;
     const poll = setInterval(async () => {
       const { data } = await (supabase as any)
         .from('positions')
@@ -849,15 +857,16 @@ export default function Feed() {
         .not('validated_at', 'is', null)
         .limit(1);
 
+      if (cancelled) return;
       if (data && data.length > 0) {
         clearInterval(poll);
-        setSearchParams({ thread: scanningThreadId }, { replace: true });
+        setScanningThreadId(null);
         loadFeed();
       }
     }, 15000);
 
-    return () => clearInterval(poll);
-  }, [isScanning, scanningThreadId, loadFeed, setSearchParams]);
+    return () => { cancelled = true; clearInterval(poll); };
+  }, [scanningThreadId, loadFeed]);
 
   // ─── Poll agent_events for direction_changed (last 24h, unread) ────────
   const loadDirectionEvents = useCallback(async () => {
@@ -970,18 +979,11 @@ export default function Feed() {
   });
 
 
-  // ─── Derive unique threads from positions + manually added ────────────
-  const positionThreads = Array.from(
-    new Map(
-      positions
-        .filter(p => p.decision_threads)
-        .map(p => [p.decision_threads!.id, p.decision_threads!])
-    ).values()
-  );
-  const positionThreadIds = new Set(positionThreads.map(t => t.id));
+  // ─── Derive unique threads from DB + manually added (instant feedback) ──
+  const dbThreadIds = new Set(dbThreads.map(t => t.id));
   const threads = [
-    ...positionThreads,
-    ...manualThreads.filter(t => !positionThreadIds.has(t.id)),
+    ...dbThreads,
+    ...manualThreads.filter(t => !dbThreadIds.has(t.id)),
   ];
 
   const activeThread = activeThreadId ? threads.find(t => t.id === activeThreadId) || null : null;
@@ -1032,7 +1034,7 @@ export default function Feed() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* All Topics */}
             <button
-              onClick={() => setActiveThreadId(null)}
+              onClick={() => { setActiveThreadId(null); setScanningThreadId(null); }}
               onMouseEnter={() => setHoveredPill('sidebar-all')}
               onMouseLeave={() => setHoveredPill(null)}
               style={{
@@ -1070,7 +1072,7 @@ export default function Feed() {
               return (
                 <button
                   key={t.id}
-                  onClick={() => setActiveThreadId(t.id)}
+                  onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); }}
                   onMouseEnter={() => setHoveredPill(`sidebar-${t.id}`)}
                   onMouseLeave={() => setHoveredPill(null)}
                   style={{
@@ -1186,6 +1188,7 @@ export default function Feed() {
                 if (activeThreadId) {
                   setActiveThreadId(null);
                   setTopicsOpen(false);
+                  setScanningThreadId(null);
                 } else {
                   setTopicsOpen(!topicsOpen);
                 }
@@ -1214,7 +1217,9 @@ export default function Feed() {
           <TopicChatBox
             onThreadCreated={(thread) => {
               setManualThreads(prev => [...prev, { ...thread, created_at: new Date().toISOString() }]);
-              setSearchParams({ thread: thread.id, scanning: 'true' }, { replace: true });
+              setActiveThreadId(thread.id);
+              setScanningThreadId(thread.id);
+              loadFeed();
             }}
           />
           </div>{/* end feed-filter-bar */}
@@ -1231,7 +1236,7 @@ export default function Feed() {
               scrollbarWidth: 'none' as const,
             }}>
               <button
-                onClick={() => { setActiveThreadId(null); setTopicsOpen(false); }}
+                onClick={() => { setActiveThreadId(null); setTopicsOpen(false); setScanningThreadId(null); }}
                 style={{
                   ...pillStyle(activeThreadId === null, false),
                   whiteSpace: 'nowrap' as const,
@@ -1246,7 +1251,7 @@ export default function Feed() {
                 return (
                   <button
                     key={t.id}
-                    onClick={() => { setActiveThreadId(t.id); setTopicsOpen(false); }}
+                    onClick={() => { setActiveThreadId(t.id); setTopicsOpen(false); setScanningThreadId(null); }}
                     style={{
                       ...pillStyle(activeThreadId === t.id, false),
                       whiteSpace: 'nowrap' as const,
@@ -1267,7 +1272,7 @@ export default function Feed() {
           )}
 
         {/* ─── Scanning loading screen ─── */}
-        {isScanning && scanningThreadId && (
+        {isScanning && scanningThreadId && activeThreadId === scanningThreadId && (
           <div style={{
             display: 'flex',
             flexDirection: 'column',
@@ -1302,7 +1307,7 @@ export default function Feed() {
         )}
 
         {/* ─── Normal feed content (hidden while scanning) ─── */}
-        {!isScanning && (
+        {(!isScanning || activeThreadId !== scanningThreadId) && (
           <>
         {/* Direction-changed banners */}
         {directionEvents.length > 0 && directionEvents.map(evt => {

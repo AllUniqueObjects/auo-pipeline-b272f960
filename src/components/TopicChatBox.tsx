@@ -44,7 +44,11 @@ async function agentReply(messages: Message[], userId?: string): Promise<AgentRe
     return {
       reply: `Got it — "${last}". Are you focused on a specific season, region, or decision deadline?`,
       proposed_topic: null,
-      options: [],
+      options: [
+        `${last} for FW27 season`,
+        `${last} — sourcing region focus`,
+        `${last} — upcoming deadline`,
+      ],
     };
   }
   const first = messages.find(m => m.role === 'user')!.content;
