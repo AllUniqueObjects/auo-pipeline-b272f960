@@ -843,13 +843,13 @@ export default function Feed() {
     const shownTitleWords: Record<string, Set<string>> = {};
 
     for (const pos of sorted) {
-      const lens = pos.decision_threads?.lens || 'other';
-      if (!shownTitleWords[lens]) shownTitleWords[lens] = new Set();
+      const threadId = pos.decision_thread_id || 'unknown';
+      if (!shownTitleWords[threadId]) shownTitleWords[threadId] = new Set();
 
       const words = new Set(
         pos.title.toLowerCase().split(/\s+/).filter(w => w.length > 3)
       );
-      const existing = shownTitleWords[lens];
+      const existing = shownTitleWords[threadId];
       const overlap = [...words].filter(w => existing.has(w)).length;
 
       if (overlap >= 3) continue;
