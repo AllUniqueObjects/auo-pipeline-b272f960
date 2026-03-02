@@ -162,18 +162,9 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
     setIsAdding(true);
 
     try {
-      // Get user — try getUser first, fall back to session
-      let userId: string | null = null;
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        userId = user?.id ?? null;
-      } catch {
-        // getUser can fail with expired token — try session
-      }
-      if (!userId) {
-        const { data: { session } } = await supabase.auth.getSession();
-        userId = session?.user?.id ?? null;
-      }
+      // Force-refresh the session so the Supabase client has a valid JWT for RLS
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      const userId = refreshData.session?.user?.id ?? null;
       if (!userId) {
         setMessages(prev => [...prev, { role: 'auo', content: 'You need to be logged in to add topics. Try refreshing the page.' }]);
         setIsAdding(false);
@@ -197,16 +188,15 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
         return;
       }
 
+      // Match the working pattern from Onboarding — no created_at, no key_question
       const lens = inferLens(proposedTopic);
       const { data: thread, error } = await (supabase as any)
         .from('decision_threads')
         .insert({
           user_id: userId,
           title: proposedTopic,
-          key_question: `What should I know about: ${proposedTopic}?`,
           lens,
           status: 'active',
-          created_at: new Date().toISOString(),
         })
         .select()
         .single();
