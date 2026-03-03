@@ -82,32 +82,38 @@ export default function AdminCosts() {
   const [range, setRange] = useState<TimeRange>('7d');
   const [rows, setRows] = useState<CostRow[]>([]);
   const [hoveredRange, setHoveredRange] = useState<TimeRange | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Auth check
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate('/feed', { replace: true }); return; }
-
-      const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
-      const emailAdmin = user.email && ADMIN_EMAILS.includes(user.email);
-
-      let dbAdmin = false;
       try {
-        const { data } = await (supabase as any)
-          .from('users')
-          .select('is_admin')
-          .eq('id', user.id)
-          .maybeSingle();
-        dbAdmin = !!data?.is_admin;
-      } catch { /* RLS or column missing — fall through to email check */ }
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { navigate('/feed', { replace: true }); return; }
 
-      if (!dbAdmin && !emailAdmin) {
-        navigate('/feed', { replace: true });
-        return;
+        const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
+        const emailAdmin = !!(user.email && ADMIN_EMAILS.includes(user.email));
+
+        let dbAdmin = false;
+        try {
+          const { data } = await (supabase as any)
+            .from('users')
+            .select('is_admin')
+            .eq('id', user.id)
+            .maybeSingle();
+          dbAdmin = !!data?.is_admin;
+        } catch { /* fall through to email check */ }
+
+        if (!dbAdmin && !emailAdmin) {
+          navigate('/feed', { replace: true });
+          return;
+        }
+        setAuthorized(true);
+      } catch (e: any) {
+        setError(e?.message || 'Auth check failed');
+      } finally {
+        setLoading(false);
       }
-      setAuthorized(true);
-      setLoading(false);
     })();
   }, [navigate]);
 
@@ -116,26 +122,43 @@ export default function AdminCosts() {
     if (!authorized) return;
 
     (async () => {
-      let query = (supabase as any)
-        .from('agent_costs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500);
+      try {
+        let query = (supabase as any)
+          .from('agent_costs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500);
 
-      const dateFilter = getDateFilter(range);
-      if (dateFilter) {
-        query = query.gte('created_at', dateFilter);
+        const dateFilter = getDateFilter(range);
+        if (dateFilter) {
+          query = query.gte('created_at', dateFilter);
+        }
+
+        const { data, error: qErr } = await query;
+        if (qErr) console.warn('agent_costs query error:', qErr.message);
+        setRows(data || []);
+      } catch (e: any) {
+        console.warn('agent_costs fetch error:', e?.message);
+        setRows([]);
       }
-
-      const { data } = await query;
-      setRows(data || []);
     })();
   }, [authorized, range]);
 
-  if (loading || !authorized) {
+  if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: colors.bg.light, fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 13, color: colors.text.muted.light }}>Loading...</span>
+        <span style={{ fontSize: 14, color: colors.text.muted.light }}>Loading…</span>
+      </div>
+    );
+  }
+
+  if (error || !authorized) {
+    return (
+      <div style={{ minHeight: '100vh', background: colors.bg.light, fontFamily: FONT, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+        <span style={{ fontSize: 14, color: colors.text.secondary.light }}>{error || 'Not authorized'}</span>
+        <button onClick={() => navigate('/')} style={{ fontSize: 13, color: colors.text.muted.light, background: 'none', border: 'none', cursor: 'pointer', fontFamily: FONT, textDecoration: 'underline' }}>
+          Back to Feed
+        </button>
       </div>
     );
   }
