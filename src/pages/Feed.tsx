@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { colors, typography, transition, shadow, pillStyle } from '../design-tokens';
@@ -784,6 +784,10 @@ export default function Feed() {
   const [scanningThreadId, setScanningThreadId] = useState<string | null>(null);
   const isScanning = scanningThreadId !== null;
 
+  // Track threads with new (unseen) positions
+  const [newThreadIds, setNewThreadIds] = useState<Set<string>>(new Set());
+  const prevThreadCounts = useRef<Record<string, number>>({});
+
   // Auto-select thread from URL param (on page load / external navigation)
   useEffect(() => {
     const threadParam = searchParams.get('thread');
@@ -951,6 +955,28 @@ export default function Feed() {
       deduped.push(pos);
       words.forEach(w => existing.add(w));
     }
+
+    // Detect threads with new positions
+    const newCounts: Record<string, number> = {};
+    for (const p of deduped) {
+      newCounts[p.decision_thread_id] = (newCounts[p.decision_thread_id] || 0) + 1;
+    }
+    const prev = prevThreadCounts.current;
+    // Only detect increases after initial load (prev has entries)
+    if (Object.keys(prev).length > 0) {
+      const freshIds = new Set<string>();
+      for (const [tid, count] of Object.entries(newCounts)) {
+        if (count > (prev[tid] || 0)) freshIds.add(tid);
+      }
+      if (freshIds.size > 0) {
+        setNewThreadIds(existing => {
+          const merged = new Set(existing);
+          freshIds.forEach(id => merged.add(id));
+          return merged;
+        });
+      }
+    }
+    prevThreadCounts.current = newCounts;
 
     setPositions(deduped);
     setLoading(false);
@@ -1277,6 +1303,7 @@ export default function Feed() {
               const isHovered = hoveredPill === `sidebar-${t.id}`;
               const isMenuOpen = menuOpenThreadId === t.id;
               const count = positions.filter(p => p.decision_thread_id === t.id).length;
+              const hasNew = newThreadIds.has(t.id);
               return (
                 <div
                   key={t.id}
@@ -1285,7 +1312,7 @@ export default function Feed() {
                   style={{ position: 'relative' }}
                 >
                   <button
-                    onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); setActiveFilter('All'); }}
+                    onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); setActiveFilter('All'); setNewThreadIds(prev => { const next = new Set(prev); next.delete(t.id); return next; }); }}
                     style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                       padding: '8px 10px',
@@ -1302,8 +1329,9 @@ export default function Feed() {
                   >
                     <span style={{
                       width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 4,
-                      background: isActive ? colors.text.primary.light : 'transparent',
-                      border: isActive ? 'none' : `1.5px solid ${colors.text.muted.light}`,
+                      background: hasNew ? '#f59e0b' : isActive ? colors.text.primary.light : 'transparent',
+                      border: hasNew ? 'none' : isActive ? 'none' : `1.5px solid ${colors.text.muted.light}`,
+                      transition: 'background 0.3s ease',
                     }} />
                     <span style={{
                       flex: 1, minWidth: 0,
@@ -1317,9 +1345,17 @@ export default function Feed() {
                     }}>
                       {t.title}
                     </span>
-                    <span style={{
-                      fontSize: 11, color: colors.text.muted.light, flexShrink: 0, marginTop: 2,
-                    }}>
+                    <span
+                      className={hasNew ? 'auo-count-pulse' : ''}
+                      style={{
+                        fontSize: 11,
+                        color: hasNew ? '#f59e0b' : colors.text.muted.light,
+                        fontWeight: hasNew ? 700 : 400,
+                        flexShrink: 0,
+                        marginTop: 2,
+                        transition: 'color 0.3s ease',
+                      }}
+                    >
                       {count === 0 && t.created_at && (Date.now() - new Date(t.created_at).getTime() < 300000)
                         ? <span style={{ color: '#999', fontStyle: 'italic' }}>scanning...</span>
                         : count}
@@ -1715,6 +1751,14 @@ export default function Feed() {
         }
         .auo-scan-pulse {
           animation: auo-pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes auo-count-pop {
+          0%   { transform: scale(1); }
+          40%  { transform: scale(1.3); }
+          100% { transform: scale(1); }
+        }
+        .auo-count-pulse {
+          animation: auo-count-pop 0.4s ease-out;
         }
         /* ─── Feed responsive ─── */
         @media (max-width: 768px) {
