@@ -578,7 +578,10 @@ function DirectionChangedBanner({
 }) {
   const p = event.payload;
   const confidence = p?.new_confidence ?? p?.confidence;
-  const reason = p?.reasoning || p?.reason || 'New evidence shifted the position.';
+  const rawReason = p?.reasoning || p?.reason || 'New evidence shifted the position.';
+  // Strip scan refs like (scan-xxx) and truncate
+  const cleanReason = rawReason.replace(/\s*\(scan-[^)]+\)/g, '');
+  const reason = cleanReason.length > 100 ? cleanReason.slice(0, 100).replace(/\s\S*$/, '') + '…' : cleanReason;
   const posTitle = p?.position_title;
   return (
     <div
@@ -611,7 +614,10 @@ function DirectionChangedBanner({
               : <>Direction changed on <span style={{ fontWeight: 700 }}>{threadTitle}</span></>
             }
           </div>
-          <div style={{ fontSize: 12, color: colors.text.secondary.light, marginTop: 2 }}>
+          <div style={{
+            fontSize: 12, color: colors.text.secondary.light, marginTop: 2,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
             {reason}
             {confidence != null && (
               <span style={{ color: colors.text.muted.light }}> · {Math.round(confidence * 100)}% confidence</span>
@@ -687,8 +693,8 @@ function AvatarMenu({ userName, isAdmin, onNavigate }: { userName: string; isAdm
         <div style={{
           position: 'absolute', top: '100%', right: 0, marginTop: 6,
           background: colors.bg.light, border: `1px solid ${colors.border.medium}`,
-          borderRadius: 12, boxShadow: shadow.md, overflow: 'hidden',
-          minWidth: 170, zIndex: 100,
+          borderRadius: 12, boxShadow: shadow.md,
+          minWidth: 170, zIndex: 100, paddingTop: 4, paddingBottom: 4,
         }}>
           {isAdmin && (
             <>
@@ -733,6 +739,19 @@ function AvatarMenu({ userName, isAdmin, onNavigate }: { userName: string; isAdm
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
             Alert Sources
+          </button>
+          <button
+            onClick={() => { setOpen(false); onNavigate('/notifications'); }}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '10px 16px', border: 'none', background: 'transparent',
+              fontSize: 13, fontWeight: 500, color: colors.text.primary.light,
+              cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Notifications
           </button>
           <div style={{ height: 1, background: colors.border.light, margin: '0 12px' }} />
           <button
@@ -801,6 +820,9 @@ export default function Feed() {
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [archivedPositions, setArchivedPositions] = useState<FeedPosition[]>([]);
   const [directionEvents, setDirectionEvents] = useState<DirectionEvent[]>([]);
+  const dismissedEventIds = useRef<Set<string>>(new Set(
+    JSON.parse(sessionStorage.getItem('dismissedDirectionEvents') || '[]')
+  ));
   const justOnboarded = sessionStorage.getItem('justOnboarded') === 'true';
 
   // Sidebar menu state
@@ -813,6 +835,9 @@ export default function Feed() {
   // Track threads with new (unseen) positions
   const [newThreadIds, setNewThreadIds] = useState<Set<string>>(new Set());
   const prevThreadCounts = useRef<Record<string, number>>({});
+
+  // Lock to prevent interval/realtime loadFeed from racing with archive ops
+  const archiveBusy = useRef(false);
 
   // Auto-select thread from URL param (on page load / external navigation)
   useEffect(() => {
@@ -879,38 +904,8 @@ export default function Feed() {
     return () => document.removeEventListener('click', handleClick);
   }, [menuOpenThreadId]);
 
-  // Archive a thread — optimistic move to archived section
-  const handleArchiveThread = useCallback(async (threadId: string) => {
-    // Optimistic: move from active to archived
-    const thread = dbThreads.find(t => t.id === threadId) || manualThreads.find(t => t.id === threadId);
-    setDbThreads(prev => prev.filter(t => t.id !== threadId));
-    setManualThreads(prev => prev.filter(t => t.id !== threadId));
-    if (thread) setArchivedThreads(prev => [...prev, thread]);
-
-    // If this was selected, go to All Topics
-    if (activeThreadId === threadId) {
-      setActiveThreadId(null);
-      setSearchParams({});
-    }
-
-    try {
-      await (supabase as any)
-        .from('decision_threads')
-        .update({ level: 'archived' })
-        .eq('id', threadId);
-
-      // Clear monitor on archived positions
-      await (supabase as any)
-        .from('positions')
-        .update({ is_monitored: false })
-        .eq('decision_thread_id', threadId);
-    } catch (e) {
-      console.error('[Feed] Archive failed:', e);
-      window.location.reload();
-    }
-  }, [activeThreadId, setSearchParams, dbThreads, manualThreads]);
-
-  const loadFeed = useCallback(async () => {
+  const loadFeed = useCallback(async (force?: boolean) => {
+    if (archiveBusy.current && !force) return;
     try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -932,7 +927,6 @@ export default function Feed() {
       .eq('user_id', user.id)
       .eq('status', 'active')
       .eq('level', 'archived');
-    console.log('[Feed] archived query result:', archivedData);
     setArchivedThreads(archivedData || []);
 
     if (!threadData?.length) { setPositions([]); setLoading(false); return; }
@@ -944,15 +938,32 @@ export default function Feed() {
     }
 
     // Step 2: Fetch all validated positions for those threads
-    const { data: positionData, error: posErr } = await (supabase as any)
+    const BASE_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count';
+
+    let { data: positionData, error: posErr } = await (supabase as any)
       .from('positions')
-      .select('id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count, is_pinned')
+      .select(BASE_COLS + ', is_pinned')
       .in('decision_thread_id', threadIds)
       .not('validated_at', 'is', null)
       .order('created_at', { ascending: false })
       .limit(50);
 
+    // Fallback: if is_pinned column doesn't exist yet, retry without it
+    if (posErr) {
+      console.warn('[Feed] positions query failed, retrying without is_pinned:', posErr.message);
+      const fallback = await (supabase as any)
+        .from('positions')
+        .select(BASE_COLS)
+        .in('decision_thread_id', threadIds)
+        .not('validated_at', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      positionData = (fallback.data || []).map((p: any) => ({ ...p, is_pinned: false }));
+      posErr = fallback.error;
+    }
+
     if (posErr) { console.error('[Feed] positions query error:', posErr); }
+    console.log(`[Feed] threads: ${threadIds.length}, positions: ${positionData?.length ?? 0}`);
     if (!positionData) { setPositions([]); setLoading(false); return; }
 
     // Step 3: Filter hidden, attach thread data
@@ -1027,6 +1038,42 @@ export default function Feed() {
 
   useEffect(() => { loadFeed(); const i = setInterval(loadFeed, 30000); return () => clearInterval(i); }, [loadFeed]);
 
+  // Archive a thread — write to DB first, then refresh
+  const handleArchiveThread = useCallback(async (threadId: string) => {
+    archiveBusy.current = true;
+
+    // Optimistic: remove from active sidebar immediately
+    setDbThreads(prev => prev.filter(t => t.id !== threadId));
+    setManualThreads(prev => prev.filter(t => t.id !== threadId));
+
+    // If this was selected, go to All Topics
+    if (activeThreadId === threadId) {
+      setActiveThreadId(null);
+      setSearchParams({});
+    }
+
+    try {
+      await (supabase as any)
+        .from('decision_threads')
+        .update({ level: 'archived' })
+        .eq('id', threadId);
+
+      // Clear monitor on archived positions
+      await (supabase as any)
+        .from('positions')
+        .update({ is_monitored: false })
+        .eq('decision_thread_id', threadId);
+
+      // Refresh feed so archived section picks up the thread from DB
+      await loadFeed(true);
+    } catch (e) {
+      console.error('[Feed] Archive failed:', e);
+      window.location.reload();
+    } finally {
+      archiveBusy.current = false;
+    }
+  }, [activeThreadId, setSearchParams, loadFeed]);
+
   // Realtime subscription for new positions (especially during first-load skeleton state)
   useEffect(() => {
     const channel = supabase
@@ -1087,13 +1134,24 @@ export default function Feed() {
     let cancelled = false;
     (async () => {
       const archivedThread = archivedThreads.find(t => t.id === activeThreadId);
-      const { data } = await (supabase as any)
+      const ARCH_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count';
+      let { data, error: archErr } = await (supabase as any)
         .from('positions')
-        .select('id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count, is_pinned')
+        .select(ARCH_COLS + ', is_pinned')
         .eq('decision_thread_id', activeThreadId)
         .not('validated_at', 'is', null)
         .order('created_at', { ascending: false })
         .limit(50);
+      if (archErr) {
+        const fallback = await (supabase as any)
+          .from('positions')
+          .select(ARCH_COLS)
+          .eq('decision_thread_id', activeThreadId)
+          .not('validated_at', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        data = (fallback.data || []).map((p: any) => ({ ...p, is_pinned: false }));
+      }
       if (cancelled) return;
       const enriched = ((data || []) as any[])
         .filter((p: any) => {
@@ -1111,11 +1169,12 @@ export default function Feed() {
     return () => { cancelled = true; };
   }, [activeThreadId, archivedThreads]);
 
-  // Unarchive a thread — move back to active
+  // Unarchive a thread — write to DB first, then refresh
   const handleUnarchiveThread = useCallback(async (threadId: string) => {
-    const thread = archivedThreads.find(t => t.id === threadId);
+    archiveBusy.current = true;
+
+    // Optimistic: remove from archived sidebar immediately
     setArchivedThreads(prev => prev.filter(t => t.id !== threadId));
-    if (thread) setDbThreads(prev => [...prev, thread]);
     setArchivedPositions([]);
     if (activeThreadId === threadId) {
       setActiveThreadId(null);
@@ -1124,14 +1183,18 @@ export default function Feed() {
     try {
       await (supabase as any)
         .from('decision_threads')
-        .update({ level: 'standard' })
+        .update({ level: 'listening' })
         .eq('id', threadId);
-      loadFeed();
+
+      // Refresh feed so active list picks up the thread from DB
+      await loadFeed(true);
     } catch (e) {
       console.error('[Feed] Unarchive failed:', e);
       window.location.reload();
+    } finally {
+      archiveBusy.current = false;
     }
-  }, [archivedThreads, activeThreadId, loadFeed]);
+  }, [activeThreadId, loadFeed]);
 
   // ─── Poll agent_events for direction_changed (last 24h, unread) ────────
   const loadDirectionEvents = useCallback(async () => {
@@ -1149,7 +1212,7 @@ export default function Feed() {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (data) setDirectionEvents(data);
+      if (data) setDirectionEvents(data.filter((e: DirectionEvent) => !dismissedEventIds.current.has(e.id)));
     } catch (err) {
       console.warn('[Feed] agent_events query failed (non-blocking):', err);
     }
@@ -1162,9 +1225,12 @@ export default function Feed() {
   }, [loadDirectionEvents]);
 
   const handleDismissDirectionEvent = useCallback(async (eventId: string) => {
+    // Track locally so poll doesn't re-add (persists across navigation)
+    dismissedEventIds.current.add(eventId);
+    sessionStorage.setItem('dismissedDirectionEvents', JSON.stringify([...dismissedEventIds.current]));
     // Optimistic removal
     setDirectionEvents(prev => prev.filter(e => e.id !== eventId));
-    // Mark as read in DB
+    // Mark as read in DB (best-effort)
     await (supabase as any)
       .from('agent_events')
       .update({ read: true })
@@ -1906,6 +1972,8 @@ export default function Feed() {
         {directionEvents.length > 0 && directionEvents.map(evt => {
           const threadData = threads.find(t => t.id === evt.thread_id);
           if (!threadData) return null;
+          // Hide banners for archived threads
+          if (archivedThreads.some(t => t.id === evt.thread_id)) return null;
           return (
             <DirectionChangedBanner
               key={evt.id}

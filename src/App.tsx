@@ -12,6 +12,7 @@ import AdminCosts from './pages/AdminCosts';
 import AdminEval from './pages/AdminEval';
 import InsightDetail from './pages/InsightDetail';
 import Onboarding from './pages/Onboarding';
+import Notifications from './pages/Notifications';
 
 function AppWithAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -104,6 +105,7 @@ function AppWithAuth() {
       <Route path="/alert-sources" element={<AlertSources />} />
       <Route path="/admin/costs" element={<AdminCosts />} />
       <Route path="/admin/eval" element={<AdminEval />} />
+      <Route path="/notifications" element={<Notifications />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
