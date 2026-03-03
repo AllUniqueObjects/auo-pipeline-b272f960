@@ -7,6 +7,19 @@ const FONT = typography.fontFamily;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+interface UserOption {
+  id: string;
+  name: string | null;
+  company: string | null;
+}
+
+interface PipelineAgent {
+  name: string;
+  eventType: string;
+  lastRun: string | null;
+  payload: Record<string, any> | null;
+}
+
 interface ThreadHealth {
   id: string;
   title: string;
@@ -15,6 +28,7 @@ interface ThreadHealth {
   direction_confidence: number | null;
   signalCount: number;
   positionCount: number;
+  lastSignalAt: string | null;
 }
 
 interface AgentEvent {
@@ -22,6 +36,7 @@ interface AgentEvent {
   event_type: string;
   source_agent: string;
   created_at: string;
+  payload: Record<string, any> | null;
 }
 
 interface ToneCount {
@@ -51,6 +66,10 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function hoursAgo(iso: string): number {
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+}
+
 function cutoff(hours: number): string {
   const d = new Date();
   d.setHours(d.getHours() - hours);
@@ -67,6 +86,36 @@ function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '…' : s;
 }
 
+function statusDot(agentName: string, lastRun: string | null): { color: string; label: string } {
+  if (!lastRun) return { color: '#ef4444', label: 'No runs' };
+  const h = hoursAgo(lastRun);
+  const threshold = agentName === 'scanner' ? 1 : 2;
+  if (h < threshold) return { color: '#22c55e', label: timeAgo(lastRun) };
+  if (h < 4) return { color: '#f59e0b', label: timeAgo(lastRun) };
+  return { color: '#ef4444', label: timeAgo(lastRun) };
+}
+
+function agentColor(agent: string): string {
+  if (agent === 'scanner') return '#3B82F6';
+  if (agent === 'connector') return '#8B5CF6';
+  if (agent === 'writer') return '#D97706';
+  return '#94a3b8';
+}
+
+function payloadPreview(payload: Record<string, any> | null): string {
+  if (!payload) return '—';
+  const keys = Object.keys(payload).filter(k => k !== 'user_id');
+  if (keys.length === 0) return '—';
+  const parts = keys.slice(0, 3).map(k => {
+    const v = payload[k];
+    if (v == null) return `${k}: null`;
+    if (typeof v === 'number') return `${k}: ${v}`;
+    if (typeof v === 'string') return `${k}: ${truncate(v, 20)}`;
+    return k;
+  });
+  return parts.join(', ') + (keys.length > 3 ? ' …' : '');
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function AdminEval() {
@@ -74,12 +123,25 @@ export default function AdminEval() {
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
+  // User selector
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+
+  // Pipeline status
+  const [pipelineAgents, setPipelineAgents] = useState<PipelineAgent[]>([]);
+  const [lastPositionAt, setLastPositionAt] = useState<string | null>(null);
+
   // Throughput
   const [signals24h, setSignals24h] = useState(0);
   const [signals7d, setSignals7d] = useState(0);
   const [positions24h, setPositions24h] = useState(0);
   const [positions7d, setPositions7d] = useState(0);
   const [linked24h, setLinked24h] = useState(0);
+
+  // Pipeline funnel
+  const [funnelSignals, setFunnelSignals] = useState(0);
+  const [funnelLinked, setFunnelLinked] = useState(0);
+  const [funnelPositions, setFunnelPositions] = useState(0);
 
   // Thread health
   const [threads, setThreads] = useState<ThreadHealth[]>([]);
@@ -96,7 +158,7 @@ export default function AdminEval() {
   const [perspectives, setPerspectives] = useState<PerspectiveCount[]>([]);
   const [scanSources, setScanSources] = useState<ScanSourceCount[]>([]);
 
-  // Auth check — same as AdminCosts
+  // Auth check
   useEffect(() => {
     const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
 
@@ -134,32 +196,154 @@ export default function AdminEval() {
     });
   }, [navigate]);
 
-  // Fetch all data once authorized
+  // Fetch users list once authorized
   useEffect(() => {
     if (!authorized) return;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('users')
+        .select('id, name, company');
+      if (data) setUsers(data);
+    })();
+  }, [authorized]);
+
+  // Fetch pipeline status (always global)
+  useEffect(() => {
+    if (!authorized) return;
+
+    const fetchPipelineStatus = async () => {
+      const agentConfigs: { name: string; eventType: string }[] = [
+        { name: 'scanner', eventType: 'scanner_completed' },
+        { name: 'connector', eventType: 'connector_completed' },
+        { name: 'writer', eventType: 'position_created' },
+      ];
+
+      const results = await Promise.all(
+        agentConfigs.map(async ({ name, eventType }) => {
+          const { data } = await (supabase as any)
+            .from('agent_events')
+            .select('created_at, payload')
+            .eq('event_type', eventType)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          const row = data?.[0];
+          return {
+            name,
+            eventType,
+            lastRun: row?.created_at ?? null,
+            payload: row?.payload ?? null,
+          } as PipelineAgent;
+        })
+      );
+      setPipelineAgents(results);
+
+      // Last position created_at for Writer card
+      const { data: lastPos } = await (supabase as any)
+        .from('positions')
+        .select('created_at')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      setLastPositionAt(lastPos?.[0]?.created_at ?? null);
+    };
+
+    fetchPipelineStatus();
+  }, [authorized]);
+
+  // Fetch all data (user-filtered where applicable)
+  useEffect(() => {
+    if (!authorized) return;
+    const uid = selectedUserId !== 'all' ? selectedUserId : null;
 
     const fetchAll = async () => {
       const c24h = cutoff(24);
       const c7d = cutoffDays(7);
 
       // ── Throughput counts ──
-      const [sig24, sig7, pos24, pos7, lnk24] = await Promise.all([
-        (supabase as any).from('signals').select('id', { count: 'exact', head: true }).gte('created_at', c24h),
-        (supabase as any).from('signals').select('id', { count: 'exact', head: true }).gte('created_at', c7d),
-        (supabase as any).from('positions').select('id', { count: 'exact', head: true }).gte('created_at', c24h),
-        (supabase as any).from('positions').select('id', { count: 'exact', head: true }).gte('created_at', c7d),
-        (supabase as any).from('decision_signals').select('id', { count: 'exact', head: true }).gte('added_at', c24h),
-      ]);
-      setSignals24h(sig24.count ?? 0);
-      setSignals7d(sig7.count ?? 0);
-      setPositions24h(pos24.count ?? 0);
-      setPositions7d(pos7.count ?? 0);
-      setLinked24h(lnk24.count ?? 0);
+      if (uid) {
+        // User-filtered: signals via decision_signals → decision_threads.user_id
+        // Get thread IDs for this user
+        const { data: userThreads } = await (supabase as any)
+          .from('decision_threads')
+          .select('id')
+          .eq('user_id', uid);
+        const threadIds = (userThreads || []).map((t: any) => t.id);
+
+        if (threadIds.length > 0) {
+          const [lnk24Result, lnk7dResult, pos24Result, pos7dResult] = await Promise.all([
+            (supabase as any).from('decision_signals').select('id', { count: 'exact', head: true })
+              .in('decision_thread_id', threadIds).gte('added_at', c24h),
+            (supabase as any).from('decision_signals').select('id', { count: 'exact', head: true })
+              .in('decision_thread_id', threadIds).gte('added_at', c7d),
+            (supabase as any).from('positions').select('id', { count: 'exact', head: true })
+              .eq('user_id', uid).gte('created_at', c24h),
+            (supabase as any).from('positions').select('id', { count: 'exact', head: true })
+              .eq('user_id', uid).gte('created_at', c7d),
+          ]);
+          setSignals24h(lnk24Result.count ?? 0);
+          setSignals7d(lnk7dResult.count ?? 0);
+          setPositions24h(pos24Result.count ?? 0);
+          setPositions7d(pos7dResult.count ?? 0);
+          setLinked24h(lnk24Result.count ?? 0);
+        } else {
+          setSignals24h(0); setSignals7d(0); setPositions24h(0); setPositions7d(0); setLinked24h(0);
+        }
+      } else {
+        // Global
+        const [sig24, sig7, pos24, pos7, lnk24] = await Promise.all([
+          (supabase as any).from('signals').select('id', { count: 'exact', head: true }).gte('created_at', c24h),
+          (supabase as any).from('signals').select('id', { count: 'exact', head: true }).gte('created_at', c7d),
+          (supabase as any).from('positions').select('id', { count: 'exact', head: true }).gte('created_at', c24h),
+          (supabase as any).from('positions').select('id', { count: 'exact', head: true }).gte('created_at', c7d),
+          (supabase as any).from('decision_signals').select('id', { count: 'exact', head: true }).gte('added_at', c24h),
+        ]);
+        setSignals24h(sig24.count ?? 0);
+        setSignals7d(sig7.count ?? 0);
+        setPositions24h(pos24.count ?? 0);
+        setPositions7d(pos7.count ?? 0);
+        setLinked24h(lnk24.count ?? 0);
+      }
+
+      // ── Pipeline Funnel (7d) ──
+      if (uid) {
+        const { data: userThreads } = await (supabase as any)
+          .from('decision_threads')
+          .select('id')
+          .eq('user_id', uid);
+        const threadIds = (userThreads || []).map((t: any) => t.id);
+
+        if (threadIds.length > 0) {
+          const [linkedResult, posResult] = await Promise.all([
+            (supabase as any).from('decision_signals').select('id', { count: 'exact', head: true })
+              .in('decision_thread_id', threadIds).gte('added_at', c7d),
+            (supabase as any).from('positions').select('id', { count: 'exact', head: true })
+              .eq('user_id', uid).gte('created_at', c7d),
+          ]);
+          // For user-filtered, signals = linked signals (can't attribute unlinked)
+          const linked = linkedResult.count ?? 0;
+          setFunnelSignals(linked);
+          setFunnelLinked(linked);
+          setFunnelPositions(posResult.count ?? 0);
+        } else {
+          setFunnelSignals(0); setFunnelLinked(0); setFunnelPositions(0);
+        }
+      } else {
+        const [sigResult, linkedResult, posResult] = await Promise.all([
+          (supabase as any).from('signals').select('id', { count: 'exact', head: true }).gte('created_at', c7d),
+          (supabase as any).from('decision_signals').select('id', { count: 'exact', head: true }).gte('added_at', c7d),
+          (supabase as any).from('positions').select('id', { count: 'exact', head: true }).gte('created_at', c7d),
+        ]);
+        setFunnelSignals(sigResult.count ?? 0);
+        setFunnelLinked(linkedResult.count ?? 0);
+        setFunnelPositions(posResult.count ?? 0);
+      }
 
       // ── Thread health ──
-      const { data: threadRows } = await (supabase as any)
+      let threadQuery = (supabase as any)
         .from('decision_threads')
         .select('id, title, level, dominant_direction, direction_confidence');
+      if (uid) threadQuery = threadQuery.eq('user_id', uid);
+
+      const { data: threadRows } = await threadQuery;
 
       if (threadRows) {
         const healthPromises = threadRows.map(async (t: any) => {
@@ -167,6 +351,13 @@ export default function AdminEval() {
             (supabase as any).from('decision_signals').select('id', { count: 'exact', head: true }).eq('decision_thread_id', t.id),
             (supabase as any).from('positions').select('id', { count: 'exact', head: true }).eq('decision_thread_id', t.id),
           ]);
+          // Last signal added_at
+          const { data: lastSig } = await (supabase as any)
+            .from('decision_signals')
+            .select('added_at')
+            .eq('decision_thread_id', t.id)
+            .order('added_at', { ascending: false })
+            .limit(1);
           return {
             id: t.id,
             title: t.title,
@@ -175,6 +366,7 @@ export default function AdminEval() {
             direction_confidence: t.direction_confidence,
             signalCount: sc ?? 0,
             positionCount: pc ?? 0,
+            lastSignalAt: lastSig?.[0]?.added_at ?? null,
           } as ThreadHealth;
         });
         const threadHealth = await Promise.all(healthPromises);
@@ -183,10 +375,13 @@ export default function AdminEval() {
       }
 
       // ── Position quality — tones 7d ──
-      const { data: posRows } = await (supabase as any)
+      let posQuery = (supabase as any)
         .from('positions')
         .select('tone, fact_confidence')
         .gte('created_at', c7d);
+      if (uid) posQuery = posQuery.eq('user_id', uid);
+
+      const { data: posRows } = await posQuery;
 
       if (posRows && posRows.length > 0) {
         const toneMap = new Map<string, number>();
@@ -205,13 +400,16 @@ export default function AdminEval() {
           .sort((a, b) => b.count - a.count);
         setTones(toneArr);
         setAvgConfidence(confCount > 0 ? confSum / confCount : 0);
+      } else {
+        setTones([]);
+        setAvgConfidence(0);
       }
 
-      // ── Agent events ──
+      // ── Agent events (always global) ──
       try {
         const { data: evtRows, error: evtErr } = await (supabase as any)
           .from('agent_events')
-          .select('id, event_type, source_agent, created_at')
+          .select('id, event_type, source_agent, created_at, payload')
           .order('created_at', { ascending: false })
           .limit(20);
         if (evtErr) {
@@ -223,7 +421,7 @@ export default function AdminEval() {
         setEventsError(true);
       }
 
-      // ── Signal coverage 7d ──
+      // ── Signal coverage 7d (always global) ──
       const { data: sigRows } = await (supabase as any)
         .from('signals')
         .select('perspective, scan_source')
@@ -252,7 +450,7 @@ export default function AdminEval() {
     };
 
     fetchAll();
-  }, [authorized]);
+  }, [authorized, selectedUserId]);
 
   // ─── Loading / Not Authorized ─────────────────────────────────────────────
 
@@ -339,6 +537,10 @@ export default function AdminEval() {
     return '#94a3b8';
   };
 
+  const conversionRate = funnelSignals > 0
+    ? ((funnelPositions / funnelSignals) * 100).toFixed(1)
+    : '0.0';
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -357,14 +559,105 @@ export default function AdminEval() {
           &larr; Back to Feed
         </button>
 
-        {/* Header */}
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: colors.text.primary.light, margin: '0 0 28px 0' }}>
-          Pipeline Eval
-        </h1>
+        {/* Header + User Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: colors.text.primary.light, margin: 0 }}>
+            Pipeline Eval
+          </h1>
+          <select
+            value={selectedUserId}
+            onChange={e => setSelectedUserId(e.target.value)}
+            style={{
+              fontFamily: FONT,
+              fontSize: 13,
+              padding: '6px 12px',
+              borderRadius: 8,
+              border: `1px solid ${colors.border.medium}`,
+              background: colors.bg.light,
+              color: colors.text.primary.light,
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            <option value="all">All Users</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>
+                {u.name || 'Unnamed'}{u.company ? ` — ${u.company}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        {/* ── A. Pipeline Throughput ────────────────────────────────────────── */}
+        {/* ── Pipeline Status ──────────────────────────────────────────── */}
         <div style={{ marginBottom: 32 }}>
-          <div style={sectionLabelStyle}>Pipeline Throughput</div>
+          <div style={sectionLabelStyle}>Pipeline Status</div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {pipelineAgents.map(agent => {
+              const { color, label } = statusDot(agent.name, agent.lastRun);
+              const scannerExtra = agent.name === 'scanner' && agent.payload
+                ? (() => {
+                    const created = agent.payload.signals_created ?? agent.payload.new_signals;
+                    const updated = agent.payload.signals_updated ?? agent.payload.updated_signals;
+                    if (created != null || updated != null) {
+                      return `${created ?? 0} created, ${updated ?? 0} updated`;
+                    }
+                    return null;
+                  })()
+                : null;
+              const writerExtra = agent.name === 'writer' && lastPositionAt
+                ? `Last position: ${timeAgo(lastPositionAt)}`
+                : null;
+
+              return (
+                <div key={agent.name} style={{ ...cardStyle, minWidth: 200 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: color,
+                      boxShadow: `0 0 6px ${color}`,
+                    }} />
+                    <span style={{
+                      fontSize: 13, fontWeight: 700,
+                      color: agentColor(agent.name),
+                      textTransform: 'capitalize',
+                    }}>
+                      {agent.name}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: colors.text.secondary.light, marginBottom: 4 }}>
+                    {label}
+                  </div>
+                  {scannerExtra && (
+                    <div style={{ fontSize: 11, color: colors.text.muted.light }}>
+                      {scannerExtra}
+                    </div>
+                  )}
+                  {writerExtra && (
+                    <div style={{ fontSize: 11, color: colors.text.muted.light }}>
+                      {writerExtra}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {pipelineAgents.length === 0 && (
+              <div style={{ ...cardStyle, textAlign: 'center', color: colors.text.muted.light, fontSize: 13 }}>
+                Loading pipeline status…
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Pipeline Throughput ─────────────────────────────────────── */}
+        <div style={{ marginBottom: 32 }}>
+          <div style={sectionLabelStyle}>
+            Pipeline Throughput
+            {selectedUserId !== 'all' && (
+              <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>
+                (filtered)
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div style={cardStyle}>
               <div style={cardLabelStyle}>Signals 24h</div>
@@ -389,14 +682,68 @@ export default function AdminEval() {
           </div>
         </div>
 
-        {/* ── B. Thread Health ──────────────────────────────────────────────── */}
+        {/* ── Pipeline Funnel (7d) ───────────────────────────────────── */}
         <div style={{ marginBottom: 32 }}>
-          <div style={sectionLabelStyle}>Thread Health</div>
+          <div style={sectionLabelStyle}>
+            Pipeline Funnel (7d)
+            {selectedUserId !== 'all' && (
+              <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>
+                (filtered)
+              </span>
+            )}
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 0,
+            border: `1px solid ${colors.border.light}`, borderRadius: 12,
+            padding: '20px 24px',
+            background: colors.bg.light,
+          }}>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={cardLabelStyle}>Signals</div>
+              <div style={cardValueStyle}>{funnelSignals}</div>
+            </div>
+            <div style={{ fontSize: 20, color: colors.text.muted.light, padding: '0 12px' }}>→</div>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={cardLabelStyle}>Linked</div>
+              <div style={cardValueStyle}>{funnelLinked}</div>
+            </div>
+            <div style={{ fontSize: 20, color: colors.text.muted.light, padding: '0 12px' }}>→</div>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={cardLabelStyle}>Positions</div>
+              <div style={cardValueStyle}>{funnelPositions}</div>
+            </div>
+            <div style={{
+              marginLeft: 24,
+              padding: '8px 16px',
+              borderRadius: 8,
+              background: colors.bg.surface,
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: colors.text.muted.light, textTransform: 'uppercase', letterSpacing: typography.letterSpacing.wide }}>
+                Conversion
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: colors.text.primary.light }}>
+                {conversionRate}%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Thread Health ───────────────────────────────────────────── */}
+        <div style={{ marginBottom: 32 }}>
+          <div style={sectionLabelStyle}>
+            Thread Health
+            {selectedUserId !== 'all' && (
+              <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>
+                (filtered)
+              </span>
+            )}
+          </div>
           <div style={{ border: `1px solid ${colors.border.light}`, borderRadius: 12, overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONT }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${colors.border.light}` }}>
-                  {['Title', 'Level', 'Signals', 'Positions', 'Direction', 'Conf'].map(h => (
+                  {['Title', 'Level', 'Signals', 'Positions', 'Last Signal', 'Direction', 'Conf'].map(h => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
@@ -404,26 +751,41 @@ export default function AdminEval() {
               <tbody>
                 {threads.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ padding: 20, textAlign: 'center', color: colors.text.muted.light }}>
+                    <td colSpan={7} style={{ padding: 20, textAlign: 'center', color: colors.text.muted.light }}>
                       No threads found.
                     </td>
                   </tr>
                 )}
                 {threads.map(t => (
-                  <tr key={t.id} style={{ borderBottom: `1px solid ${colors.border.light}` }}>
-                    <td style={{ ...tdStyle, fontWeight: 600, maxWidth: 260 }}>
-                      {truncate(t.title, 40)}
+                  <tr
+                    key={t.id}
+                    style={{
+                      borderBottom: `1px solid ${colors.border.light}`,
+                      background: t.signalCount === 0 ? 'rgba(239,68,68,0.06)' : 'transparent',
+                    }}
+                  >
+                    <td style={{ ...tdStyle, fontWeight: 600, maxWidth: 220 }}>
+                      {truncate(t.title, 36)}
                     </td>
                     <td style={{ ...tdStyle, color: colors.text.secondary.light, textTransform: 'capitalize' }}>
                       {t.level}
                     </td>
-                    <td style={tdStyle}>{t.signalCount}</td>
+                    <td style={{
+                      ...tdStyle,
+                      color: t.signalCount === 0 ? '#ef4444' : colors.text.primary.light,
+                      fontWeight: t.signalCount === 0 ? 700 : 400,
+                    }}>
+                      {t.signalCount}
+                    </td>
                     <td style={{
                       ...tdStyle,
                       color: t.positionCount > 5 ? '#ef4444' : colors.text.primary.light,
                       fontWeight: t.positionCount > 5 ? 700 : 400,
                     }}>
                       {t.positionCount}{t.positionCount > 5 ? ' !' : ''}
+                    </td>
+                    <td style={{ ...tdStyle, color: colors.text.muted.light, fontSize: 11 }}>
+                      {t.lastSignalAt ? timeAgo(t.lastSignalAt) : '—'}
                     </td>
                     <td style={{ ...tdStyle, color: colors.text.secondary.light }}>
                       {t.dominant_direction || '—'}
@@ -438,9 +800,16 @@ export default function AdminEval() {
           </div>
         </div>
 
-        {/* ── C. Position Quality ───────────────────────────────────────────── */}
+        {/* ── Position Quality ────────────────────────────────────────── */}
         <div style={{ marginBottom: 32 }}>
-          <div style={sectionLabelStyle}>Position Quality (7d)</div>
+          <div style={sectionLabelStyle}>
+            Position Quality (7d)
+            {selectedUserId !== 'all' && (
+              <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>
+                (filtered)
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
             <div style={cardStyle}>
               <div style={cardLabelStyle}>Avg Confidence</div>
@@ -489,7 +858,7 @@ export default function AdminEval() {
           </div>
         </div>
 
-        {/* ── D. Recent Agent Events ───────────────────────────────────────── */}
+        {/* ── Recent Agent Events ────────────────────────────────────── */}
         <div style={{ marginBottom: 32 }}>
           <div style={sectionLabelStyle}>Recent Agent Events</div>
           {eventsError ? (
@@ -504,7 +873,7 @@ export default function AdminEval() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONT }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${colors.border.light}` }}>
-                    {['When', 'Agent', 'Event'].map(h => (
+                    {['When', 'Agent', 'Event', 'Details'].map(h => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}
                   </tr>
@@ -512,7 +881,7 @@ export default function AdminEval() {
                 <tbody>
                   {events.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: 20, textAlign: 'center', color: colors.text.muted.light }}>
+                      <td colSpan={4} style={{ padding: 20, textAlign: 'center', color: colors.text.muted.light }}>
                         No recent events.
                       </td>
                     </tr>
@@ -520,8 +889,18 @@ export default function AdminEval() {
                   {events.map(e => (
                     <tr key={e.id} style={{ borderBottom: `1px solid ${colors.border.light}` }}>
                       <td style={{ ...tdStyle, color: colors.text.muted.light }}>{timeAgo(e.created_at)}</td>
-                      <td style={{ ...tdStyle, fontWeight: 600, textTransform: 'capitalize' }}>{e.source_agent}</td>
+                      <td style={{
+                        ...tdStyle,
+                        fontWeight: 600,
+                        textTransform: 'capitalize',
+                        color: agentColor(e.source_agent),
+                      }}>
+                        {e.source_agent}
+                      </td>
                       <td style={{ ...tdStyle, color: colors.text.secondary.light }}>{e.event_type}</td>
+                      <td style={{ ...tdStyle, color: colors.text.muted.light, fontSize: 11, maxWidth: 260 }}>
+                        {payloadPreview(e.payload)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -530,7 +909,7 @@ export default function AdminEval() {
           )}
         </div>
 
-        {/* ── E. Signal Coverage (7d) ──────────────────────────────────────── */}
+        {/* ── Signal Coverage — Perspective (7d) ─────────────────────── */}
         <div style={{ marginBottom: 32 }}>
           <div style={sectionLabelStyle}>Signal Coverage — Perspective (7d)</div>
           <div style={{ border: `1px solid ${colors.border.light}`, borderRadius: 12, overflow: 'hidden' }}>
