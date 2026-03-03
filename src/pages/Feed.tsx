@@ -775,7 +775,6 @@ export default function Feed() {
   const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [dbThreads, setDbThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [directionEvents, setDirectionEvents] = useState<DirectionEvent[]>([]);
-  const [monitorAlerts, setMonitorAlerts] = useState<{ id: string; thread_id: string; payload: Record<string, unknown>; created_at: string }[]>([]);
   const justOnboarded = sessionStorage.getItem('justOnboarded') === 'true';
 
   // Sidebar menu state
@@ -1026,42 +1025,11 @@ export default function Feed() {
     }
   }, []);
 
-  const loadMonitorAlerts = useCallback(async () => {
-    try {
-      const since = new Date(Date.now() - 24 * 3600000).toISOString();
-      const { data } = await (supabase as any)
-        .from('agent_events')
-        .select('id, thread_id, payload, created_at')
-        .eq('event_type', 'monitor_alert')
-        .or('read.is.null,read.eq.false')
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (data) setMonitorAlerts(data);
-    } catch (err) {
-      console.warn('[Feed] monitor_alerts query failed (non-blocking):', err);
-    }
-  }, []);
-
   useEffect(() => {
     loadDirectionEvents();
-    loadMonitorAlerts();
-    const interval = setInterval(() => {
-      loadDirectionEvents();
-      loadMonitorAlerts();
-    }, 30000);
+    const interval = setInterval(loadDirectionEvents, 30000);
     return () => clearInterval(interval);
-  }, [loadDirectionEvents, loadMonitorAlerts]);
-
-  const dismissMonitorAlert = useCallback(async (eventId: string) => {
-    setMonitorAlerts(prev => prev.filter(e => e.id !== eventId));
-    await (supabase as any)
-      .from('agent_events')
-      .update({ read: true })
-      .eq('id', eventId)
-      .catch((err: unknown) => console.warn('[Feed] Failed to dismiss monitor alert:', err));
-  }, []);
+  }, [loadDirectionEvents]);
 
   const handleDismissDirectionEvent = useCallback(async (eventId: string) => {
     // Optimistic removal
@@ -1634,34 +1602,6 @@ export default function Feed() {
               threadTitle={threadData.title || formatLens(threadData.lens)}
               onDismiss={handleDismissDirectionEvent}
             />
-          );
-        })}
-
-        {/* Monitor alert banners */}
-        {monitorAlerts.map(alert => {
-          const delta = (alert.payload?.signal_delta as number) || 0;
-          const title = (alert.payload?.position_title as string) || 'a monitored insight';
-          return (
-            <div key={alert.id} style={{
-              padding: '10px 14px', marginBottom: 10,
-              background: 'rgba(0,0,0,0.03)',
-              border: '1px solid rgba(0,0,0,0.08)',
-              borderRadius: 10,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            }}>
-              <div style={{ fontSize: 13, color: '#333', fontFamily: FONT }}>
-                <strong>● {delta} new signal{delta > 1 ? 's' : ''}</strong>
-                {' on '}
-                <em>{title.slice(0, 60)}</em>
-              </div>
-              <button
-                onClick={() => dismissMonitorAlert(alert.id)}
-                style={{
-                  background: 'transparent', border: 'none', color: '#999',
-                  cursor: 'pointer', fontSize: 16, flexShrink: 0,
-                }}
-              >×</button>
-            </div>
           );
         })}
 
