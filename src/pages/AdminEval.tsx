@@ -675,6 +675,9 @@ export default function AdminEval() {
               </span>
             )}
           </div>
+          <div style={{ fontSize: 12, color: colors.text.muted.light, marginBottom: 10, lineHeight: 1.5 }}>
+            Healthy: 50-200 signals/day (3 cron + 72 breaking scans). 2-8 positions/day. Linked = signals matched to threads.
+          </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div style={cardStyle}>
               <div style={cardLabelStyle}>Signals 24h</div>
@@ -708,6 +711,9 @@ export default function AdminEval() {
                 (filtered)
               </span>
             )}
+          </div>
+          <div style={{ fontSize: 12, color: colors.text.muted.light, marginBottom: 10, lineHeight: 1.5 }}>
+            Most signals are noise — that's by design. Expect 1-5% conversion. Low conversion = scanner is casting wide. 0% = pipeline broken.
           </div>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 0,
@@ -757,7 +763,8 @@ export default function AdminEval() {
             )}
           </div>
           <div style={{ fontSize: 12, color: colors.text.muted.light, marginBottom: 10, lineHeight: 1.5 }}>
-            Signals = raw intelligence from scanners. Positions = analyst-grade insights written for you (max 5 per thread).
+            Signals = raw intelligence from scanners. Positions = analyst-grade insights written for you (max 5 per thread, 7-day window).
+            Red rows = 0 signals, thread has no data flowing. Aim for 30+ signals and 1-5 positions per active thread.
           </div>
           <div style={{ border: `1px solid ${colors.border.light}`, borderRadius: 12, overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONT }}>
