@@ -221,6 +221,16 @@ function PositionCard({
           onPinToggle(pos.id, Boolean(pos.is_pinned));
         }}
         title={pos.is_pinned ? 'Unpin' : 'Pin this insight'}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = 'scale(1.15)';
+          e.currentTarget.style.background = 'rgba(0,0,0,0.6)';
+          if (!pos.is_pinned) e.currentTarget.style.color = '#fff';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.background = pos.is_pinned ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)';
+          if (!pos.is_pinned) e.currentTarget.style.color = 'rgba(255,255,255,0.6)';
+        }}
         style={{
           position: 'absolute',
           top: 10,
@@ -237,7 +247,7 @@ function PositionCard({
           fontSize: 14,
           color: pos.is_pinned ? '#f59e0b' : 'rgba(255,255,255,0.6)',
           opacity: pos.is_pinned || hovered ? 1 : 0,
-          transition: 'opacity 0.15s, color 0.15s',
+          transition: 'opacity 0.15s, color 0.15s, transform 0.15s, background 0.15s',
           zIndex: 10,
         }}
       >
