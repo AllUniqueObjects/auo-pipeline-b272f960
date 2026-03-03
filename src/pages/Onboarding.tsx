@@ -88,7 +88,6 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [customTopic, setCustomTopic] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   // ── Get user info on mount ──────────────────────────────────────────────
@@ -193,7 +192,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       if (data.topics && Array.isArray(data.topics) && data.topics.length > 0) {
         const topicsWithSelected = data.topics.map((t: Topic) => ({
           ...t,
-          selected: true,
+          selected: false,
         }));
         setTopics(topicsWithSelected);
         console.log(`[Onboarding] Got ${topicsWithSelected.length} topics`);
@@ -211,12 +210,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
     }
   };
 
-  const removeTopic = (index: number) => {
-    setTopics(topics.map((t, i) => i === index ? { ...t, selected: false } : t));
+  const toggleTopic = (index: number) => {
+    setTopics(topics.map((t, i) => i === index ? { ...t, selected: !t.selected } : t));
   };
 
   const selectedTopics = topics.filter(t => t.selected);
-  const removedTopics = topics.filter(t => !t.selected);
 
   const handleConfirmTopics = async () => {
     setIsCreating(true);
@@ -517,9 +515,9 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             SCREEN 4: TOPIC SELECTION (briefing style)
         ════════════════════════════════════════════════════════════════ */}
         {screen === 'topics' && (() => {
-          const MAX_VISIBLE = 8;
-          const visibleTopics = showAll ? selectedTopics : selectedTopics.slice(0, MAX_VISIBLE);
-          const hiddenCount = selectedTopics.length - MAX_VISIBLE;
+          const INITIAL_VISIBLE = 6;
+          const visibleTopics = showAll ? topics : topics.slice(0, INITIAL_VISIBLE);
+          const hiddenCount = topics.length - INITIAL_VISIBLE;
 
           return (
           <div style={{
@@ -547,10 +545,10 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                     fontSize: 32, fontWeight: 700, color: '#111',
                     lineHeight: 1.2, marginBottom: 8, letterSpacing: '-0.02em',
                   }}>
-                    {selectedTopics.length} topic{selectedTopics.length !== 1 ? 's' : ''} ready to track.
+                    {topics.length} topic{topics.length !== 1 ? 's' : ''} found.
                   </h1>
                   <p style={{ fontSize: 14, color: '#aaa', marginBottom: 0, fontWeight: 400 }}>
-                    Remove anything that doesn't apply to you.
+                    Select the ones you want to track.
                   </p>
                 </>
               ) : (
@@ -578,25 +576,40 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 marginBottom: 16,
               }}
             >
-              {visibleTopics.map((topic, i) => {
+              {visibleTopics.map((topic) => {
                 const originalIndex = topics.indexOf(topic);
-                const isHovered = hoveredIndex === i;
+                const isSelected = topic.selected;
 
                 return (
                   <div
                     key={originalIndex}
-                    onMouseEnter={() => setHoveredIndex(i)}
-                    onMouseLeave={() => setHoveredIndex(null)}
+                    onClick={() => toggleTopic(originalIndex)}
                     style={{
                       position: 'relative',
                       padding: '16px 18px',
                       borderRadius: 10,
-                      border: `1px solid ${isHovered ? '#d0d0d0' : '#ebebeb'}`,
-                      background: isHovered ? '#fafafa' : '#fff',
+                      border: isSelected ? '2px solid #111' : '1px solid #e8e8e8',
+                      background: isSelected ? '#fafafa' : '#ffffff',
                       transition: 'all 0.15s ease',
                       minHeight: 100,
+                      cursor: 'pointer',
                     }}
                   >
+                    {/* Checkmark badge */}
+                    {isSelected && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 10, right: 10,
+                        width: 20, height: 20, borderRadius: '50%',
+                        background: '#111',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+
                     {/* Category */}
                     <div style={{
                       fontSize: 10, fontWeight: 700, color: '#bbb',
@@ -611,7 +624,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                       fontSize: 14, fontWeight: 650, color: '#111',
                       lineHeight: 1.4,
                       marginBottom: topic.hook ? 6 : 0,
-                      paddingRight: isHovered ? 28 : 0,
+                      paddingRight: isSelected ? 28 : 0,
                     }}>
                       {topic.title}
                     </div>
@@ -627,36 +640,6 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                       }}>
                         {topic.hook}
                       </div>
-                    )}
-
-                    {/* X — hover only */}
-                    {isHovered && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeTopic(originalIndex);
-                          setHoveredIndex(null);
-                        }}
-                        style={{
-                          position: 'absolute',
-                          top: 12, right: 12,
-                          width: 22, height: 22, borderRadius: '50%',
-                          border: '1px solid #ddd', background: '#fff',
-                          color: '#999', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 13, fontFamily: 'inherit',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = '#111';
-                          e.currentTarget.style.color = '#111';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = '#ddd';
-                          e.currentTarget.style.color = '#999';
-                        }}
-                      >
-                        ×
-                      </button>
                     )}
                   </div>
                 );
@@ -678,49 +661,6 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               >
                 + {hiddenCount} more topic{hiddenCount !== 1 ? 's' : ''}
               </button>
-            )}
-
-            {/* ── Removed topics — re-add pills ── */}
-            {removedTopics.length > 0 && (
-              <div style={{ marginTop: 4, marginBottom: 20 }}>
-                <div style={{
-                  fontSize: 11, color: '#ccc', marginBottom: 8,
-                  textTransform: 'uppercase' as const,
-                  letterSpacing: '0.05em', fontWeight: 600,
-                }}>
-                  Removed
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {removedTopics.map((topic, i) => {
-                    const originalIndex = topics.indexOf(topic);
-                    const shortTitle = topic.title.split('—')[0].trim();
-                    return (
-                      <button
-                        key={originalIndex}
-                        onClick={() => setTopics(topics.map((t, idx) =>
-                          idx === originalIndex ? { ...t, selected: true } : t
-                        ))}
-                        style={{
-                          padding: '5px 10px', borderRadius: 20,
-                          border: '1px solid #e8e8e8', background: '#fff',
-                          fontSize: 12, color: '#bbb', cursor: 'pointer',
-                          fontFamily: 'inherit', transition: 'all 0.1s ease',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.color = '#555';
-                          e.currentTarget.style.borderColor = '#bbb';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.color = '#bbb';
-                          e.currentTarget.style.borderColor = '#e8e8e8';
-                        }}
-                      >
-                        + {shortTitle}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             )}
 
             {/* ── Add custom topic ── */}
@@ -795,7 +735,9 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             >
               {isCreating
                 ? 'Setting up your briefing...'
-                : 'Start briefing →'
+                : selectedTopics.length === 0
+                  ? 'Select topics to track'
+                  : `Track ${selectedTopics.length} topic${selectedTopics.length !== 1 ? 's' : ''} →`
               }
             </button>
 
