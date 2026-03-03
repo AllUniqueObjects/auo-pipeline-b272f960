@@ -797,6 +797,9 @@ export default function Feed() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [dbThreads, setDbThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
+  const [archivedThreads, setArchivedThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [archivedPositions, setArchivedPositions] = useState<FeedPosition[]>([]);
   const [directionEvents, setDirectionEvents] = useState<DirectionEvent[]>([]);
   const justOnboarded = sessionStorage.getItem('justOnboarded') === 'true';
 
@@ -876,11 +879,13 @@ export default function Feed() {
     return () => document.removeEventListener('click', handleClick);
   }, [menuOpenThreadId]);
 
-  // Archive a thread — optimistic removal
+  // Archive a thread — optimistic move to archived section
   const handleArchiveThread = useCallback(async (threadId: string) => {
-    // Optimistic: remove from sidebar immediately
+    // Optimistic: move from active to archived
+    const thread = dbThreads.find(t => t.id === threadId) || manualThreads.find(t => t.id === threadId);
     setDbThreads(prev => prev.filter(t => t.id !== threadId));
     setManualThreads(prev => prev.filter(t => t.id !== threadId));
+    if (thread) setArchivedThreads(prev => [...prev, thread]);
 
     // If this was selected, go to All Topics
     if (activeThreadId === threadId) {
@@ -903,7 +908,7 @@ export default function Feed() {
       console.error('[Feed] Archive failed:', e);
       window.location.reload();
     }
-  }, [activeThreadId, setSearchParams]);
+  }, [activeThreadId, setSearchParams, dbThreads, manualThreads]);
 
   const loadFeed = useCallback(async () => {
     try {
@@ -919,6 +924,17 @@ export default function Feed() {
       .neq('level', 'archived');
 
     setDbThreads(threadData || []);
+
+    // Fetch archived threads
+    const { data: archivedData } = await (supabase as any)
+      .from('decision_threads')
+      .select('id, title, lens, cover_image_url, created_at')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .eq('level', 'archived');
+    console.log('[Feed] archived query result:', archivedData);
+    setArchivedThreads(archivedData || []);
+
     if (!threadData?.length) { setPositions([]); setLoading(false); return; }
 
     const threadIds = threadData.map((t: any) => t.id);
@@ -1062,6 +1078,61 @@ export default function Feed() {
     return () => { cancelled = true; clearInterval(poll); };
   }, [scanningThreadId, loadFeed]);
 
+  // ─── Load positions on-demand when viewing an archived thread ──────────
+  useEffect(() => {
+    if (!activeThreadId) { setArchivedPositions([]); return; }
+    const isArchived = archivedThreads.some(t => t.id === activeThreadId);
+    if (!isArchived) { setArchivedPositions([]); return; }
+
+    let cancelled = false;
+    (async () => {
+      const archivedThread = archivedThreads.find(t => t.id === activeThreadId);
+      const { data } = await (supabase as any)
+        .from('positions')
+        .select('id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count, is_pinned')
+        .eq('decision_thread_id', activeThreadId)
+        .not('validated_at', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (cancelled) return;
+      const enriched = ((data || []) as any[])
+        .filter((p: any) => {
+          const vi = p.validation_issues as Record<string, unknown> | null;
+          return !vi?.hidden;
+        })
+        .map((p: any) => ({
+          ...p,
+          decision_threads: archivedThread
+            ? { id: archivedThread.id, title: archivedThread.title, lens: archivedThread.lens, cover_image_url: archivedThread.cover_image_url }
+            : null,
+        }));
+      setArchivedPositions(enriched);
+    })();
+    return () => { cancelled = true; };
+  }, [activeThreadId, archivedThreads]);
+
+  // Unarchive a thread — move back to active
+  const handleUnarchiveThread = useCallback(async (threadId: string) => {
+    const thread = archivedThreads.find(t => t.id === threadId);
+    setArchivedThreads(prev => prev.filter(t => t.id !== threadId));
+    if (thread) setDbThreads(prev => [...prev, thread]);
+    setArchivedPositions([]);
+    if (activeThreadId === threadId) {
+      setActiveThreadId(null);
+    }
+
+    try {
+      await (supabase as any)
+        .from('decision_threads')
+        .update({ level: 'standard' })
+        .eq('id', threadId);
+      loadFeed();
+    } catch (e) {
+      console.error('[Feed] Unarchive failed:', e);
+      window.location.reload();
+    }
+  }, [archivedThreads, activeThreadId, loadFeed]);
+
   // ─── Poll agent_events for direction_changed (last 24h, unread) ────────
   const loadDirectionEvents = useCallback(async () => {
     try {
@@ -1122,7 +1193,9 @@ export default function Feed() {
   }, []);
 
   // ─── Filter: urgency + thread ─────────────────────────────────────────
-  const filtered = positions.filter(pos => {
+  const isViewingArchived = activeThreadId != null && archivedThreads.some(t => t.id === activeThreadId);
+  const sourcePositions = isViewingArchived ? archivedPositions : positions;
+  const filtered = sourcePositions.filter(pos => {
     const rawTone = pos.tone || '';
 
     // Urgency filter
@@ -1169,7 +1242,9 @@ export default function Feed() {
     ...manualThreads.filter(t => !dbThreadIds.has(t.id)),
   ];
 
-  const activeThread = activeThreadId ? threads.find(t => t.id === activeThreadId) || null : null;
+  const activeThread = activeThreadId
+    ? threads.find(t => t.id === activeThreadId) || archivedThreads.find(t => t.id === activeThreadId) || null
+    : null;
 
   // Map lens click on card → select thread in sidebar
   const handleLensClick = useCallback((lens: string) => {
@@ -1449,23 +1524,165 @@ export default function Feed() {
                       >
                         Archive topic
                       </button>
-                      <button
-                        disabled
-                        style={{
-                          display: 'block', width: '100%',
-                          padding: '10px 16px', textAlign: 'left',
-                          background: 'none', border: 'none',
-                          fontSize: 14, color: '#bbb',
-                          cursor: 'default', fontFamily: FONT,
-                        }}
-                      >
-                        Pin topic (soon)
-                      </button>
                     </div>
                   )}
                 </div>
               );
             })}
+
+            {/* ─── Archived collapsible section ─── */}
+            {archivedThreads.length > 0 && (
+              <>
+                <div style={{ borderTop: '1px solid #f0f0f0', margin: '14px 0 8px' }} />
+                <button
+                  onClick={() => setArchivedExpanded(!archivedExpanded)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: colors.text.muted.light,
+                    width: '100%',
+                    textAlign: 'left',
+                    transition: transition.fast,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.03)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{
+                    display: 'inline-block',
+                    transform: archivedExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.15s ease',
+                    fontSize: 10,
+                  }}>
+                    ▶
+                  </span>
+                  Archived ({archivedThreads.length})
+                </button>
+                {archivedExpanded && archivedThreads.map(t => {
+                  const isActive = activeThreadId === t.id;
+                  const isHovered = hoveredPill === `sidebar-archived-${t.id}`;
+                  const isMenuOpen = menuOpenThreadId === t.id;
+                  return (
+                    <div
+                      key={t.id}
+                      onMouseEnter={() => setHoveredPill(`sidebar-archived-${t.id}`)}
+                      onMouseLeave={() => setHoveredPill(null)}
+                      style={{ position: 'relative' }}
+                    >
+                      <button
+                        onClick={() => { setActiveThreadId(t.id); setActiveFilter('All'); }}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '8px 10px',
+                          paddingRight: 30,
+                          borderRadius: 8,
+                          border: 'none',
+                          background: isHovered && !isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
+                          cursor: 'pointer',
+                          transition: transition.fast,
+                          fontFamily: FONT,
+                          textAlign: 'left',
+                          width: '100%',
+                          opacity: 0.55,
+                        }}
+                      >
+                        <span style={{
+                          width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 4,
+                          background: isActive ? colors.text.primary.light : 'transparent',
+                          border: isActive ? 'none' : `1.5px solid ${colors.text.muted.light}`,
+                        }} />
+                        <span style={{
+                          flex: 1, minWidth: 0,
+                          fontSize: 13, fontWeight: isActive ? 600 : 400,
+                          color: isActive ? colors.text.primary.light : colors.text.secondary.light,
+                          lineHeight: 1.4,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>
+                          {t.title}
+                        </span>
+                      </button>
+
+                      {/* ··· menu for archived thread */}
+                      {(isHovered || isMenuOpen) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenThreadId(isMenuOpen ? null : t.id);
+                          }}
+                          style={{
+                            position: 'absolute',
+                            right: 4,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: 24,
+                            height: 24,
+                            borderRadius: 4,
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#999',
+                            cursor: 'pointer',
+                            fontSize: 16,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontFamily: FONT,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          &#x22EF;
+                        </button>
+                      )}
+
+                      {isMenuOpen && (
+                        <div style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '100%',
+                          zIndex: 100,
+                          background: '#fff',
+                          border: '1px solid #e5e5e5',
+                          borderRadius: 8,
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                          padding: '4px 0',
+                          minWidth: 160,
+                        }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnarchiveThread(t.id);
+                              setMenuOpenThreadId(null);
+                            }}
+                            style={{
+                              display: 'block', width: '100%',
+                              padding: '10px 16px', textAlign: 'left',
+                              background: 'none', border: 'none',
+                              fontSize: 14, color: '#111',
+                              cursor: 'pointer', fontFamily: FONT,
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            Unarchive topic
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         </aside>
 
@@ -1655,23 +1872,30 @@ export default function Feed() {
               You can close this tab. We'll notify you.
             </div>
 
-            <button
-              onClick={() => { setScanningThreadId(null); navigate('/feed'); }}
-              style={{
-                marginTop: 8,
-                padding: '10px 24px',
-                fontSize: 14,
-                fontWeight: 600,
-                fontFamily: FONT,
-                color: '#111',
-                background: 'transparent',
-                border: '1px solid #ddd',
-                borderRadius: 8,
-                cursor: 'pointer',
-              }}
-            >
-              Go to feed — I'll check back later
-            </button>
+            <div style={{ marginTop: 24, fontSize: 13, color: '#bbb', fontFamily: FONT }}>
+              Changed your mind?{' '}
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={async () => {
+                  const threadId = scanningThreadId;
+                  setScanningThreadId(null);
+                  setActiveThreadId(null);
+                  setManualThreads(prev => prev.filter(t => t.id !== threadId));
+                  setDbThreads(prev => prev.filter(t => t.id !== threadId));
+                  if (threadId) {
+                    await (supabase as any).from('decision_threads').delete().eq('id', threadId);
+                  }
+                }}
+                style={{
+                  color: '#999',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                }}
+              >
+                Delete this topic
+              </span>
+            </div>
           </div>
         )}
 
