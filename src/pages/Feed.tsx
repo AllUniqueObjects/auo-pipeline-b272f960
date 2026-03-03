@@ -33,6 +33,7 @@ interface FeedPosition {
   monitor_set_at?: string | null;
   monitor_alert_threshold?: string | null;
   monitor_last_signal_count?: number | null;
+  is_pinned?: boolean | null;
   created_at: string;
   decision_thread_id: string;
   decision_threads?: {
@@ -145,11 +146,13 @@ const getSignalMomentum = (pos: FeedPosition): string | null => {
 // ─── PositionCard — L→R gradient, image left, text right ────────────────────
 
 function PositionCard({
-  pos, onClick, onLensClick,
+  pos, onClick, onLensClick, onPinToggle, activeFilter,
 }: {
   pos: FeedPosition;
   onClick: (positionId: string) => void;
   onLensClick: (lens: string) => void;
+  onPinToggle: (positionId: string, currentlyPinned: boolean) => void;
+  activeFilter: FilterTab;
 }) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -159,7 +162,6 @@ function PositionCard({
   const lens = pos.decision_threads?.lens || '';
   const imageUrl = pos.cover_image_url || pos.decision_threads?.cover_image_url;
   const isBreaking = tone === 'BREAKING';
-  const isTracked = Boolean(pos.decision_thread_id);
 
   return (
     <div
@@ -210,6 +212,37 @@ function PositionCard({
 
       {/* L→R gradient overlay — z3 */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 3, background: urg.gradient }} />
+
+      {/* Pin button — top left, shows on hover or when pinned */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onPinToggle(pos.id, Boolean(pos.is_pinned));
+        }}
+        title={pos.is_pinned ? 'Unpin' : 'Pin this insight'}
+        style={{
+          position: 'absolute',
+          top: 10,
+          left: 10,
+          background: pos.is_pinned ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)',
+          border: 'none',
+          borderRadius: '50%',
+          width: 30,
+          height: 30,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: 14,
+          color: pos.is_pinned ? '#f59e0b' : 'rgba(255,255,255,0.6)',
+          opacity: pos.is_pinned || hovered ? 1 : 0,
+          transition: 'opacity 0.15s, color 0.15s',
+          zIndex: 10,
+        }}
+      >
+        {pos.is_pinned ? '★' : '☆'}
+      </button>
 
       {/* Text content — z5 */}
       <div style={{
@@ -266,9 +299,6 @@ function PositionCard({
               · just now
             </span>
           )}
-          {isTracked && (
-            <span style={{ fontSize: 11, color: '#d4a017', lineHeight: 1, flexShrink: 0 }}>★</span>
-          )}
           <span
             onClick={(e) => {
               e.stopPropagation();
@@ -286,6 +316,19 @@ function PositionCard({
           >
             {formatLens(lens)}
           </span>
+          {activeFilter === 'pinned' && pos.decision_threads?.title && (
+            <span style={{
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.45)',
+              marginLeft: 6,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+              maxWidth: 160,
+            }}>
+              · {pos.decision_threads.title.slice(0, 25)}{pos.decision_threads.title.length > 25 ? '…' : ''}
+            </span>
+          )}
         </div>
 
         {/* Title */}
@@ -347,14 +390,10 @@ function PositionCard({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {pos.is_monitored && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: 10, fontWeight: 600, color: '#fff',
-              background: 'rgba(0,0,0,0.55)', borderRadius: 6,
-              padding: '2px 7px', letterSpacing: '0.04em',
-            }}>
-              ● MONITORING
+          {pos.monitor_alert_threshold && (
+            <span style={{ marginRight: 2, fontSize: 12, opacity: 0.7 }}>
+              {pos.monitor_alert_threshold === 'breaking' ? '⚡' :
+               pos.monitor_alert_threshold === 'priority' ? '●' : '◎'}
             </span>
           )}
           <span style={{
@@ -573,7 +612,7 @@ function DirectionChangedBanner({
 
 const FONT = typography.fontFamily;
 const BASE_TABS = ['All', 'ACT NOW', 'WATCH', '✦ Suggested'] as const;
-type FilterTab = typeof BASE_TABS[number] | 'BREAKING';
+type FilterTab = typeof BASE_TABS[number] | 'BREAKING' | 'pinned' | 'monitoring';
 
 // ─── AvatarMenu ───────────────────────────────────────────────────────────
 
@@ -855,7 +894,7 @@ export default function Feed() {
     // Step 2: Fetch all validated positions for those threads
     const { data: positionData, error: posErr } = await (supabase as any)
       .from('positions')
-      .select('id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count')
+      .select('id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count, is_pinned')
       .in('decision_thread_id', threadIds)
       .not('validated_at', 'is', null)
       .order('created_at', { ascending: false })
@@ -1027,6 +1066,24 @@ export default function Feed() {
 
   const handleClick = (positionId: string) => navigate(`/insights/${positionId}`);
 
+  const handlePinToggle = useCallback(async (positionId: string, currentlyPinned: boolean) => {
+    setPositions(prev => prev.map(p =>
+      p.id === positionId ? { ...p, is_pinned: !currentlyPinned } : p
+    ));
+
+    const { error } = await (supabase as any)
+      .from('positions')
+      .update({ is_pinned: !currentlyPinned })
+      .eq('id', positionId);
+
+    if (error) {
+      setPositions(prev => prev.map(p =>
+        p.id === positionId ? { ...p, is_pinned: currentlyPinned } : p
+      ));
+      console.error('[Pin] toggle failed:', error.message);
+    }
+  }, []);
+
   // ─── Filter: urgency + thread ─────────────────────────────────────────
   const filtered = positions.filter(pos => {
     const rawTone = pos.tone || '';
@@ -1035,6 +1092,8 @@ export default function Feed() {
     const urgencyMatch = (() => {
       if (activeFilter === 'All') return true;
       if (activeFilter === '✦ Suggested') return false;
+      if (activeFilter === 'pinned') return Boolean(pos.is_pinned);
+      if (activeFilter === 'monitoring') return Boolean(pos.is_monitored);
       if (activeFilter === 'BREAKING') {
         return rawTone === 'BREAKING';
       }
@@ -1121,7 +1180,7 @@ export default function Feed() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* All Topics */}
             <button
-              onClick={() => { setActiveThreadId(null); setScanningThreadId(null); }}
+              onClick={() => { setActiveThreadId(null); setScanningThreadId(null); setActiveFilter('All'); }}
               onMouseEnter={() => setHoveredPill('sidebar-all')}
               onMouseLeave={() => setHoveredPill(null)}
               style={{
@@ -1151,6 +1210,79 @@ export default function Feed() {
               </span>
             </button>
 
+            {/* ★ Pinned section */}
+            {positions.filter(p => p.is_pinned).length > 0 && (
+              <button
+                onClick={() => { setActiveFilter('pinned'); setActiveThreadId(null); }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: activeFilter === 'pinned' ? '#111' : 'transparent',
+                  color: activeFilter === 'pinned' ? '#fff' : '#111',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginBottom: 2,
+                  fontFamily: FONT,
+                }}
+              >
+                <span>★ Pinned</span>
+                <span style={{
+                  fontSize: 11,
+                  background: activeFilter === 'pinned' ? 'rgba(255,255,255,0.15)' : '#f0f0f0',
+                  color: activeFilter === 'pinned' ? '#fff' : '#999',
+                  padding: '1px 7px',
+                  borderRadius: 10,
+                }}>
+                  {positions.filter(p => p.is_pinned).length}
+                </span>
+              </button>
+            )}
+
+            {/* ⚙ Monitoring section */}
+            {positions.filter(p => p.is_monitored).length > 0 && (
+              <button
+                onClick={() => { setActiveFilter('monitoring'); setActiveThreadId(null); }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: activeFilter === 'monitoring' ? '#111' : 'transparent',
+                  color: activeFilter === 'monitoring' ? '#fff' : '#333',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginBottom: 2,
+                  fontFamily: FONT,
+                }}
+              >
+                <span>⚙ Monitoring</span>
+                <span style={{
+                  fontSize: 11,
+                  background: activeFilter === 'monitoring' ? 'rgba(255,255,255,0.15)' : '#f0f0f0',
+                  color: activeFilter === 'monitoring' ? '#fff' : '#999',
+                  padding: '1px 7px',
+                  borderRadius: 10,
+                }}>
+                  {positions.filter(p => p.is_monitored).length}
+                </span>
+              </button>
+            )}
+
+            {/* Divider */}
+            {(positions.some(p => p.is_pinned) || positions.some(p => p.is_monitored)) && (
+              <div style={{ borderTop: '1px solid #f0f0f0', margin: '10px 0' }} />
+            )}
+
             {/* Per-thread items */}
             {threads.map(t => {
               const isActive = activeThreadId === t.id;
@@ -1165,7 +1297,7 @@ export default function Feed() {
                   style={{ position: 'relative' }}
                 >
                   <button
-                    onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); }}
+                    onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); setActiveFilter('All'); }}
                     style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                       padding: '8px 10px',
@@ -1539,7 +1671,7 @@ export default function Feed() {
         {activeFilter !== '✦ Suggested' && displayPositions.length > 0 && (
           <div className="feed-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
             {displayPositions.map(p => (
-              <PositionCard key={p.id} pos={p} onClick={handleClick} onLensClick={handleLensClick} />
+              <PositionCard key={p.id} pos={p} onClick={handleClick} onLensClick={handleLensClick} onPinToggle={handlePinToggle} activeFilter={activeFilter} />
             ))}
           </div>
         )}
