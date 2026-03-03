@@ -15,9 +15,9 @@ interface UserOption {
 
 interface PipelineAgent {
   name: string;
-  eventType: string;
-  lastRun: string | null;
-  payload: Record<string, any> | null;
+  lastHeartbeat: string | null;
+  lastCompleted: string | null;
+  completedPayload: Record<string, any> | null;
 }
 
 interface ThreadHealth {
@@ -86,13 +86,20 @@ function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '…' : s;
 }
 
-function statusDot(agentName: string, lastRun: string | null): { color: string; label: string } {
-  if (!lastRun) return { color: '#ef4444', label: 'No runs' };
-  const h = hoursAgo(lastRun);
-  const threshold = agentName === 'scanner' ? 1 : 2;
-  if (h < threshold) return { color: '#22c55e', label: timeAgo(lastRun) };
-  if (h < 4) return { color: '#f59e0b', label: timeAgo(lastRun) };
-  return { color: '#ef4444', label: timeAgo(lastRun) };
+function statusDot(agentName: string, lastHeartbeat: string | null): { color: string; label: string } {
+  if (!lastHeartbeat) return { color: '#ef4444', label: 'No heartbeat' };
+  const h = hoursAgo(lastHeartbeat);
+  // Scanner cron = 8h interval, breaking = 20min; connector/writer are event-driven
+  if (agentName === 'scanner') {
+    // Breaking runs every 20min, so heartbeat should be <30min
+    if (h < 0.5) return { color: '#22c55e', label: timeAgo(lastHeartbeat) };
+    if (h < 1) return { color: '#f59e0b', label: timeAgo(lastHeartbeat) };
+    return { color: '#ef4444', label: timeAgo(lastHeartbeat) };
+  }
+  // Connector/Writer: event-driven, expect within a few hours of scanner
+  if (h < 2) return { color: '#22c55e', label: timeAgo(lastHeartbeat) };
+  if (h < 4) return { color: '#f59e0b', label: timeAgo(lastHeartbeat) };
+  return { color: '#ef4444', label: timeAgo(lastHeartbeat) };
 }
 
 function agentColor(agent: string): string {
@@ -212,26 +219,33 @@ export default function AdminEval() {
     if (!authorized) return;
 
     const fetchPipelineStatus = async () => {
-      const agentConfigs: { name: string; eventType: string }[] = [
-        { name: 'scanner', eventType: 'scanner_completed' },
-        { name: 'connector', eventType: 'connector_completed' },
-        { name: 'writer', eventType: 'position_created' },
+      const agentConfigs: { name: string; heartbeatType: string; completedType: string }[] = [
+        { name: 'scanner', heartbeatType: 'scanner_breaking_heartbeat', completedType: 'scanner_completed' },
+        { name: 'connector', heartbeatType: 'connector_heartbeat', completedType: 'connector_completed' },
+        { name: 'writer', heartbeatType: 'writer_heartbeat', completedType: 'position_created' },
       ];
 
       const results = await Promise.all(
-        agentConfigs.map(async ({ name, eventType }) => {
-          const { data } = await (supabase as any)
-            .from('agent_events')
-            .select('created_at, payload')
-            .eq('event_type', eventType)
-            .order('created_at', { ascending: false })
-            .limit(1);
-          const row = data?.[0];
+        agentConfigs.map(async ({ name, heartbeatType, completedType }) => {
+          const [hbResp, compResp] = await Promise.all([
+            (supabase as any)
+              .from('agent_events')
+              .select('created_at')
+              .eq('event_type', heartbeatType)
+              .order('created_at', { ascending: false })
+              .limit(1),
+            (supabase as any)
+              .from('agent_events')
+              .select('created_at, payload')
+              .eq('event_type', completedType)
+              .order('created_at', { ascending: false })
+              .limit(1),
+          ]);
           return {
             name,
-            eventType,
-            lastRun: row?.created_at ?? null,
-            payload: row?.payload ?? null,
+            lastHeartbeat: hbResp.data?.[0]?.created_at ?? null,
+            lastCompleted: compResp.data?.[0]?.created_at ?? null,
+            completedPayload: compResp.data?.[0]?.payload ?? null,
           } as PipelineAgent;
         })
       );
@@ -593,11 +607,11 @@ export default function AdminEval() {
           <div style={sectionLabelStyle}>Pipeline Status</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             {pipelineAgents.map(agent => {
-              const { color, label } = statusDot(agent.name, agent.lastRun);
-              const scannerExtra = agent.name === 'scanner' && agent.payload
+              const { color, label } = statusDot(agent.name, agent.lastHeartbeat);
+              const scannerExtra = agent.name === 'scanner' && agent.completedPayload
                 ? (() => {
-                    const created = agent.payload.signals_created ?? agent.payload.new_signals;
-                    const updated = agent.payload.signals_updated ?? agent.payload.updated_signals;
+                    const created = agent.completedPayload.signals_created ?? agent.completedPayload.new_signals;
+                    const updated = agent.completedPayload.signals_updated ?? agent.completedPayload.updated_signals;
                     if (created != null || updated != null) {
                       return `${created ?? 0} created, ${updated ?? 0} updated`;
                     }
@@ -624,8 +638,11 @@ export default function AdminEval() {
                       {agent.name}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: colors.text.secondary.light, marginBottom: 4 }}>
-                    {label}
+                  <div style={{ fontSize: 12, color: colors.text.secondary.light, marginBottom: 2 }}>
+                    Heartbeat: {label}
+                  </div>
+                  <div style={{ fontSize: 11, color: colors.text.muted.light, marginBottom: 4 }}>
+                    Last completed: {agent.lastCompleted ? timeAgo(agent.lastCompleted) : '—'}
                   </div>
                   {scannerExtra && (
                     <div style={{ fontSize: 11, color: colors.text.muted.light }}>
