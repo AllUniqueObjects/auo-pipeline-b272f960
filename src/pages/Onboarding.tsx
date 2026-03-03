@@ -250,7 +250,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       }
       console.log('[Onboarding] User profile saved');
 
-      // 2. NOW insert decision_threads (user row exists)
+      // 2. NOW insert decision_threads (user row exists) — return IDs
+      let insertedThreads: { id: string }[] = [];
       if (selected.length > 0) {
         const rows = selected.map(t => ({
           user_id: user.id,
@@ -262,25 +263,32 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
         console.log('[Onboarding] Inserting threads:', rows.length);
 
-        const { error: threadError } = await (supabase as any)
+        const { data: threadData, error: threadError } = await (supabase as any)
           .from('decision_threads')
-          .insert(rows);
+          .insert(rows)
+          .select('id');
 
         if (threadError) {
           console.error('[Onboarding] Thread insert failed:', threadError);
         } else {
-          console.log('[Onboarding] Threads inserted successfully');
+          insertedThreads = threadData || [];
+          console.log('[Onboarding] Threads inserted successfully:', insertedThreads.length);
         }
       }
 
-      // 3. Fire scan_priority (fire and forget)
+      // 3. Trigger scan pipeline per thread (fire-and-forget, all in parallel)
       const scanUrl = import.meta.env.VITE_MODAL_SCAN_PRIORITY_URL;
-      if (scanUrl && selected.length > 0) {
-        fetch(scanUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: user.id }),
-        }).catch(e => console.warn('[Onboarding] Scan trigger failed:', e));
+      if (scanUrl && insertedThreads.length > 0) {
+        for (const thread of insertedThreads) {
+          fetch(scanUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ thread_id: thread.id, user_id: user.id }),
+          }).catch(err =>
+            console.warn(`[Onboarding] Pipeline trigger failed for ${thread.id}:`, err)
+          );
+        }
+        console.log(`[Onboarding] Triggered pipeline for ${insertedThreads.length} threads`);
       }
 
       // 4. Set localStorage flag
