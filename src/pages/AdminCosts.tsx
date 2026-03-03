@@ -86,35 +86,42 @@ export default function AdminCosts() {
 
   // Auth check
   useEffect(() => {
-    (async () => {
+    const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
+
+    const check = async (email: string | undefined, uid: string) => {
+      const emailAdmin = !!(email && ADMIN_EMAILS.includes(email));
+
+      let dbAdmin = false;
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { navigate('/feed', { replace: true }); return; }
+        const { data } = await (supabase as any)
+          .from('users')
+          .select('is_admin')
+          .eq('id', uid)
+          .maybeSingle();
+        dbAdmin = !!data?.is_admin;
+      } catch { /* fall through */ }
 
-        const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
-        const emailAdmin = !!(user.email && ADMIN_EMAILS.includes(user.email));
-
-        let dbAdmin = false;
-        try {
-          const { data } = await (supabase as any)
-            .from('users')
-            .select('is_admin')
-            .eq('id', user.id)
-            .maybeSingle();
-          dbAdmin = !!data?.is_admin;
-        } catch { /* fall through to email check */ }
-
-        if (!dbAdmin && !emailAdmin) {
-          navigate('/feed', { replace: true });
-          return;
-        }
-        setAuthorized(true);
-      } catch (e: any) {
-        setError(e?.message || 'Auth check failed');
-      } finally {
-        setLoading(false);
+      if (!dbAdmin && !emailAdmin) {
+        navigate('/', { replace: true });
+        return;
       }
-    })();
+      setAuthorized(true);
+      setLoading(false);
+    };
+
+    // Try cached session first (instant, no network)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        check(session.user.email ?? undefined, session.user.id);
+      } else {
+        // No cached session — wait for auth state
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          subscription.unsubscribe();
+          if (!session?.user) { navigate('/', { replace: true }); setLoading(false); return; }
+          check(session.user.email ?? undefined, session.user.id);
+        });
+      }
+    });
   }, [navigate]);
 
   // Fetch costs when authorized or range changes
