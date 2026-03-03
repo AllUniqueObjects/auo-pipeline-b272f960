@@ -88,6 +88,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [customTopic, setCustomTopic] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   // ── Get user info on mount ──────────────────────────────────────────────
 
@@ -508,100 +509,150 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         ════════════════════════════════════════════════════════════════ */}
         {screen === 'topics' && (
           <div style={{
-            maxWidth: 580, margin: '0 auto', padding: '48px 24px',
+            maxWidth: 540, margin: '0 auto', padding: '60px 24px 80px',
             width: '100%', overflowY: 'auto', flex: 1,
           }}>
-            <div style={{ marginBottom: 32 }}>
+            {/* ── Page header ── */}
+            <div style={{ marginBottom: 40 }}>
               {topics.length > 0 ? (
                 <>
-                  <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
-                    AUO is ready to track {selectedTopics.length} topic{selectedTopics.length !== 1 ? 's' : ''} at {company}.
+                  <div style={{
+                    fontSize: 12, fontWeight: 600, color: '#999',
+                    letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+                    marginBottom: 10,
+                  }}>
+                    AUO researched {company}
+                  </div>
+                  <h1 style={{
+                    fontSize: 32, fontWeight: 700, color: '#111',
+                    lineHeight: 1.2, marginBottom: 8, letterSpacing: '-0.02em',
+                  }}>
+                    {selectedTopics.length} topic{selectedTopics.length !== 1 ? 's' : ''} ready to track.
                   </h1>
-                  <p style={{ fontSize: 14, color: '#888' }}>
-                    Remove anything that's not relevant.
+                  <p style={{ fontSize: 14, color: '#aaa', marginBottom: 0, fontWeight: 400 }}>
+                    Remove anything that doesn't apply to you.
                   </p>
                 </>
               ) : (
                 <>
-                  <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
+                  <h1 style={{
+                    fontSize: 32, fontWeight: 700, color: '#111',
+                    lineHeight: 1.2, marginBottom: 8, letterSpacing: '-0.02em',
+                  }}>
                     What are you tracking at {company}?
                   </h1>
-                  <p style={{ fontSize: 14, color: '#888' }}>
+                  <p style={{ fontSize: 14, color: '#aaa', marginBottom: 0, fontWeight: 400 }}>
                     Add the decisions you're actively working on.
                   </p>
                 </>
               )}
             </div>
 
-            {/* Active topics — briefing card style */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            {/* ── Topic cards ── */}
+            <div style={{ marginBottom: 16 }}>
               {selectedTopics.map((topic, i) => {
                 const originalIndex = topics.indexOf(topic);
+                const isHovered = hoveredIndex === i;
 
                 return (
                   <div
                     key={originalIndex}
+                    onMouseEnter={() => setHoveredIndex(i)}
+                    onMouseLeave={() => setHoveredIndex(null)}
                     style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      padding: '14px 16px',
-                      borderRadius: 10,
-                      border: '1px solid #e8e8e8',
-                      background: '#fff',
+                      position: 'relative',
+                      padding: '18px 20px',
+                      borderRadius: 12,
+                      border: `1px solid ${isHovered ? '#d0d0d0' : '#ebebeb'}`,
+                      background: isHovered ? '#fafafa' : '#fff',
+                      cursor: 'default',
+                      transition: 'all 0.15s ease',
+                      marginBottom: 8,
                     }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>
-                          {topic.title}
-                        </span>
-                        <span style={{ fontSize: 11, color: '#999', fontWeight: 500 }}>
-                          {categoryLabel[topic.category] || topic.category}
-                        </span>
-                      </div>
-                      {topic.hook && (
-                        <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
-                          {topic.hook}
-                        </div>
-                      )}
+                    {/* Category — top left, small */}
+                    <div style={{
+                      fontSize: 11, fontWeight: 600, color: '#bbb',
+                      letterSpacing: '0.05em', textTransform: 'uppercase' as const,
+                      marginBottom: 6,
+                    }}>
+                      {categoryLabel[topic.category] || topic.category}
                     </div>
 
-                    {/* Remove button */}
-                    <button
-                      onClick={() => removeTopic(originalIndex)}
-                      style={{
-                        width: 24, height: 24, borderRadius: '50%',
-                        border: '1px solid #e0e0e0', background: 'transparent',
-                        color: '#bbb', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 14, flexShrink: 0, marginTop: 2,
-                        fontFamily: 'inherit',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.borderColor = '#111';
-                        e.currentTarget.style.color = '#111';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.borderColor = '#e0e0e0';
-                        e.currentTarget.style.color = '#bbb';
-                      }}
-                    >
-                      ×
-                    </button>
+                    {/* Title — hero */}
+                    <div style={{
+                      fontSize: 16, fontWeight: 650, color: '#111',
+                      lineHeight: 1.35,
+                      marginBottom: topic.hook ? 6 : 0,
+                      paddingRight: 32,
+                    }}>
+                      {topic.title}
+                    </div>
+
+                    {/* Hook — 1 line, truncated */}
+                    {topic.hook && (
+                      <div style={{
+                        fontSize: 13, color: '#999', lineHeight: 1.5,
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: 'vertical' as const,
+                        paddingRight: 32,
+                      }}>
+                        {topic.hook}
+                      </div>
+                    )}
+
+                    {/* X button — only on hover */}
+                    {isHovered && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeTopic(originalIndex);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          right: 16,
+                          transform: 'translateY(-50%)',
+                          width: 24, height: 24, borderRadius: '50%',
+                          border: '1px solid #ddd', background: '#fff',
+                          color: '#999', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 14, fontFamily: 'inherit',
+                          transition: 'all 0.1s ease',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = '#111';
+                          e.currentTarget.style.color = '#111';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = '#ddd';
+                          e.currentTarget.style.color = '#999';
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Removed topics — can be re-added */}
+            {/* ── Removed topics — re-add pills ── */}
             {removedTopics.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: '#bbb', marginBottom: 8 }}>Removed:</div>
+              <div style={{ marginTop: 4, marginBottom: 20 }}>
+                <div style={{
+                  fontSize: 11, color: '#ccc', marginBottom: 8,
+                  textTransform: 'uppercase' as const,
+                  letterSpacing: '0.05em', fontWeight: 600,
+                }}>
+                  Removed
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {removedTopics.map((topic, i) => {
                     const originalIndex = topics.indexOf(topic);
+                    const shortTitle = topic.title.split('—')[0].trim();
                     return (
                       <button
                         key={originalIndex}
@@ -609,13 +660,21 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                           idx === originalIndex ? { ...t, selected: true } : t
                         ))}
                         style={{
-                          padding: '6px 12px', borderRadius: 20,
-                          border: '1px solid #e0e0e0', background: 'transparent',
-                          fontSize: 12, color: '#999', cursor: 'pointer',
-                          fontFamily: 'inherit',
+                          padding: '5px 10px', borderRadius: 20,
+                          border: '1px solid #e8e8e8', background: '#fff',
+                          fontSize: 12, color: '#bbb', cursor: 'pointer',
+                          fontFamily: 'inherit', transition: 'all 0.1s ease',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.color = '#555';
+                          e.currentTarget.style.borderColor = '#bbb';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.color = '#bbb';
+                          e.currentTarget.style.borderColor = '#e8e8e8';
                         }}
                       >
-                        + {topic.title.split('—')[0].trim()}
+                        + {shortTitle}
                       </button>
                     );
                   })}
@@ -623,84 +682,79 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {/* Add custom topic */}
+            {/* ── Add custom topic ── */}
             {!showCustomInput ? (
               <button
                 onClick={() => setShowCustomInput(true)}
                 style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: '1px dashed #ddd',
-                  background: 'transparent',
-                  color: '#aaa',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  textAlign: 'left' as const,
-                  marginBottom: 28,
+                  width: '100%', padding: '13px 16px',
+                  borderRadius: 10, border: '1px dashed #e0e0e0',
+                  background: 'transparent', color: '#bbb',
+                  fontSize: 13, cursor: 'pointer',
+                  fontFamily: 'inherit', textAlign: 'left' as const,
+                  marginBottom: 28, transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = '#bbb';
+                  e.currentTarget.style.color = '#888';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = '#e0e0e0';
+                  e.currentTarget.style.color = '#bbb';
                 }}
               >
                 + Add something AUO missed
               </button>
             ) : (
-              <div style={{ marginBottom: 28, display: 'flex', gap: 8 }}>
-                <input
-                  autoFocus
-                  value={customTopic}
-                  onChange={e => setCustomTopic(e.target.value)}
-                  placeholder="e.g. PFAS-free supplier lock-in for FW27"
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && customTopic.trim()) {
-                      setTopics([...topics, {
-                        title: customTopic.trim(),
-                        hook: '',
-                        category: 'market',
-                        selected: true,
-                      }]);
-                      setCustomTopic('');
-                      setShowCustomInput(false);
-                    }
-                    if (e.key === 'Escape') {
-                      setShowCustomInput(false);
-                      setCustomTopic('');
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    border: '1px solid #111',
-                    fontSize: 14,
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                  }}
-                />
-              </div>
+              <input
+                autoFocus
+                value={customTopic}
+                onChange={e => setCustomTopic(e.target.value)}
+                placeholder="e.g. PFAS-free supplier lock-in for FW27"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && customTopic.trim()) {
+                    setTopics([...topics, {
+                      title: customTopic.trim(),
+                      hook: '',
+                      category: 'market',
+                      selected: true,
+                    }]);
+                    setCustomTopic('');
+                    setShowCustomInput(false);
+                  }
+                  if (e.key === 'Escape') {
+                    setShowCustomInput(false);
+                    setCustomTopic('');
+                  }
+                }}
+                style={{
+                  width: '100%', padding: '13px 16px',
+                  borderRadius: 10, border: '1px solid #111',
+                  fontSize: 14, fontFamily: 'inherit', outline: 'none',
+                  marginBottom: 28, boxSizing: 'border-box' as const,
+                }}
+              />
             )}
 
-            {/* CTA */}
+            {/* ── CTA ── */}
             <button
               onClick={handleConfirmTopics}
               disabled={selectedTopics.length === 0 || isCreating}
               style={{
-                width: '100%',
-                padding: '16px',
-                background: selectedTopics.length > 0 ? '#111' : '#e5e5e5',
-                color: selectedTopics.length > 0 ? '#fff' : '#aaa',
-                borderRadius: 10,
-                border: 'none',
-                fontSize: 15,
-                fontWeight: 600,
+                width: '100%', padding: '17px',
+                background: selectedTopics.length > 0 ? '#111' : '#f0f0f0',
+                color: selectedTopics.length > 0 ? '#fff' : '#bbb',
+                borderRadius: 12, border: 'none',
+                fontSize: 15, fontWeight: 600,
                 cursor: selectedTopics.length > 0 ? 'pointer' : 'default',
                 fontFamily: 'inherit',
+                letterSpacing: '-0.01em',
+                transition: 'all 0.2s ease',
               }}
             >
               {isCreating
                 ? 'Setting up your briefing...'
-                : selectedTopics.length > 0
-                ? `Start briefing on ${selectedTopics.length} topic${selectedTopics.length !== 1 ? 's' : ''} →`
-                : 'Add at least one topic to continue'
+                : 'Start briefing →'
               }
             </button>
 
@@ -712,14 +766,10 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 navigate('/feed', { replace: true });
               }}
               style={{
-                display: 'block',
-                margin: '14px auto 0',
-                background: 'none',
-                border: 'none',
-                color: '#ccc',
-                fontSize: 13,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
+                display: 'block', margin: '14px auto 0',
+                background: 'none', border: 'none',
+                color: '#ccc', fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
               Skip for now
