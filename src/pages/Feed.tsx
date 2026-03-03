@@ -577,7 +577,7 @@ type FilterTab = typeof BASE_TABS[number] | 'BREAKING';
 
 // ─── AvatarMenu ───────────────────────────────────────────────────────────
 
-function AvatarMenu({ userName, onNavigate }: { userName: string; onNavigate: (path: string) => void }) {
+function AvatarMenu({ userName, isAdmin, onNavigate }: { userName: string; isAdmin: boolean; onNavigate: (path: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
@@ -618,6 +618,24 @@ function AvatarMenu({ userName, onNavigate }: { userName: string; onNavigate: (p
           borderRadius: 12, boxShadow: shadow.md, overflow: 'hidden',
           minWidth: 170, zIndex: 100,
         }}>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => { setOpen(false); onNavigate('/admin/costs'); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '10px 16px', border: 'none', background: 'transparent',
+                  fontSize: 13, fontWeight: 500, color: colors.text.primary.light,
+                  cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Pipeline Costs
+              </button>
+              <div style={{ height: 1, background: colors.border.light, margin: '0 12px' }} />
+            </>
+          )}
           <button
             onClick={() => { setOpen(false); onNavigate('/alert-sources'); }}
             style={{
@@ -691,6 +709,7 @@ export default function Feed() {
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [hoveredPill, setHoveredPill] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [dbThreads, setDbThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [directionEvents, setDirectionEvents] = useState<DirectionEvent[]>([]);
@@ -717,12 +736,26 @@ export default function Feed() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch user name on mount
+  // Fetch user name + admin status on mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       const name = user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
       setUserName(name ? name.split(' ')[0] : 'U');
+
+      (supabase as any)
+        .from('users')
+        .select('is_admin')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data }: any) => {
+          if (data?.is_admin) setIsAdmin(true);
+        })
+        .catch(() => {});
+
+      // Fallback: grant admin by email if DB column not yet populated
+      const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
+      if (user.email && ADMIN_EMAILS.includes(user.email)) setIsAdmin(true);
     });
   }, []);
 
@@ -1054,7 +1087,7 @@ export default function Feed() {
           <span className="feed-header-date" style={{ fontSize: 13, color: colors.text.muted.light }}>
             {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
-          <AvatarMenu userName={userName} onNavigate={navigate} />
+          <AvatarMenu userName={userName} isAdmin={isAdmin} onNavigate={navigate} />
         </div>
       </header>
 
