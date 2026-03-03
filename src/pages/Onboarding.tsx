@@ -315,9 +315,10 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.3; transform: scale(0.78); }
+        @keyframes auoPulse {
+          0% { transform: scale(0.85); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0,0,0,0.15); }
+          50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 0 20px rgba(0,0,0,0); }
+          100% { transform: scale(0.85); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0,0,0,0); }
         }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(4px); }
@@ -465,25 +466,24 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            minHeight: '70vh',
-            gap: 28,
+            minHeight: '100vh',
+            gap: 32,
             textAlign: 'center',
-            maxWidth: 400,
-            margin: '0 auto',
             padding: '0 24px',
           }}>
-            {/* Pulsing dot */}
+            {/* Pulsing circle with ripple */}
             <div style={{
-              width: 44,
-              height: 44,
+              width: 72,
+              height: 72,
               borderRadius: '50%',
               background: '#111',
-              animation: 'pulse 1.6s ease-in-out infinite',
+              animation: 'auoPulse 2s ease-in-out infinite',
+              position: 'relative',
             }} />
 
             <div>
               <div style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 14 }}>
-                Researching {company}
+                Researching {company.replace(/\b\w/g, c => c.toUpperCase())}
               </div>
               <div
                 key={previewIndex}
