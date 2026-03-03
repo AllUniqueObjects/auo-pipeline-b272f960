@@ -224,7 +224,7 @@ function PositionCard({
         onMouseEnter={e => {
           e.currentTarget.style.transform = 'scale(1.15)';
           e.currentTarget.style.background = 'rgba(0,0,0,0.6)';
-          if (!pos.is_pinned) e.currentTarget.style.color = '#fff';
+          if (!pos.is_pinned) e.currentTarget.style.color = '#f59e0b';
         }}
         onMouseLeave={e => {
           e.currentTarget.style.transform = 'scale(1)';
