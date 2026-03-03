@@ -4,14 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 const FONT = "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif";
 
-const LENS_GRADIENTS: Record<string, string> = {
-  textile_innovation:      'linear-gradient(135deg, #b8753a 0%, #5c2e0e 100%)',
-  supply_chain_resilience: 'linear-gradient(135deg, #1a3f6e 0%, #071628 100%)',
-  sourcing:                'linear-gradient(135deg, #5c4020 0%, #1f1208 100%)',
-  regulatory_compliance:   'linear-gradient(135deg, #1e3448 0%, #080f18 100%)',
-  competitive:             'linear-gradient(135deg, #2a2a2a 0%, #080808 100%)',
-};
-
 interface Thread {
   id: string;
   title: string;
@@ -168,7 +160,7 @@ export default function Workspace() {
       {/* COVER IMAGE BANNER */}
       <div style={{
         height: 240,
-        background: LENS_GRADIENTS[thread.lens] || LENS_GRADIENTS.competitive,
+        background: '#000',
         position: 'relative', overflow: 'hidden',
       }}>
         {thread.cover_image_url && (

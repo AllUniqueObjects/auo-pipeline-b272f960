@@ -108,19 +108,6 @@ const formatRecency = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const LENS_GRADIENTS: Record<string, string> = {
-  supply_chain:            'linear-gradient(135deg, #1a3f6e 0%, #071628 100%)',
-  innovation:              'linear-gradient(135deg, #b8753a 0%, #5c2e0e 100%)',
-  market:                  'linear-gradient(135deg, #2a2a2a 0%, #080808 100%)',
-  macro:                   'linear-gradient(135deg, #1e3448 0%, #080f18 100%)',
-  // Legacy keys (existing threads in DB)
-  textile_innovation:      'linear-gradient(135deg, #b8753a 0%, #5c2e0e 100%)',
-  supply_chain_resilience: 'linear-gradient(135deg, #1a3f6e 0%, #071628 100%)',
-  sourcing:                'linear-gradient(135deg, #5c4020 0%, #1f1208 100%)',
-  regulatory_compliance:   'linear-gradient(135deg, #1e3448 0%, #080f18 100%)',
-  competitive:             'linear-gradient(135deg, #2a2a2a 0%, #080808 100%)',
-};
-
 // ─── Urgency weight for sorting ──────────────────────────────────────────────
 
 const urgencyWeight = (tone: string): number => {
@@ -174,7 +161,7 @@ function PositionCard({
         overflow: 'hidden',
         height: 260,
         border: 'none',
-        background: LENS_GRADIENTS[lens] || LENS_GRADIENTS.competitive,
+        background: '#000',
         boxShadow: hovered ? shadow.lg : shadow.sm,
         cursor: 'pointer',
         transition: transition.slow,
