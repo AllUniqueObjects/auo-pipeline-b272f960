@@ -92,13 +92,17 @@ export default function AdminCosts() {
       const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
       const emailAdmin = user.email && ADMIN_EMAILS.includes(user.email);
 
-      const { data } = await (supabase as any)
-        .from('users')
-        .select('is_admin')
-        .eq('id', user.id)
-        .maybeSingle();
+      let dbAdmin = false;
+      try {
+        const { data } = await (supabase as any)
+          .from('users')
+          .select('is_admin')
+          .eq('id', user.id)
+          .maybeSingle();
+        dbAdmin = !!data?.is_admin;
+      } catch { /* RLS or column missing — fall through to email check */ }
 
-      if (!data?.is_admin && !emailAdmin) {
+      if (!dbAdmin && !emailAdmin) {
         navigate('/feed', { replace: true });
         return;
       }
