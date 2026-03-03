@@ -41,22 +41,17 @@ const categoryToLens: Record<string, string> = {
   financial: 'supply_chain_resilience',
 };
 
-const categoryToUrgency: Record<string, string> = {
-  compliance: 'ACT NOW',
-  regulatory: 'ACT NOW',
-  sourcing: 'ACT NOW',
-  geopolitical: 'WATCH',
-  competitor: 'WATCH',
-  competitive: 'WATCH',
-  market: 'WATCH',
-  cost: 'WATCH',
-  technology: 'WATCH',
-  financial: 'WATCH',
-};
-
-const urgencyColor: Record<string, string> = {
-  'ACT NOW': '#e53935',
-  'WATCH': '#1565c0',
+const categoryLabel: Record<string, string> = {
+  compliance: 'Compliance',
+  sourcing: 'Sourcing',
+  competitor: 'Competitor',
+  competitive: 'Competitor',
+  market: 'Market',
+  cost: 'Cost',
+  regulatory: 'Regulatory',
+  geopolitical: 'Geopolitical',
+  technology: 'Technology',
+  financial: 'Financial',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -519,14 +514,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             <div style={{ marginBottom: 32 }}>
               {topics.length > 0 ? (
                 <>
-                  <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 500 }}>
-                    AUO researched {company}
-                  </div>
                   <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
-                    {selectedTopics.length} decision{selectedTopics.length !== 1 ? 's' : ''} need{selectedTopics.length === 1 ? 's' : ''} your attention now.
+                    AUO is ready to track {selectedTopics.length} topic{selectedTopics.length !== 1 ? 's' : ''} at {company}.
                   </h1>
                   <p style={{ fontSize: 14, color: '#888' }}>
-                    Remove anything that's not relevant to you.
+                    Remove anything that's not relevant.
                   </p>
                 </>
               ) : (
@@ -544,8 +536,6 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             {/* Active topics — briefing card style */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {selectedTopics.map((topic, i) => {
-                const urgency = categoryToUrgency[topic.category] || 'WATCH';
-                const urgencyCol = urgencyColor[urgency];
                 const originalIndex = topics.indexOf(topic);
 
                 return (
@@ -563,17 +553,13 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                     }}
                   >
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700,
-                          color: urgencyCol,
-                          letterSpacing: '0.06em',
-                        }}>
-                          ● {urgency}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>
+                          {topic.title}
                         </span>
-                      </div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 4 }}>
-                        {topic.title}
+                        <span style={{ fontSize: 11, color: '#999', fontWeight: 500 }}>
+                          {categoryLabel[topic.category] || topic.category}
+                        </span>
                       </div>
                       {topic.hook && (
                         <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
