@@ -405,7 +405,7 @@ function NewTopicModal({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<{ role: 'auo' | 'user'; text: string }[]>([
     { role: 'auo', text: "What's important to you this week?" },
   ]);
-  const PILLS = ['Tariff impact', 'New certification', 'Supplier decision', 'Innovation watch', 'Sourcing risk'];
+  const PILLS = ['Tariff impact', 'New certification', 'Supplier shift', 'Innovation watch', 'Sourcing risk'];
   const handleSend = async () => {
     const query = input.trim();
     if (!query || submitting) return;

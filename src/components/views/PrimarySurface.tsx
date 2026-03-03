@@ -499,7 +499,7 @@ export function PrimarySurface({ onOpenInsight, onDiscuss, onOpenWorkspace }: Pr
             {/* ACTIVE DECISIONS */}
             {hasThreads ? (
               <div className="mb-2">
-                <SectionHeader label="Active Decisions" count={sortedThreads.length} />
+                <SectionHeader label="Active Topics" count={sortedThreads.length} />
                 {sortedThreads.map(t => (
                   <WorkspaceCard
                     key={t.id}
@@ -511,7 +511,7 @@ export function PrimarySurface({ onOpenInsight, onDiscuss, onOpenWorkspace }: Pr
             ) : (
               <div className="mb-6 rounded-xl border border-dashed border-border px-4 py-6 text-center">
                 <p className="text-[13px] text-muted-foreground">
-                  Start a conversation with AUO about a decision you're evaluating to create your first workspace.
+                  Start a conversation with AUO about a topic you're evaluating to create your first workspace.
                 </p>
               </div>
             )}

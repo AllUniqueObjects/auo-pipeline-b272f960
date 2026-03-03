@@ -122,7 +122,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
     'Checking regulatory deadlines and compliance windows...',
     'Mapping supply chain signals and sourcing pressure...',
     'Cross-referencing geopolitical risk across sourcing regions...',
-    'Identifying decisions with near-term deadlines...',
+    'Identifying topics with near-term deadlines...',
     'Building your strategic briefing...',
   ];
 
@@ -377,7 +377,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 color: D.textSecondary, marginBottom: 48,
               }}>
                 I monitor signals across the athletic footwear industry and surface what
-                matters to your decisions — before you'd normally find it.
+                matters to you — before you'd normally find it.
               </p>
 
               <p style={{
@@ -562,7 +562,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                     What are you tracking at {company}?
                   </h1>
                   <p style={{ fontSize: 14, color: '#aaa', marginBottom: 0, fontWeight: 400 }}>
-                    Add the decisions you're actively working on.
+                    Add the topics you're actively working on.
                   </p>
                 </>
               )}

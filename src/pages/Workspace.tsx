@@ -277,7 +277,7 @@ export default function Workspace() {
             })}
             {positions.length === 0 && (
               <p style={{ fontSize: 14, color: '#9ca3af', padding: '20px 0' }}>
-                AUO is building positions for this decision…
+                AUO is building positions for this topic…
               </p>
             )}
           </div>
@@ -359,18 +359,18 @@ export default function Workspace() {
               Mark as decided
             </h3>
             <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20, lineHeight: 1.5 }}>
-              This will archive the decision and all its context. You can always ask AUO about it later.
+              This will archive the topic and all its context. You can always ask AUO about it later.
             </p>
             {activePosition && (
               <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
-                <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>Decision</p>
+                <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>Position</p>
                 <p style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{activePosition.title}</p>
               </div>
             )}
             <textarea
               value={decisionNote}
               onChange={e => setDecisionNote(e.target.value)}
-              placeholder="Why this decision? (optional — helps AUO learn)"
+              placeholder="Why this call? (optional — helps AUO learn)"
               style={{
                 width: '100%', border: '1.5px solid #e5e7eb', borderRadius: 10,
                 padding: '10px 14px', fontSize: 14, resize: 'none', height: 80,
@@ -384,7 +384,7 @@ export default function Workspace() {
               <button onClick={handleMarkDecided} style={{
                 flex: 1, background: '#111', color: '#fff', border: 'none',
                 borderRadius: 10, padding: '11px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              }}>Confirm decision</button>
+              }}>Confirm</button>
               <button onClick={() => setDeciding(false)} style={{
                 flex: 1, background: 'none', border: '1.5px solid #e5e7eb',
                 borderRadius: 10, padding: '11px 0', fontSize: 14, color: '#6b7280', cursor: 'pointer',

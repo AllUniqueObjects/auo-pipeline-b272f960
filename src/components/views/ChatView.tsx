@@ -526,7 +526,7 @@ function MessageBubble({
         {message.showDecisionReflection && (
           <div className="mt-3 rounded-r-lg border-l-[3px] border-l-emerging bg-emerging/8 px-3 py-2.5">
             <p className="text-[11px] font-medium uppercase tracking-wider text-emerging mb-1">
-              Decision noted
+              Insight noted
             </p>
             <p className="text-xs text-foreground/80 leading-relaxed">
               Locking Vietnam FOB at $18.40/pair for FW26, Maine capacity accelerating in parallel.

@@ -42,7 +42,7 @@ async function agentReply(messages: Message[], userId?: string): Promise<AgentRe
   const last = messages[messages.length - 1].content;
   if (messages.filter(m => m.role === 'user').length === 1) {
     return {
-      reply: `Got it — "${last}". Are you focused on a specific season, region, or decision deadline?`,
+      reply: `Got it — "${last}". Are you focused on a specific season, region, or deadline?`,
       proposed_topic: null,
       options: [
         `${last} for FW27 season`,
@@ -541,7 +541,7 @@ export function TopicChatBox({ onThreadCreated }: TopicChatBoxProps) {
                   fontFamily: FONT,
                   padding: 0,
                 }}
-                placeholder={messages.length === 0 ? "Type a topic or decision you're working on..." : "Your answer..."}
+                placeholder={messages.length === 0 ? "Type a topic you're working on..." : "Your answer..."}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSend()}

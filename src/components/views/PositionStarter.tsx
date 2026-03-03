@@ -17,7 +17,7 @@ const POSITION_TYPES: { key: PositionType; label: string; description: string }[
   {
     key: 'call',
     label: 'The Call',
-    description: 'Lock a decision with rationale — for when you need to commit and communicate.',
+    description: 'Lock a position with rationale — for when you need to commit and communicate.',
   },
   {
     key: 'thesis',

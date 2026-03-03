@@ -192,7 +192,7 @@ export function WorkspaceView({ threadId, onClose, onOpenSignal, onDiscuss }: Wo
     setPositions(prev => prev.filter(p => p.id !== id));
     setSelectedPositionId(null);
     setSelectedPosition(null);
-    toast({ title: 'Position accepted', description: 'Removed from active decisions.' });
+    toast({ title: 'Position accepted', description: 'Removed from active topics.' });
   };
 
   const handleReject = async (id: string, reason: string) => {
@@ -226,7 +226,7 @@ export function WorkspaceView({ threadId, onClose, onOpenSignal, onDiscuss }: Wo
     setPositions(prev => prev.filter(p => p.id !== id));
     setSelectedPositionId(null);
     setSelectedPosition(null);
-    toast({ title: 'Position rejected', description: reason.trim() ? 'AUO will avoid this angle next time.' : 'Removed from active decisions.' });
+    toast({ title: 'Position rejected', description: reason.trim() ? 'AUO will avoid this angle next time.' : 'Removed from active topics.' });
   };
 
   const handleDefer = (id: string) => {
@@ -373,7 +373,7 @@ function WorkspaceList({
   if (!hasPositions && !hasSignals) {
     return (
       <div className="flex flex-col items-center justify-center mt-16 gap-2">
-        <p className="text-sm text-muted-foreground">AUO is gathering signals for this decision.</p>
+        <p className="text-sm text-muted-foreground">AUO is gathering signals for this topic.</p>
         <p className="text-xs text-muted-foreground/60">Positions will appear as patterns emerge.</p>
       </div>
     );

@@ -48,7 +48,7 @@ export interface ShareIntentOption {
 }
 
 export const RECIPIENT_OPTIONS: ShareRecipientOption[] = [
-  { id: 'executive', label: 'Executive Leadership', description: 'C-suite, VPs, senior decision-makers' },
+  { id: 'executive', label: 'Executive Leadership', description: 'C-suite, VPs, senior leadership' },
   { id: 'working', label: 'Working Team', description: 'Direct reports, cross-functional partners' },
   { id: 'external', label: 'External Stakeholder', description: 'Clients, partners, board members' },
   { id: 'advisory', label: 'Advisory', description: 'Consultants, mentors, subject matter experts' },
@@ -64,7 +64,7 @@ export const INTENT_OPTIONS: ShareIntentOption[] = [
   },
   {
     id: 'decision',
-    label: 'Request Decision',
+    label: 'Request Approval',
     description: 'Seek approval or final call on the recommended path',
     tags: ['Clear recommendation', 'Trade-offs accepted', 'Risks & mitigations', 'Timeline pressure'],
     icon: 'decision',
@@ -163,7 +163,7 @@ export function generateShareMessage(
   if (!brief) {
     return `Hey ${recipientLabel},
 
-I've been working through a strategic decision and put together a recommendation I'd like to share with you.
+I've been working through a strategic analysis and put together a recommendation I'd like to share with you.
 
 I'd love to get your take before we move forward.
 
@@ -183,11 +183,11 @@ I'd love to get your take before we move forward.
     }
   }
 
-  return `Subject: Decision thread: ${brief.title}
+  return `Subject: Strategic brief: ${brief.title}
 
 Hey ${recipientLabel},
 
-I've been working through a strategic decision and put together a recommendation I'd like to share with you.
+I've been working through a strategic analysis and put together a recommendation I'd like to share with you.
 
 POSITION: ${brief.title}
 ${sectionsText}
