@@ -24,6 +24,13 @@ interface DirectionEvent {
   read?: boolean;
 }
 
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    + ' at '
+    + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -32,8 +39,8 @@ function relativeTime(iso: string): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  if (days < 7) return `${days}d ago`;
+  return '';
 }
 
 export default function Notifications() {
@@ -189,18 +196,17 @@ export default function Notifications() {
 
         {/* Event list */}
         {!loading && events.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {events.map(evt => {
               const p = evt.payload;
               const posTitle = p?.position_title;
               const threadTitle = threadMap[evt.thread_id] || 'Unknown topic';
               const confidence = p?.new_confidence ?? p?.confidence;
-              const rawReason = p?.reasoning || p?.reason || 'New evidence shifted the position.';
+              const rawReason = p?.reasoning || p?.reason || '';
               const cleanReason = rawReason.replace(/\s*\(scan-[^)]+\)/g, '');
-              const reason = cleanReason.length > 120
-                ? cleanReason.slice(0, 120).replace(/\s\S*$/, '') + '…'
-                : cleanReason;
+              const hasDirectionShift = p?.old_direction && p?.new_direction;
               const read = isRead(evt);
+              const rel = relativeTime(evt.created_at);
 
               return (
                 <div
@@ -208,11 +214,10 @@ export default function Notifications() {
                   onClick={() => handleClick(evt)}
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
                     gap: 12,
-                    padding: '14px 16px',
+                    padding: '16px 18px',
                     borderRadius: 12,
-                    background: read ? 'transparent' : 'rgba(217,119,6,0.06)',
+                    background: read ? 'transparent' : 'rgba(217,119,6,0.05)',
                     border: `1px solid ${read ? colors.border.light : 'rgba(217,119,6,0.15)'}`,
                     cursor: 'pointer',
                     transition: transition.fast,
@@ -220,53 +225,103 @@ export default function Notifications() {
                   onMouseEnter={e => {
                     e.currentTarget.style.background = read
                       ? colors.bg.surface
-                      : 'rgba(217,119,6,0.1)';
+                      : 'rgba(217,119,6,0.09)';
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.background = read
                       ? 'transparent'
-                      : 'rgba(217,119,6,0.06)';
+                      : 'rgba(217,119,6,0.05)';
                   }}
                 >
                   <span style={{
                     fontSize: 16,
                     flexShrink: 0,
-                    opacity: read ? 0.5 : 1,
+                    marginTop: 1,
+                    opacity: read ? 0.45 : 1,
                   }}>
                     ⚡
                   </span>
 
                   <div style={{ minWidth: 0, flex: 1 }}>
+                    {/* Title */}
                     <div style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: read ? 500 : 600,
                       color: read ? colors.text.secondary.light : colors.text.primary.light,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      lineHeight: 1.3,
                     }}>
                       {posTitle
                         ? <>Direction shifted on <span style={{ fontWeight: read ? 600 : 700 }}>{posTitle}</span></>
                         : <>Direction changed on <span style={{ fontWeight: read ? 600 : 700 }}>{threadTitle}</span></>
                       }
                     </div>
-                    <div style={{
-                      fontSize: 12,
-                      color: read ? colors.text.muted.light : colors.text.secondary.light,
-                      marginTop: 2,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {reason}
-                      {confidence != null && (
-                        <span style={{ color: colors.text.muted.light }}>
-                          {' '}· {Math.round(confidence * 100)}% confidence
+
+                    {/* Direction shift badge */}
+                    {hasDirectionShift && (
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: colors.text.secondary.light,
+                      }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: 'rgba(0,0,0,0.05)',
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}>
+                          {p!.old_direction}
                         </span>
+                        <span style={{ color: colors.text.muted.light }}>→</span>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: colors.accent.amberLight,
+                          color: colors.accent.amber,
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}>
+                          {p!.new_direction}
+                        </span>
+                        {confidence != null && (
+                          <span style={{ color: colors.text.muted.light, fontSize: 11 }}>
+                            · {Math.round(confidence * 100)}% confidence
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Reason — full text, wrapping */}
+                    {cleanReason && (
+                      <div style={{
+                        fontSize: 13,
+                        color: read ? colors.text.muted.light : colors.text.secondary.light,
+                        marginTop: 6,
+                        lineHeight: 1.5,
+                      }}>
+                        {cleanReason}
+                      </div>
+                    )}
+
+                    {/* Meta line: topic + date */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginTop: 8,
+                      fontSize: 11,
+                      color: colors.text.muted.light,
+                    }}>
+                      {posTitle && (
+                        <span>{threadTitle}</span>
                       )}
-                      <span style={{ color: colors.text.muted.light }}>
-                        {' '}· {relativeTime(evt.created_at)}
-                      </span>
+                      {posTitle && <span>·</span>}
+                      <span>{formatDate(evt.created_at)}</span>
+                      {rel && <span>· {rel}</span>}
                     </div>
                   </div>
                 </div>
