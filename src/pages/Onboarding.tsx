@@ -523,7 +523,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                     AUO researched {company}
                   </div>
                   <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
-                    {selectedTopics.length} decision{selectedTopics.length !== 1 ? 's' : ''} need your attention now.
+                    {selectedTopics.length} decision{selectedTopics.length !== 1 ? 's' : ''} need{selectedTopics.length === 1 ? 's' : ''} your attention now.
                   </h1>
                   <p style={{ fontSize: 14, color: '#888' }}>
                     Remove anything that's not relevant to you.
