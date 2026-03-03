@@ -1552,7 +1552,7 @@ export default function Feed() {
           animation: auo-img-zoom 4s ease-out forwards !important;
         }
         .auo-card-dark-hover {
-          animation: auo-darken 2s ease-out forwards !important;
+          animation: auo-darken 1.2s ease-out forwards !important;
         }
         .auo-pulse-dot {
           animation: auo-pulse 1.5s ease-in-out infinite;
