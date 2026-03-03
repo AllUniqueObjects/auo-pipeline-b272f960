@@ -564,24 +564,33 @@ function DirectionChangedBanner({
   event,
   threadTitle,
   onDismiss,
+  onClick,
 }: {
   event: DirectionEvent;
   threadTitle: string;
   onDismiss: (eventId: string) => void;
+  onClick: (threadId: string) => void;
 }) {
   const confidence = event.payload?.confidence;
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 12,
-      padding: '12px 16px',
-      borderRadius: 12,
-      background: 'rgba(217,119,6,0.08)',
-      border: '1px solid rgba(217,119,6,0.2)',
-      marginBottom: 16,
-    }}>
+    <div
+      onClick={() => onClick(event.thread_id)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '12px 16px',
+        borderRadius: 12,
+        background: 'rgba(217,119,6,0.08)',
+        border: '1px solid rgba(217,119,6,0.2)',
+        marginBottom: 16,
+        cursor: 'pointer',
+        transition: 'background 0.15s ease',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(217,119,6,0.14)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(217,119,6,0.08)')}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
         <span style={{ fontSize: 16, flexShrink: 0 }}>⚡</span>
         <div style={{ minWidth: 0 }}>
@@ -600,7 +609,7 @@ function DirectionChangedBanner({
         </div>
       </div>
       <button
-        onClick={() => onDismiss(event.id)}
+        onClick={(e) => { e.stopPropagation(); onDismiss(event.id); }}
         style={{
           background: 'none', border: 'none', cursor: 'pointer',
           color: colors.text.muted.light, fontSize: 16, padding: '2px 6px',
@@ -1665,6 +1674,11 @@ export default function Feed() {
               event={evt}
               threadTitle={threadData.title || formatLens(threadData.lens)}
               onDismiss={handleDismissDirectionEvent}
+              onClick={(threadId) => {
+                setActiveThreadId(threadId);
+                setActiveFilter('All');
+                handleDismissDirectionEvent(evt.id);
+              }}
             />
           );
         })}
