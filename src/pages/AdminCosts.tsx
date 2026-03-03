@@ -7,8 +7,15 @@ const FONT = typography.fontFamily;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+interface UserOption {
+  id: string;
+  name: string | null;
+  company: string | null;
+}
+
 interface CostRow {
   id: string;
+  user_id: string | null;
   agent: string;
   run_type: string;
   run_id: string | null;
@@ -83,6 +90,8 @@ export default function AdminCosts() {
   const [rows, setRows] = useState<CostRow[]>([]);
   const [hoveredRange, setHoveredRange] = useState<TimeRange | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
 
   // Auth check
   useEffect(() => {
@@ -124,7 +133,18 @@ export default function AdminCosts() {
     });
   }, [navigate]);
 
-  // Fetch costs when authorized or range changes
+  // Fetch users list once authorized
+  useEffect(() => {
+    if (!authorized) return;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('users')
+        .select('id, name, company');
+      if (data) setUsers(data);
+    })();
+  }, [authorized]);
+
+  // Fetch costs when authorized, range, or user changes
   useEffect(() => {
     if (!authorized) return;
 
@@ -140,6 +160,9 @@ export default function AdminCosts() {
         if (dateFilter) {
           query = query.gte('created_at', dateFilter);
         }
+        if (selectedUserId !== 'all') {
+          query = query.eq('user_id', selectedUserId);
+        }
 
         const { data, error: qErr } = await query;
         if (qErr) console.warn('agent_costs query error:', qErr.message);
@@ -149,7 +172,7 @@ export default function AdminCosts() {
         setRows([]);
       }
     })();
-  }, [authorized, range]);
+  }, [authorized, range, selectedUserId]);
 
   if (loading) {
     return (
@@ -240,11 +263,35 @@ export default function AdminCosts() {
           &larr; Back to Feed
         </button>
 
-        {/* Header + time range */}
+        {/* Header + user selector + time range */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: colors.text.primary.light, margin: 0 }}>
-            Pipeline Costs
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: colors.text.primary.light, margin: 0 }}>
+              Pipeline Costs
+            </h1>
+            <select
+              value={selectedUserId}
+              onChange={e => setSelectedUserId(e.target.value)}
+              style={{
+                fontFamily: FONT,
+                fontSize: 13,
+                padding: '5px 10px',
+                borderRadius: 8,
+                border: `1px solid ${colors.border.medium}`,
+                background: colors.bg.light,
+                color: colors.text.primary.light,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="all">All Users</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.name || 'Unnamed'}{u.company ? ` — ${u.company}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {(['today', '7d', '30d', 'all'] as TimeRange[]).map(r => (
               <button
