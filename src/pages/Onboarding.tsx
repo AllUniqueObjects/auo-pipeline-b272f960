@@ -509,7 +509,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             SCREEN 4: TOPIC SELECTION (briefing style)
         ════════════════════════════════════════════════════════════════ */}
         {screen === 'topics' && (() => {
-          const MAX_VISIBLE = 6;
+          const MAX_VISIBLE = 8;
           const visibleTopics = showAll ? selectedTopics : selectedTopics.slice(0, MAX_VISIBLE);
           const hiddenCount = selectedTopics.length - MAX_VISIBLE;
 
