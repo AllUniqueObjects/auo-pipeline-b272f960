@@ -551,10 +551,15 @@ interface DirectionEvent {
   thread_id: string;
   event_type: string;
   payload: {
+    position_id?: string;
+    position_title?: string;
     old_direction?: string;
     new_direction?: string;
+    old_confidence?: number;
+    new_confidence?: number;
     confidence?: number;
     reason?: string;
+    reasoning?: string;
   };
   created_at: string;
   read?: boolean;
@@ -569,12 +574,15 @@ function DirectionChangedBanner({
   event: DirectionEvent;
   threadTitle: string;
   onDismiss: (eventId: string) => void;
-  onClick: (threadId: string) => void;
+  onClick: () => void;
 }) {
-  const confidence = event.payload?.confidence;
+  const p = event.payload;
+  const confidence = p?.new_confidence ?? p?.confidence;
+  const reason = p?.reasoning || p?.reason || 'New evidence shifted the position.';
+  const posTitle = p?.position_title;
   return (
     <div
-      onClick={() => onClick(event.thread_id)}
+      onClick={onClick}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -598,12 +606,18 @@ function DirectionChangedBanner({
             fontSize: 13, fontWeight: 600, color: colors.text.primary.light,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            Direction changed on <span style={{ fontWeight: 700 }}>{threadTitle}</span>
+            {posTitle
+              ? <>Direction shifted on <span style={{ fontWeight: 700 }}>{posTitle}</span></>
+              : <>Direction changed on <span style={{ fontWeight: 700 }}>{threadTitle}</span></>
+            }
           </div>
           <div style={{ fontSize: 12, color: colors.text.secondary.light, marginTop: 2 }}>
-            {event.payload?.reason || 'New evidence shifted the position.'}
+            {reason}
             {confidence != null && (
               <span style={{ color: colors.text.muted.light }}> · {Math.round(confidence * 100)}% confidence</span>
+            )}
+            {posTitle && (
+              <span style={{ color: colors.text.muted.light }}> · {threadTitle}</span>
             )}
           </div>
         </div>
@@ -1674,10 +1688,14 @@ export default function Feed() {
               event={evt}
               threadTitle={threadData.title || formatLens(threadData.lens)}
               onDismiss={handleDismissDirectionEvent}
-              onClick={(threadId) => {
-                setActiveThreadId(threadId);
-                setActiveFilter('All');
+              onClick={() => {
                 handleDismissDirectionEvent(evt.id);
+                if (evt.payload?.position_id) {
+                  navigate(`/insights/${evt.payload.position_id}`);
+                } else {
+                  setActiveThreadId(evt.thread_id);
+                  setActiveFilter('All');
+                }
               }}
             />
           );
