@@ -28,20 +28,47 @@ const D = {
   white: '#FFFFFF',
 } as const;
 
-const categoryLabel: Record<string, string> = {
-  sourcing: 'Sourcing',
-  compliance: 'Compliance',
-  competitor: 'Competitor',
-  market: 'Market',
-  cost: 'Cost',
-};
-
 const categoryToLens: Record<string, string> = {
   sourcing: 'supply_chain_resilience',
   compliance: 'textile_innovation',
+  regulatory: 'textile_innovation',
   competitor: 'market_positioning',
+  competitive: 'market_positioning',
   market: 'market_positioning',
   cost: 'supply_chain_resilience',
+  geopolitical: 'supply_chain_resilience',
+  technology: 'textile_innovation',
+  financial: 'supply_chain_resilience',
+};
+
+const categoryToUrgency: Record<string, string> = {
+  compliance: 'ACT NOW',
+  regulatory: 'ACT NOW',
+  sourcing: 'ACT NOW',
+  geopolitical: 'WATCH',
+  competitor: 'WATCH',
+  competitive: 'WATCH',
+  market: 'WATCH',
+  cost: 'WATCH',
+  technology: 'WATCH',
+  financial: 'WATCH',
+};
+
+const urgencyColor: Record<string, string> = {
+  'ACT NOW': '#e53935',
+  'WATCH': '#1565c0',
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: '14px 16px',
+  borderRadius: 10,
+  border: '1px solid #e5e5e5',
+  fontSize: 15,
+  fontFamily: 'inherit',
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
+  transition: 'border-color 0.15s ease',
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -59,7 +86,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [role, setRole] = useState('');
 
   // Screen 3: Researching
-  const [progressIndex, setProgressIndex] = useState(0);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   // Screen 4: Topics
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -92,22 +119,24 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   // ── Researching progress messages ───────────────────────────────────────
 
-  const progressMessages = [
-    `Scanning ${company} news and announcements...`,
-    'Analyzing industry regulations and deadlines...',
-    'Identifying competitor moves...',
-    'Mapping decision-critical signals...',
-    'Generating your topic list...',
+  const SIGNAL_PREVIEWS = [
+    `Scanning industry news for ${company}...`,
+    'Analyzing competitor moves in footwear & apparel...',
+    'Checking regulatory deadlines and compliance windows...',
+    'Mapping supply chain signals and sourcing pressure...',
+    'Cross-referencing geopolitical risk across sourcing regions...',
+    'Identifying decisions with near-term deadlines...',
+    'Building your strategic briefing...',
   ];
 
   useEffect(() => {
     if (screen !== 'researching') return;
-    setProgressIndex(0);
+    setPreviewIndex(0);
     const interval = setInterval(() => {
-      setProgressIndex(i => Math.min(i + 1, progressMessages.length - 1));
-    }, 4000);
+      setPreviewIndex(i => (i + 1) % SIGNAL_PREVIEWS.length);
+    }, 3000);
     return () => clearInterval(interval);
-  }, [screen, progressMessages.length]);
+  }, [screen, SIGNAL_PREVIEWS.length]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
@@ -116,101 +145,161 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   };
 
   const handleStartResearch = async () => {
+    // 1. Set researching screen IMMEDIATELY
     setScreen('researching');
+    setTopics([]);
 
     const scanUrl = import.meta.env.VITE_MODAL_ONBOARDING_SCAN_URL;
+
+    console.log('[Onboarding] Starting research:', { company, role, scanUrl: !!scanUrl });
+
     if (!scanUrl) {
-      setTopics([]);
+      console.warn('[Onboarding] No scan URL — going to empty topics screen');
       setScreen('topics');
       return;
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.error('[Onboarding] No auth user:', userError);
+        setScreen('topics');
+        return;
+      }
+
+      console.log('[Onboarding] Calling scan endpoint for user:', user.id);
 
       const response = await fetch(scanUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: user?.id,
-          brand_name: company,
-          role: role,
+          user_id: user.id,
+          brand_name: company.trim(),
+          role: role.trim(),
         }),
       });
 
-      const data = await response.json();
-      console.log('[Onboarding] scan result:', data);
+      console.log('[Onboarding] Scan response status:', response.status);
 
-      if (data.topics && data.topics.length > 0) {
-        setTopics(data.topics.map((t: Topic) => ({ ...t, selected: true })));
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Onboarding] Scan failed:', response.status, errorText);
+        setTopics([]);
+        setScreen('topics');
+        return;
+      }
+
+      const data = await response.json();
+      console.log('[Onboarding] Scan result:', data);
+
+      if (data.topics && Array.isArray(data.topics) && data.topics.length > 0) {
+        const topicsWithSelected = data.topics.map((t: Topic) => ({
+          ...t,
+          selected: true,
+        }));
+        setTopics(topicsWithSelected);
+        console.log(`[Onboarding] Got ${topicsWithSelected.length} topics`);
       } else {
+        console.warn('[Onboarding] No topics returned from scan');
         setTopics([]);
       }
-    } catch (e) {
-      console.error('Onboarding scan failed:', e);
+    } catch (err) {
+      console.error('[Onboarding] Scan error:', err);
       setTopics([]);
     } finally {
+      // ALWAYS go to topics screen — never skip
+      console.log('[Onboarding] Moving to topics screen');
       setScreen('topics');
     }
   };
 
-  const toggleTopic = (index: number) => {
-    setTopics(topics.map((t, i) =>
-      i === index ? { ...t, selected: !t.selected } : t
-    ));
+  const removeTopic = (index: number) => {
+    setTopics(topics.map((t, i) => i === index ? { ...t, selected: false } : t));
   };
 
-  const selectedCount = topics.filter(t => t.selected).length;
+  const selectedTopics = topics.filter(t => t.selected);
+  const removedTopics = topics.filter(t => !t.selected);
 
   const handleConfirmTopics = async () => {
     setIsCreating(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    const selected = topics.filter(t => t.selected);
-
-    if (selected.length > 0) {
-      const rows = selected.map(t => ({
-        user_id: user?.id,
-        title: t.title,
-        lens: categoryToLens[t.category] || 'supply_chain_resilience',
-        level: 'listening',
-        status: 'active',
-      }));
-
-      try {
-        await (supabase as any).from('decision_threads').insert(rows);
-      } catch (e) {
-        console.error('[Onboarding] Thread insert failed:', e);
-      }
-    }
-
-    // Save company + role
     try {
-      await (supabase as any).from('users').upsert({
-        id: user?.id,
-        company: company,
-        role: role,
-        onboarding_complete: true,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
-    } catch {
-      // columns may not exist yet
-    }
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    // Trigger priority scan (fire and forget)
-    const scanUrl = import.meta.env.VITE_MODAL_SCAN_PRIORITY_URL;
-    if (scanUrl) {
-      fetch(scanUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user?.id }),
-      }).catch(() => {});
-    }
+      if (userError || !user) {
+        console.error('[Onboarding] No user in confirm:', userError);
+        navigate('/feed');
+        return;
+      }
 
-    localStorage.setItem('onboardingComplete', 'true');
-    sessionStorage.setItem('justOnboarded', 'true');
-    onComplete();
-    navigate('/feed?scanning=true', { replace: true });
+      const selected = topics.filter(t => t.selected);
+      console.log(`[Onboarding] Confirming ${selected.length} topics for user:`, user.id);
+
+      // 1. Insert decision_threads
+      if (selected.length > 0) {
+        const rows = selected.map(t => ({
+          user_id: user.id,
+          title: t.title,
+          lens: categoryToLens[t.category] || 'supply_chain_resilience',
+          level: 'listening',
+          status: 'active',
+        }));
+
+        console.log('[Onboarding] Inserting threads:', rows.length);
+
+        const { error: threadError } = await (supabase as any)
+          .from('decision_threads')
+          .insert(rows);
+
+        if (threadError) {
+          console.error('[Onboarding] Thread insert failed:', threadError);
+          // Don't return — continue to save user profile
+        } else {
+          console.log('[Onboarding] Threads inserted successfully');
+        }
+      }
+
+      // 2. Save company + role to public.users
+      const { error: userUpdateError } = await (supabase as any)
+        .from('users')
+        .upsert({
+          id: user.id,
+          company: company.trim(),
+          role: role.trim(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+
+      if (userUpdateError) {
+        console.error('[Onboarding] User upsert failed:', userUpdateError);
+      } else {
+        console.log('[Onboarding] User profile saved');
+      }
+
+      // 3. Fire scan_priority (fire and forget)
+      const scanUrl = import.meta.env.VITE_MODAL_SCAN_PRIORITY_URL;
+      if (scanUrl && selected.length > 0) {
+        fetch(scanUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id }),
+        }).catch(e => console.warn('[Onboarding] Scan trigger failed:', e));
+      }
+
+      // 4. Set localStorage flag
+      localStorage.setItem('onboardingComplete', 'true');
+      sessionStorage.setItem('justOnboarded', 'true');
+
+      // 5. Navigate
+      onComplete?.();
+      navigate('/feed?scanning=true', { replace: true });
+
+    } catch (err) {
+      console.error('[Onboarding] Confirm error:', err);
+      navigate('/feed');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -231,7 +320,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         }
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.35; transform: scale(0.82); }
+          50% { opacity: 0.3; transform: scale(0.78); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         .auo-fade-up { animation: auo-fade-up 0.4s ease forwards; }
       `}</style>
@@ -312,46 +405,33 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '0 24px',
           }}>
-            <div style={{ maxWidth: 440, width: '100%' }} className="auo-fade-up">
+            <div style={{ maxWidth: 420, width: '100%' }} className="auo-fade-up">
               <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111', marginBottom: 8 }}>
                 Where do you work?
               </h1>
-              <p style={{ fontSize: 15, color: '#666', marginBottom: 40 }}>
+              <p style={{ fontSize: 15, color: '#888', marginBottom: 40, lineHeight: 1.6 }}>
                 AUO will research your industry and surface what matters now.
               </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <input
                   autoFocus
                   value={company}
                   onChange={e => setCompany(e.target.value)}
-                  placeholder="Company name"
-                  style={{
-                    padding: '14px 16px',
-                    borderRadius: 10,
-                    border: '1px solid #e5e5e5',
-                    fontSize: 16,
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                  }}
-                  onFocus={e => (e.currentTarget.style.border = '1px solid #111')}
-                  onBlur={e => (e.currentTarget.style.border = '1px solid #e5e5e5')}
+                  placeholder="Company (e.g. New Balance)"
+                  onKeyDown={e => e.key === 'Enter' && role.trim() && company.trim() && handleStartResearch()}
+                  style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#111')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#e5e5e5')}
                 />
-
                 <input
                   value={role}
                   onChange={e => setRole(e.target.value)}
                   placeholder="Your role (e.g. VP of Product Development)"
-                  style={{
-                    padding: '14px 16px',
-                    borderRadius: 10,
-                    border: '1px solid #e5e5e5',
-                    fontSize: 16,
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                  }}
-                  onFocus={e => (e.currentTarget.style.border = '1px solid #111')}
-                  onBlur={e => (e.currentTarget.style.border = '1px solid #e5e5e5')}
+                  onKeyDown={e => e.key === 'Enter' && company.trim() && role.trim() && handleStartResearch()}
+                  style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#111')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#e5e5e5')}
                 />
               </div>
 
@@ -359,20 +439,21 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 onClick={handleStartResearch}
                 disabled={!company.trim() || !role.trim()}
                 style={{
-                  marginTop: 32,
+                  marginTop: 28,
                   width: '100%',
-                  padding: '16px',
+                  padding: '15px',
                   background: company.trim() && role.trim() ? '#111' : '#e5e5e5',
-                  color: company.trim() && role.trim() ? '#fff' : '#999',
+                  color: company.trim() && role.trim() ? '#fff' : '#aaa',
                   borderRadius: 10,
                   border: 'none',
                   fontSize: 15,
                   fontWeight: 600,
                   cursor: company.trim() && role.trim() ? 'pointer' : 'default',
                   fontFamily: 'inherit',
+                  transition: 'all 0.2s ease',
                 }}
               >
-                Research {company || 'your industry'} →
+                Research {company.trim() || 'your company'} →
               </button>
             </div>
           </div>
@@ -387,130 +468,176 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: '70vh',
-            gap: 32,
+            minHeight: '70vh',
+            gap: 28,
             textAlign: 'center',
-            maxWidth: 360,
+            maxWidth: 400,
             margin: '0 auto',
+            padding: '0 24px',
           }}>
-            {/* Pulse */}
+            {/* Pulsing dot */}
             <div style={{
-              width: 52,
-              height: 52,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
               background: '#111',
-              animation: 'pulse 1.5s ease-in-out infinite',
+              animation: 'pulse 1.6s ease-in-out infinite',
             }} />
 
             <div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 12 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 14 }}>
                 Researching {company}
               </div>
-              <div style={{
-                fontSize: 14,
-                color: '#666',
-                lineHeight: 1.6,
-                minHeight: 44,
-                transition: 'opacity 0.3s ease',
-              }}>
-                {progressMessages[progressIndex]}
+              <div
+                key={previewIndex}
+                style={{
+                  fontSize: 14,
+                  color: '#888',
+                  lineHeight: 1.7,
+                  animation: 'fadeIn 0.4s ease',
+                  minHeight: 48,
+                }}
+              >
+                {SIGNAL_PREVIEWS[previewIndex]}
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: '#bbb' }}>
+            <div style={{ fontSize: 13, color: '#ccc' }}>
               Usually takes about a minute
             </div>
           </div>
         )}
 
         {/* ════════════════════════════════════════════════════════════════
-            SCREEN 4: TOPIC SELECTION
+            SCREEN 4: TOPIC SELECTION (briefing style)
         ════════════════════════════════════════════════════════════════ */}
         {screen === 'topics' && (
           <div style={{
-            maxWidth: 560, margin: '0 auto', padding: '48px 24px',
+            maxWidth: 580, margin: '0 auto', padding: '48px 24px',
             width: '100%', overflowY: 'auto', flex: 1,
           }}>
             <div style={{ marginBottom: 32 }}>
-              <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
-                {topics.length > 0
-                  ? `AUO found ${topics.length} decisions to track at ${company}`
-                  : `What are you tracking at ${company}?`
-                }
-              </h1>
-              <p style={{ fontSize: 15, color: '#666' }}>
-                {topics.length > 0
-                  ? "Remove anything that's not relevant."
-                  : 'Add the decisions you\'re actively working on.'
-                }
-              </p>
+              {topics.length > 0 ? (
+                <>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 500 }}>
+                    AUO researched {company}
+                  </div>
+                  <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
+                    {selectedTopics.length} decision{selectedTopics.length !== 1 ? 's' : ''} need your attention now.
+                  </h1>
+                  <p style={{ fontSize: 14, color: '#888' }}>
+                    Remove anything that's not relevant to you.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 8 }}>
+                    What are you tracking at {company}?
+                  </h1>
+                  <p style={{ fontSize: 14, color: '#888' }}>
+                    Add the decisions you're actively working on.
+                  </p>
+                </>
+              )}
             </div>
 
-            {/* Topic list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-              {topics.map((topic, i) => (
-                <div
-                  key={i}
-                  onClick={() => toggleTopic(i)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 14,
-                    padding: '14px 16px',
-                    borderRadius: 10,
-                    border: `1px solid ${topic.selected ? '#111' : '#e5e5e5'}`,
-                    background: topic.selected ? '#fafafa' : '#fff',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    opacity: topic.selected ? 1 : 0.45,
-                  }}
-                >
-                  {/* Checkbox */}
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 5,
-                    border: `2px solid ${topic.selected ? '#111' : '#ccc'}`,
-                    background: topic.selected ? '#111' : 'transparent',
-                    flexShrink: 0,
-                    marginTop: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    {topic.selected && (
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                      </svg>
-                    )}
-                  </div>
+            {/* Active topics — briefing card style */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {selectedTopics.map((topic, i) => {
+                const urgency = categoryToUrgency[topic.category] || 'WATCH';
+                const urgencyCol = urgencyColor[urgency];
+                const originalIndex = topics.indexOf(topic);
 
-                  {/* Content */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>
-                        {topic.title}
-                      </span>
-                      <span style={{
-                        fontSize: 11,
-                        color: '#999',
-                        fontWeight: 500,
-                        letterSpacing: '0.03em',
-                      }}>
-                        {categoryLabel[topic.category] || topic.category}
-                      </span>
-                    </div>
-                    {topic.hook && (
-                      <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
-                        {topic.hook}
+                return (
+                  <div
+                    key={originalIndex}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      padding: '14px 16px',
+                      borderRadius: 10,
+                      border: '1px solid #e8e8e8',
+                      background: '#fff',
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700,
+                          color: urgencyCol,
+                          letterSpacing: '0.06em',
+                        }}>
+                          ● {urgency}
+                        </span>
                       </div>
-                    )}
+                      <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 4 }}>
+                        {topic.title}
+                      </div>
+                      {topic.hook && (
+                        <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
+                          {topic.hook}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                      onClick={() => removeTopic(originalIndex)}
+                      style={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        border: '1px solid #e0e0e0', background: 'transparent',
+                        color: '#bbb', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14, flexShrink: 0, marginTop: 2,
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = '#111';
+                        e.currentTarget.style.color = '#111';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = '#e0e0e0';
+                        e.currentTarget.style.color = '#bbb';
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* Add your own */}
+            {/* Removed topics — can be re-added */}
+            {removedTopics.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: '#bbb', marginBottom: 8 }}>Removed:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {removedTopics.map((topic, i) => {
+                    const originalIndex = topics.indexOf(topic);
+                    return (
+                      <button
+                        key={originalIndex}
+                        onClick={() => setTopics(topics.map((t, idx) =>
+                          idx === originalIndex ? { ...t, selected: true } : t
+                        ))}
+                        style={{
+                          padding: '6px 12px', borderRadius: 20,
+                          border: '1px solid #e0e0e0', background: 'transparent',
+                          fontSize: 12, color: '#999', cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        + {topic.title.split('—')[0].trim()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Add custom topic */}
             {!showCustomInput ? (
               <button
                 onClick={() => setShowCustomInput(true)}
@@ -520,23 +647,23 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                   borderRadius: 10,
                   border: '1px dashed #ddd',
                   background: 'transparent',
-                  color: '#999',
-                  fontSize: 14,
+                  color: '#aaa',
+                  fontSize: 13,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   textAlign: 'left' as const,
-                  marginBottom: 32,
+                  marginBottom: 28,
                 }}
               >
                 + Add something AUO missed
               </button>
             ) : (
-              <div style={{ marginBottom: 32, display: 'flex', gap: 8 }}>
+              <div style={{ marginBottom: 28, display: 'flex', gap: 8 }}>
                 <input
                   autoFocus
                   value={customTopic}
                   onChange={e => setCustomTopic(e.target.value)}
-                  placeholder="e.g. Nike shelf competition in key accounts"
+                  placeholder="e.g. PFAS-free supplier lock-in for FW27"
                   onKeyDown={e => {
                     if (e.key === 'Enter' && customTopic.trim()) {
                       setTopics([...topics, {
@@ -569,23 +696,25 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             {/* CTA */}
             <button
               onClick={handleConfirmTopics}
-              disabled={selectedCount === 0 || isCreating}
+              disabled={selectedTopics.length === 0 || isCreating}
               style={{
                 width: '100%',
                 padding: '16px',
-                background: selectedCount > 0 ? '#111' : '#e5e5e5',
-                color: selectedCount > 0 ? '#fff' : '#999',
+                background: selectedTopics.length > 0 ? '#111' : '#e5e5e5',
+                color: selectedTopics.length > 0 ? '#fff' : '#aaa',
                 borderRadius: 10,
                 border: 'none',
                 fontSize: 15,
                 fontWeight: 600,
-                cursor: selectedCount > 0 ? 'pointer' : 'default',
+                cursor: selectedTopics.length > 0 ? 'pointer' : 'default',
                 fontFamily: 'inherit',
               }}
             >
-              {selectedCount > 0
-                ? `Start tracking ${selectedCount} topic${selectedCount !== 1 ? 's' : ''} →`
-                : 'Select at least one topic'
+              {isCreating
+                ? 'Setting up your briefing...'
+                : selectedTopics.length > 0
+                ? `Start briefing on ${selectedTopics.length} topic${selectedTopics.length !== 1 ? 's' : ''} →`
+                : 'Add at least one topic to continue'
               }
             </button>
 
@@ -598,10 +727,10 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               }}
               style={{
                 display: 'block',
-                margin: '16px auto 0',
+                margin: '14px auto 0',
                 background: 'none',
                 border: 'none',
-                color: '#bbb',
+                color: '#ccc',
                 fontSize: 13,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
