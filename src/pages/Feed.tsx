@@ -633,6 +633,19 @@ function AvatarMenu({ userName, isAdmin, onNavigate }: { userName: string; isAdm
               >
                 Pipeline Costs
               </button>
+              <button
+                onClick={() => { setOpen(false); onNavigate('/admin/eval'); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '10px 16px', border: 'none', background: 'transparent',
+                  fontSize: 13, fontWeight: 500, color: colors.text.primary.light,
+                  cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Pipeline Eval
+              </button>
               <div style={{ height: 1, background: colors.border.light, margin: '0 12px' }} />
             </>
           )}

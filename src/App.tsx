@@ -8,6 +8,8 @@ import AuthPage from './pages/AuthPage';
 import Feed from './pages/Feed';
 import Workspace from './pages/Workspace';
 import AlertSources from './pages/AlertSources';
+import AdminCosts from './pages/AdminCosts';
+import AdminEval from './pages/AdminEval';
 import InsightDetail from './pages/InsightDetail';
 import Onboarding from './pages/Onboarding';
 
@@ -100,6 +102,8 @@ function AppWithAuth() {
       <Route path="/insights/:id" element={<InsightDetail />} />
       <Route path="/workspace/:threadId" element={<Workspace />} />
       <Route path="/alert-sources" element={<AlertSources />} />
+      <Route path="/admin/costs" element={<AdminCosts />} />
+      <Route path="/admin/eval" element={<AdminEval />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
