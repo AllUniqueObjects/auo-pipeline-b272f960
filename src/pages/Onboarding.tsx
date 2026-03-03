@@ -89,6 +89,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   // ── Get user info on mount ──────────────────────────────────────────────
 
@@ -507,11 +508,22 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         {/* ════════════════════════════════════════════════════════════════
             SCREEN 4: TOPIC SELECTION (briefing style)
         ════════════════════════════════════════════════════════════════ */}
-        {screen === 'topics' && (
+        {screen === 'topics' && (() => {
+          const MAX_VISIBLE = 6;
+          const visibleTopics = showAll ? selectedTopics : selectedTopics.slice(0, MAX_VISIBLE);
+          const hiddenCount = selectedTopics.length - MAX_VISIBLE;
+
+          return (
           <div style={{
-            maxWidth: 540, margin: '0 auto', padding: '60px 24px 80px',
+            maxWidth: 860, margin: '0 auto', padding: '60px 32px 80px',
             width: '100%', overflowY: 'auto', flex: 1,
           }}>
+            <style>{`
+              @media (max-width: 600px) {
+                .topics-grid { grid-template-columns: 1fr !important; }
+              }
+            `}</style>
+
             {/* ── Page header ── */}
             <div style={{ marginBottom: 40 }}>
               {topics.length > 0 ? (
@@ -548,9 +560,17 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               )}
             </div>
 
-            {/* ── Topic cards ── */}
-            <div style={{ marginBottom: 16 }}>
-              {selectedTopics.map((topic, i) => {
+            {/* ── Topic cards — 2-column grid ── */}
+            <div
+              className="topics-grid"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 10,
+                marginBottom: 16,
+              }}
+            >
+              {visibleTopics.map((topic, i) => {
                 const originalIndex = topics.indexOf(topic);
                 const isHovered = hoveredIndex === i;
 
@@ -561,66 +581,62 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                     onMouseLeave={() => setHoveredIndex(null)}
                     style={{
                       position: 'relative',
-                      padding: '18px 20px',
-                      borderRadius: 12,
+                      padding: '16px 18px',
+                      borderRadius: 10,
                       border: `1px solid ${isHovered ? '#d0d0d0' : '#ebebeb'}`,
                       background: isHovered ? '#fafafa' : '#fff',
-                      cursor: 'default',
                       transition: 'all 0.15s ease',
-                      marginBottom: 8,
+                      minHeight: 100,
                     }}
                   >
-                    {/* Category — top left, small */}
+                    {/* Category */}
                     <div style={{
-                      fontSize: 11, fontWeight: 600, color: '#bbb',
-                      letterSpacing: '0.05em', textTransform: 'uppercase' as const,
+                      fontSize: 10, fontWeight: 700, color: '#bbb',
+                      letterSpacing: '0.07em', textTransform: 'uppercase' as const,
                       marginBottom: 6,
                     }}>
                       {categoryLabel[topic.category] || topic.category}
                     </div>
 
-                    {/* Title — hero */}
+                    {/* Title */}
                     <div style={{
-                      fontSize: 16, fontWeight: 650, color: '#111',
-                      lineHeight: 1.35,
+                      fontSize: 14, fontWeight: 650, color: '#111',
+                      lineHeight: 1.4,
                       marginBottom: topic.hook ? 6 : 0,
-                      paddingRight: 32,
+                      paddingRight: isHovered ? 28 : 0,
                     }}>
                       {topic.title}
                     </div>
 
-                    {/* Hook — 1 line, truncated */}
+                    {/* Hook — 2 lines max */}
                     {topic.hook && (
                       <div style={{
-                        fontSize: 13, color: '#999', lineHeight: 1.5,
+                        fontSize: 12, color: '#aaa', lineHeight: 1.5,
                         overflow: 'hidden',
                         display: '-webkit-box',
-                        WebkitLineClamp: 1,
+                        WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical' as const,
-                        paddingRight: 32,
                       }}>
                         {topic.hook}
                       </div>
                     )}
 
-                    {/* X button — only on hover */}
+                    {/* X — hover only */}
                     {isHovered && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           removeTopic(originalIndex);
+                          setHoveredIndex(null);
                         }}
                         style={{
                           position: 'absolute',
-                          top: '50%',
-                          right: 16,
-                          transform: 'translateY(-50%)',
-                          width: 24, height: 24, borderRadius: '50%',
+                          top: 12, right: 12,
+                          width: 22, height: 22, borderRadius: '50%',
                           border: '1px solid #ddd', background: '#fff',
                           color: '#999', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 14, fontFamily: 'inherit',
-                          transition: 'all 0.1s ease',
+                          fontSize: 13, fontFamily: 'inherit',
                         }}
                         onMouseEnter={e => {
                           e.currentTarget.style.borderColor = '#111';
@@ -638,6 +654,23 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 );
               })}
             </div>
+
+            {/* Show more */}
+            {!showAll && hiddenCount > 0 && (
+              <button
+                onClick={() => setShowAll(true)}
+                style={{
+                  width: '100%', padding: '10px',
+                  background: 'none', border: '1px solid #ebebeb',
+                  borderRadius: 8, fontSize: 13, color: '#aaa',
+                  cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#555')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#aaa')}
+              >
+                + {hiddenCount} more topic{hiddenCount !== 1 ? 's' : ''}
+              </button>
+            )}
 
             {/* ── Removed topics — re-add pills ── */}
             {removedTopics.length > 0 && (
@@ -775,7 +808,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               Skip for now
             </button>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
