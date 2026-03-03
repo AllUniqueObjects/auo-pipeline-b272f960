@@ -756,6 +756,9 @@ export default function AdminEval() {
               </span>
             )}
           </div>
+          <div style={{ fontSize: 12, color: colors.text.muted.light, marginBottom: 10, lineHeight: 1.5 }}>
+            Signals = raw intelligence from scanners. Positions = analyst-grade insights written for you (max 5 per thread).
+          </div>
           <div style={{ border: `1px solid ${colors.border.light}`, borderRadius: 12, overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONT }}>
               <thead>
