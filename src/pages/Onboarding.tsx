@@ -233,7 +233,24 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       const selected = topics.filter(t => t.selected);
       console.log(`[Onboarding] Confirming ${selected.length} topics for user:`, user.id);
 
-      // 1. Insert decision_threads
+      // 1. Create user record FIRST (decision_threads.user_id FK requires it)
+      const { error: userUpsertError } = await (supabase as any)
+        .from('users')
+        .upsert({
+          id: user.id,
+          company: company.trim(),
+          role: role.trim(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+
+      if (userUpsertError) {
+        console.error('[Onboarding] User upsert failed:', userUpsertError);
+        // Don't proceed — threads will fail without user row
+        return;
+      }
+      console.log('[Onboarding] User profile saved');
+
+      // 2. NOW insert decision_threads (user row exists)
       if (selected.length > 0) {
         const rows = selected.map(t => ({
           user_id: user.id,
@@ -251,26 +268,9 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
         if (threadError) {
           console.error('[Onboarding] Thread insert failed:', threadError);
-          // Don't return — continue to save user profile
         } else {
           console.log('[Onboarding] Threads inserted successfully');
         }
-      }
-
-      // 2. Save company + role to public.users
-      const { error: userUpdateError } = await (supabase as any)
-        .from('users')
-        .upsert({
-          id: user.id,
-          company: company.trim(),
-          role: role.trim(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
-
-      if (userUpdateError) {
-        console.error('[Onboarding] User upsert failed:', userUpdateError);
-      } else {
-        console.log('[Onboarding] User profile saved');
       }
 
       // 3. Fire scan_priority (fire and forget)
