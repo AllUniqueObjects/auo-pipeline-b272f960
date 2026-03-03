@@ -98,6 +98,18 @@ export default function Notifications() {
     }
     if (evt.payload?.position_id) {
       navigate(`/insights/${evt.payload.position_id}`);
+      return;
+    }
+    // Fallback: find the latest position for this thread
+    const { data: pos } = await (supabase as any)
+      .from('positions')
+      .select('id')
+      .eq('decision_thread_id', evt.thread_id)
+      .not('validated_at', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (pos?.[0]?.id) {
+      navigate(`/insights/${pos[0].id}`);
     } else {
       navigate(`/?thread=${evt.thread_id}`);
     }
