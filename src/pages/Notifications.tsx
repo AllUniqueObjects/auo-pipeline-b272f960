@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { colors, typography, transition, shadow } from '../design-tokens';
+import { colors, typography, transition } from '../design-tokens';
 
 const FONT = typography.fontFamily;
 
@@ -14,13 +14,6 @@ interface DirectionEvent {
   read?: boolean;
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    + ' at '
-    + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
-
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -29,12 +22,16 @@ function relativeTime(iso: string): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return '';
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function cleanText(text: string): string {
-  return text.replace(/\s*\(scan-[^)]+\)/g, '').replace(/\s*—scan-\S+/g, '');
+  return text
+    .replace(/\(scan-[a-f0-9]+\)/g, '')
+    .replace(/\s*—scan-\S+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 export default function Notifications() {
@@ -86,13 +83,12 @@ export default function Notifications() {
     }
   }, []);
 
-  useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+  useEffect(() => { loadEvents(); }, [loadEvents]);
 
   const isRead = (evt: DirectionEvent) => evt.read === true || dismissedIds.has(evt.id);
 
-  const handleClick = async (evt: DirectionEvent) => {
+  const handleViewInsight = async (evt: DirectionEvent, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!isRead(evt)) {
       await (supabase as any)
         .from('agent_events')
@@ -100,7 +96,6 @@ export default function Notifications() {
         .eq('id', evt.id)
         .catch(() => {});
     }
-
     if (evt.payload?.position_id) {
       navigate(`/insights/${evt.payload.position_id}`);
     } else {
@@ -111,11 +106,11 @@ export default function Notifications() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: colors.bg.light,
+      background: '#fafafa',
       fontFamily: FONT,
     }}>
       <div style={{
-        maxWidth: 860,
+        maxWidth: 680,
         margin: '0 auto',
         padding: '40px 24px',
       }}>
@@ -127,7 +122,7 @@ export default function Notifications() {
             background: 'none',
             border: 'none',
             fontSize: 13,
-            color: colors.text.muted.light,
+            color: '#999',
             cursor: 'pointer',
             fontFamily: FONT,
             transition: transition.fast,
@@ -140,7 +135,7 @@ export default function Notifications() {
         <h1 style={{
           fontSize: 24,
           fontWeight: 700,
-          color: colors.text.primary.light,
+          color: '#111',
           letterSpacing: typography.letterSpacing.tight,
           marginBottom: 32,
         }}>
@@ -151,7 +146,7 @@ export default function Notifications() {
           <div style={{
             textAlign: 'center',
             padding: '60px 0',
-            color: colors.text.muted.light,
+            color: '#999',
             fontSize: 14,
           }}>
             Loading…
@@ -160,184 +155,180 @@ export default function Notifications() {
 
         {!loading && events.length === 0 && (
           <div style={{ textAlign: 'center', padding: '80px 0' }}>
-            <p style={{
-              fontSize: 16, fontWeight: 600,
-              color: colors.text.secondary.light, marginBottom: 8,
-            }}>
+            <p style={{ fontSize: 16, fontWeight: 600, color: '#666', marginBottom: 8 }}>
               No notifications yet
             </p>
-            <p style={{ fontSize: 14, color: colors.text.muted.light }}>
+            <p style={{ fontSize: 14, color: '#999' }}>
               When AUO detects a direction change on your topics, it will appear here.
             </p>
           </div>
         )}
 
         {!loading && events.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {events.map(evt => {
               const p = evt.payload || {};
               const posTitle = p.position_title;
               const threadTitle = threadMap[evt.thread_id] || 'Unknown topic';
-              const displayTitle = posTitle
-                ? `${posTitle} — ${threadTitle}`
-                : threadTitle;
               const confidence = p.new_confidence ?? p.confidence;
-              const rawReason = p.reasoning || p.reason || '';
-              const cleanReason = cleanText(rawReason);
-
-              // Full-text summaries for old/new direction (may or may not exist)
-              const oldSummary = p.old_summary || p.old_position_essence || p.old_direction || '';
-              const newSummary = p.new_summary || p.new_position_essence || p.new_direction || '';
-              const hasComparison = oldSummary && newSummary;
-
-              const read = isRead(evt);
               const rel = relativeTime(evt.created_at);
+              const read = isRead(evt);
+
+              // Was / Now text — try rich summaries, fall back to direction labels
+              const wasText = cleanText(
+                p.old_summary || p.old_position_essence || p.old_direction || ''
+              );
+              const nowText = cleanText(
+                p.new_summary || p.new_position_essence || p.new_direction || ''
+              );
+
+              // Build display title
+              const title = posTitle
+                ? `${posTitle}\n— ${threadTitle}`
+                : threadTitle;
 
               return (
                 <div
                   key={evt.id}
-                  onClick={() => handleClick(evt)}
                   style={{
-                    padding: '20px 22px',
-                    borderRadius: 14,
-                    background: read ? colors.bg.light : 'rgba(217,119,6,0.04)',
-                    border: `1px solid ${read ? colors.border.light : 'rgba(217,119,6,0.15)'}`,
-                    cursor: 'pointer',
+                    background: '#ffffff',
+                    border: '1px solid #e8e8e8',
+                    borderRadius: 12,
+                    padding: '20px 24px',
+                    position: 'relative',
+                    opacity: read ? 0.7 : 1,
                     transition: transition.fast,
-                    boxShadow: read ? 'none' : '0 1px 4px rgba(217,119,6,0.06)',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = read
-                      ? colors.bg.surface
-                      : 'rgba(217,119,6,0.07)';
-                    e.currentTarget.style.boxShadow = shadow.sm;
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = read
-                      ? colors.bg.light
-                      : 'rgba(217,119,6,0.04)';
-                    e.currentTarget.style.boxShadow = read ? 'none' : '0 1px 4px rgba(217,119,6,0.06)';
                   }}
                 >
-                  {/* Header: icon + title */}
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  {/* Top row: badge + confidence + time */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 12,
+                  }}>
                     <span style={{
-                      fontSize: 16, flexShrink: 0, marginTop: 1,
-                      opacity: read ? 0.4 : 1,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#92400e',
+                      background: '#fef3c7',
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      letterSpacing: '0.3px',
                     }}>
-                      ⚡
+                      ⚡ Direction changed
                     </span>
-                    <div style={{
-                      fontSize: 14,
-                      fontWeight: read ? 500 : 600,
-                      color: read ? colors.text.secondary.light : colors.text.primary.light,
-                      lineHeight: 1.35,
+                    {confidence != null && (
+                      <span style={{ fontSize: 12, color: '#999' }}>
+                        · {Math.round(confidence * 100)}% confidence
+                      </span>
+                    )}
+                    <span style={{
+                      marginLeft: 'auto',
+                      fontSize: 12,
+                      color: '#bbb',
                     }}>
-                      Direction changed on{' '}
-                      <span style={{ fontWeight: read ? 600 : 700 }}>{displayTitle}</span>
-                    </div>
+                      {rel}
+                    </span>
                   </div>
 
-                  {/* Old → New comparison blocks */}
-                  {hasComparison && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'stretch',
-                      gap: 0,
-                      marginTop: 14,
-                      marginLeft: 26,
-                    }}>
-                      {/* Old */}
-                      <div style={{
-                        flex: 1,
-                        padding: '10px 14px',
-                        fontSize: 12.5,
-                        lineHeight: 1.5,
-                        color: read ? colors.text.muted.light : colors.text.secondary.light,
-                        background: 'rgba(0,0,0,0.03)',
-                        borderRadius: '8px 0 0 8px',
-                        borderRight: 'none',
-                      }}>
-                        {cleanText(oldSummary)}
-                      </div>
+                  {/* Title */}
+                  <div style={{
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: '#111',
+                    lineHeight: 1.4,
+                    marginBottom: (wasText || nowText) ? 16 : 0,
+                    whiteSpace: 'pre-line',
+                  }}>
+                    {title}
+                  </div>
 
-                      {/* Arrow */}
+                  {/* Was / Now rows */}
+                  {(wasText || nowText) && (
+                    <>
                       <div style={{
+                        height: 1,
+                        background: '#f0f0f0',
+                        marginBottom: 16,
+                      }} />
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {wasText && (
+                          <div style={{ display: 'flex', gap: 16 }}>
+                            <span style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: '#bbb',
+                              letterSpacing: '0.5px',
+                              textTransform: 'uppercase' as const,
+                              paddingTop: 2,
+                              minWidth: 28,
+                              flexShrink: 0,
+                            }}>
+                              Was
+                            </span>
+                            <span style={{
+                              fontSize: 14,
+                              color: '#666',
+                              lineHeight: 1.6,
+                            }}>
+                              {wasText}
+                            </span>
+                          </div>
+                        )}
+
+                        {nowText && (
+                          <div style={{ display: 'flex', gap: 16 }}>
+                            <span style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: '#92400e',
+                              letterSpacing: '0.5px',
+                              textTransform: 'uppercase' as const,
+                              paddingTop: 2,
+                              minWidth: 28,
+                              flexShrink: 0,
+                            }}>
+                              Now
+                            </span>
+                            <span style={{
+                              fontSize: 14,
+                              color: '#111',
+                              lineHeight: 1.6,
+                              fontWeight: 500,
+                            }}>
+                              {nowText}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Bottom: View insight CTA */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    marginTop: 16,
+                    paddingTop: 16,
+                    borderTop: '1px solid #f5f5f5',
+                  }}>
+                    <a
+                      onClick={(e) => handleViewInsight(evt, e)}
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: '#111',
+                        textDecoration: 'none',
                         display: 'flex',
                         alignItems: 'center',
-                        padding: '0 10px',
-                        background: 'rgba(0,0,0,0.03)',
-                        color: colors.text.muted.light,
-                        fontSize: 14,
-                        flexShrink: 0,
-                      }}>
-                        →
-                      </div>
-
-                      {/* New */}
-                      <div style={{
-                        flex: 1,
-                        padding: '10px 14px',
-                        fontSize: 12.5,
-                        lineHeight: 1.5,
-                        color: read ? colors.text.muted.light : '#92400e',
-                        background: 'rgba(217,119,6,0.08)',
-                        borderRadius: '0 8px 8px 0',
-                      }}>
-                        {cleanText(newSummary)}
-                      </div>
-
-                      {/* Confidence */}
-                      {confidence != null && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          marginLeft: 12,
-                          fontSize: 12,
-                          color: colors.text.muted.light,
-                          flexShrink: 0,
-                          whiteSpace: 'nowrap',
-                        }}>
-                          · {Math.round(confidence * 100)}%<br/>confidence
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Confidence inline when no comparison blocks */}
-                  {!hasComparison && confidence != null && (
-                    <div style={{
-                      marginTop: 8,
-                      marginLeft: 26,
-                      fontSize: 12,
-                      color: colors.text.muted.light,
-                    }}>
-                      {Math.round(confidence * 100)}% confidence
-                    </div>
-                  )}
-
-                  {/* Full reasoning */}
-                  {cleanReason && (
-                    <div style={{
-                      marginTop: 14,
-                      marginLeft: 26,
-                      fontSize: 13,
-                      lineHeight: 1.55,
-                      color: read ? colors.text.muted.light : colors.text.secondary.light,
-                    }}>
-                      {cleanReason}
-                    </div>
-                  )}
-
-                  {/* Date */}
-                  <div style={{
-                    marginTop: 12,
-                    marginLeft: 26,
-                    fontSize: 11,
-                    color: colors.text.muted.light,
-                  }}>
-                    {formatDate(evt.created_at)}
-                    {rel && <span style={{ marginLeft: 6 }}>· {rel}</span>}
+                        gap: 4,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      View insight →
+                    </a>
                   </div>
                 </div>
               );
