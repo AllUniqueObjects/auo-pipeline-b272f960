@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { colors, typography, transition, shadow, pillStyle } from '../design-tokens';
 import { TopicChatBox } from '../components/TopicChatBox';
+import AppHeader from '../components/AppHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -642,123 +643,6 @@ type FilterTab = typeof BASE_TABS[number] | 'BREAKING' | 'pinned' | 'monitoring'
 
 // ─── AvatarMenu ───────────────────────────────────────────────────────────
 
-function AvatarMenu({ userName, isAdmin, onNavigate }: { userName: string; isAdmin: boolean; onNavigate: (path: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    if (open) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const handleSignOut = async () => {
-    setOpen(false);
-    localStorage.removeItem('onboardingComplete');
-    sessionStorage.removeItem('justOnboarded');
-    await supabase.auth.signOut();
-  };
-
-  const initial = (userName || 'U').charAt(0).toUpperCase();
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <div
-        onClick={() => setOpen(!open)}
-        style={{
-          width: 34, height: 34, borderRadius: '50%',
-          background: colors.text.primary.light, color: colors.text.primary.dark,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, fontWeight: 700, cursor: 'pointer',
-        }}
-      >
-        {initial}
-      </div>
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', right: 0, marginTop: 6,
-          background: colors.bg.light, border: `1px solid ${colors.border.medium}`,
-          borderRadius: 12, boxShadow: shadow.md,
-          minWidth: 170, zIndex: 100, paddingTop: 4, paddingBottom: 4,
-        }}>
-          {isAdmin && (
-            <>
-              <button
-                onClick={() => { setOpen(false); onNavigate('/admin/costs'); }}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '10px 16px', border: 'none', background: 'transparent',
-                  fontSize: 13, fontWeight: 500, color: colors.text.primary.light,
-                  cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                Pipeline Costs
-              </button>
-              <button
-                onClick={() => { setOpen(false); onNavigate('/admin/eval'); }}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '10px 16px', border: 'none', background: 'transparent',
-                  fontSize: 13, fontWeight: 500, color: colors.text.primary.light,
-                  cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                Pipeline Eval
-              </button>
-              <div style={{ height: 1, background: colors.border.light, margin: '0 12px' }} />
-            </>
-          )}
-          <button
-            onClick={() => { setOpen(false); onNavigate('/alert-sources'); }}
-            style={{
-              display: 'block', width: '100%', textAlign: 'left',
-              padding: '10px 16px', border: 'none', background: 'transparent',
-              fontSize: 13, fontWeight: 500, color: colors.text.primary.light,
-              cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
-            Alert Sources
-          </button>
-          <button
-            onClick={() => { setOpen(false); onNavigate('/notifications'); }}
-            style={{
-              display: 'block', width: '100%', textAlign: 'left',
-              padding: '10px 16px', border: 'none', background: 'transparent',
-              fontSize: 13, fontWeight: 500, color: colors.text.primary.light,
-              cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
-            Notifications
-          </button>
-          <div style={{ height: 1, background: colors.border.light, margin: '0 12px' }} />
-          <button
-            onClick={handleSignOut}
-            style={{
-              display: 'block', width: '100%', textAlign: 'left',
-              padding: '10px 16px', border: 'none', background: 'transparent',
-              fontSize: 13, fontWeight: 500, color: '#dc2626',
-              cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(220,38,38,0.05)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
-            Sign Out
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── SkeletonCard ──────────────────────────────────────────────────────────
 
@@ -799,8 +683,6 @@ export default function Feed() {
   const [sortBy, setSortBy] = useState<'urgent' | 'recent'>('urgent');
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [hoveredPill, setHoveredPill] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>('');
-  const [isAdmin, setIsAdmin] = useState(false);
   const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [dbThreads, setDbThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
   const [archivedThreads, setArchivedThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
@@ -839,28 +721,6 @@ export default function Feed() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch user name + admin status on mount
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      const name = user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
-      setUserName(name ? name.split(' ')[0] : 'U');
-
-      (supabase as any)
-        .from('users')
-        .select('is_admin')
-        .eq('id', user.id)
-        .maybeSingle()
-        .then(({ data }: any) => {
-          if (data?.is_admin) setIsAdmin(true);
-        })
-        .catch(() => {});
-
-      // Fallback: grant admin by email if DB column not yet populated
-      const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
-      if (user.email && ADMIN_EMAILS.includes(user.email)) setIsAdmin(true);
-    });
-  }, []);
 
   // Clear justOnboarded flag after initial load
   useEffect(() => {
@@ -1313,20 +1173,7 @@ export default function Feed() {
     <div style={{ minHeight: '100vh', background: colors.bg.light, fontFamily: FONT }}>
 
       {/* HEADER */}
-      <header className="feed-header" style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: colors.bg.light, borderBottom: `1px solid ${colors.border.light}`,
-        padding: '0 32px', height: 56,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span style={{ ...T.logo, color: colors.text.primary.light }}>AUO</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span className="feed-header-date" style={{ fontSize: 13, color: colors.text.muted.light }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-          </span>
-          <AvatarMenu userName={userName} isAdmin={isAdmin} onNavigate={navigate} />
-        </div>
-      </header>
+      <AppHeader />
 
       {/* BODY — flex row: sidebar + content */}
       <div className="feed-layout" style={{ display: 'flex' }}>

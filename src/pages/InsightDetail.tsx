@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { parseSections } from '@/lib/position-utils';
 import { colors, typography, spacing, radius, transition, shadow } from '../design-tokens';
+import AppHeader from '../components/AppHeader';
 
 // ─── useMediaQuery ───────────────────────────────────────────────────────────
 
@@ -649,43 +650,7 @@ export default function InsightDetail() {
   return (
     <div style={{ minHeight: '100vh', background: '#fff', fontFamily: FONT }}>
 
-      {/* Header — matches Feed */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: colors.bg.light, borderBottom: `1px solid ${colors.border.light}`,
-        padding: '0 32px', height: 60,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span
-          onClick={() => navigate('/')}
-          style={{ fontSize: 24, fontWeight: 900, letterSpacing: typography.letterSpacing.tight, color: colors.text.primary.light, cursor: 'pointer' }}
-        >
-          AUO
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 13, color: '#9ca3af' }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-          </span>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: '#111', color: '#fff', border: 'none',
-              borderRadius: 20, padding: '8px 18px',
-              fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#374151')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#111')}
-          >
-            <span style={{ fontSize: 17, lineHeight: 1 }}>+</span> Add topic
-          </button>
-          <div onClick={() => navigate('/alert-sources')} style={{
-            width: 34, height: 34, borderRadius: '50%', background: '#111', color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
-          }}>D</div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Sub-nav — back link */}
       <div style={{

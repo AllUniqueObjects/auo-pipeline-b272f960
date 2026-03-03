@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { colors, typography, transition } from '../design-tokens';
+import AppHeader from '../components/AppHeader';
 
 const FONT = typography.fontFamily;
 
@@ -121,6 +122,7 @@ export default function Notifications() {
       background: '#fafafa',
       fontFamily: FONT,
     }}>
+      <AppHeader />
       <div style={{
         maxWidth: 680,
         margin: '0 auto',
