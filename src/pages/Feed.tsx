@@ -979,12 +979,22 @@ export default function Feed() {
     return () => { supabase.removeChannel(channel); };
   }, [loadFeed]);
 
-  // Poll for positions while scanning a new thread
+  // Poll for positions while scanning a new thread (10-min max)
   useEffect(() => {
     if (!scanningThreadId) return;
 
     let cancelled = false;
+    const MAX_POLL_MS = 10 * 60 * 1000;
+    const startedAt = Date.now();
+
     const poll = setInterval(async () => {
+      if (Date.now() - startedAt >= MAX_POLL_MS) {
+        clearInterval(poll);
+        setScanningThreadId(null);
+        loadFeed();
+        return;
+      }
+
       const { data } = await (supabase as any)
         .from('positions')
         .select('id')
@@ -1575,16 +1585,34 @@ export default function Feed() {
 
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#111', marginBottom: 8, fontFamily: FONT }}>
-                AUO is scanning
+                Building your first briefing
               </div>
               <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, fontFamily: FONT }}>
-                Checking 246 sources across material science, competitor positioning, and supply chain...
+                Scanning 246 sources across material science, competitor positioning, and your supply chain. Ready in about 8 minutes — we'll email you.
               </div>
             </div>
 
             <div style={{ fontSize: 13, color: '#999', fontFamily: FONT }}>
-              First insights in ~2 minutes
+              You can close this tab. We'll notify you.
             </div>
+
+            <button
+              onClick={() => { setScanningThreadId(null); navigate('/feed'); }}
+              style={{
+                marginTop: 8,
+                padding: '10px 24px',
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: FONT,
+                color: '#111',
+                background: 'transparent',
+                border: '1px solid #ddd',
+                borderRadius: 8,
+                cursor: 'pointer',
+              }}
+            >
+              Go to feed — I'll check back later
+            </button>
           </div>
         )}
 

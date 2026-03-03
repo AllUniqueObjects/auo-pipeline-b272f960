@@ -506,7 +506,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             </div>
 
             <div style={{ fontSize: 13, color: '#ccc' }}>
-              Usually takes about a minute
+              Usually takes about 8 minutes
             </div>
           </div>
         )}
