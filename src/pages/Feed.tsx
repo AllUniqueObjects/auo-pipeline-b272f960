@@ -1442,7 +1442,7 @@ export default function Feed() {
                         background: 'none', border: 'none', cursor: 'pointer',
                         padding: '2px 6px', fontSize: 14, flexShrink: 0, borderRadius: 4,
                         color: '#999', letterSpacing: '1px',
-                        opacity: (isHovered || monitorMenuThreadId === t.id) ? 1 : 0,
+                        opacity: 1,
                         transition: 'opacity 0.15s, background 0.15s',
                       }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#ebebeb'; }}
