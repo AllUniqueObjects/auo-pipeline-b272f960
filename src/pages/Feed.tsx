@@ -97,9 +97,9 @@ const getUrgency = (tone: string) =>
   URGENCY[tone as keyof typeof URGENCY] || URGENCY.WATCH;
 
 const MONITOR_LEVELS = [
-  { value: 'standard', label: 'Standard', icon: '◎', desc: 'Updates with regular scans' },
-  { value: 'priority', label: 'Priority', icon: '●', desc: 'Frequent scans — email on new signals' },
-  { value: 'breaking', label: 'Breaking', icon: '⚡', desc: 'Every 20 min — immediate email alert' },
+  { value: 'standard', label: 'Standard', icon: '◎' },
+  { value: 'priority', label: 'Priority', icon: '●' },
+  { value: 'breaking', label: 'Breaking', icon: '⚡' },
 ];
 
 const formatLens = (lens: string): string =>
@@ -1423,94 +1423,90 @@ export default function Feed() {
 
                   {/* Dropdown menu */}
                   {isMenuOpen && (
-                    <div style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: '100%',
-                      zIndex: 100,
-                      background: '#fff',
-                      border: '1px solid #e5e5e5',
-                      borderRadius: 8,
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                      padding: '4px 0',
-                      minWidth: 200,
-                    }}>
-                      {monitorMenuThreadId === t.id ? (
-                        <>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setMonitorMenuThreadId(null); }}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                              padding: '8px 16px', textAlign: 'left',
-                              background: 'none', border: 'none', borderBottom: '1px solid #f0f0f0',
-                              fontSize: 12, color: '#999', cursor: 'pointer', fontFamily: FONT,
-                            }}
-                          >
-                            ← Back
-                          </button>
-                          {MONITOR_LEVELS.map(ml => {
-                            const current = t.monitor_level || 'standard';
-                            const isSelected = current === ml.value;
-                            return (
-                              <button
-                                key={ml.value}
-                                onClick={(e) => { e.stopPropagation(); handleSetMonitorLevel(t.id, ml.value); }}
-                                style={{
-                                  display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
-                                  padding: '10px 16px', textAlign: 'left',
-                                  background: isSelected ? '#f8f8f8' : 'none', border: 'none',
-                                  fontSize: 13, color: '#111', cursor: 'pointer', fontFamily: FONT,
-                                }}
-                                onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                                onMouseLeave={e => (e.currentTarget.style.background = isSelected ? '#f8f8f8' : 'transparent')}
-                              >
-                                <span style={{ fontSize: 14, flexShrink: 0, width: 18, textAlign: 'center' }}>{ml.icon}</span>
-                                <span style={{ flex: 1 }}>
-                                  <span style={{ fontWeight: isSelected ? 600 : 400 }}>{ml.label}</span>
-                                  <br />
-                                  <span style={{ fontSize: 11, color: '#999' }}>{ml.desc}</span>
-                                </span>
-                                {isSelected && <span style={{ color: '#111', fontSize: 14, flexShrink: 0 }}>✓</span>}
-                              </button>
-                            );
-                          })}
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setMonitorMenuThreadId(t.id); }}
-                            style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-                              padding: '10px 16px', textAlign: 'left',
-                              background: 'none', border: 'none',
-                              fontSize: 14, color: '#111', cursor: 'pointer', fontFamily: FONT,
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <span>Monitor</span>
-                            <span style={{ color: '#999', fontSize: 12 }}>→</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleArchiveThread(t.id);
-                              setMenuOpenThreadId(null);
-                            }}
-                            style={{
-                              display: 'block', width: '100%',
-                              padding: '10px 16px', textAlign: 'left',
-                              background: 'none', border: 'none',
-                              fontSize: 14, color: '#111',
-                              cursor: 'pointer', fontFamily: FONT,
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            Archive topic
-                          </button>
-                        </>
-                      )}
+                    <div
+                      onMouseLeave={() => setMonitorMenuThreadId(null)}
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: '100%',
+                        zIndex: 100,
+                        background: '#fff',
+                        border: '1px solid #e5e5e5',
+                        borderRadius: 8,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                        padding: '4px 0',
+                        minWidth: 180,
+                      }}
+                    >
+                      <div
+                        onMouseEnter={() => setMonitorMenuThreadId(t.id)}
+                        style={{ position: 'relative' }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '10px 16px',
+                            fontSize: 14, color: '#111', cursor: 'default', fontFamily: FONT,
+                            background: monitorMenuThreadId === t.id ? '#f5f5f5' : 'transparent',
+                          }}
+                        >
+                          <span>Monitor</span>
+                          <span style={{ color: '#999', fontSize: 12 }}>→</span>
+                        </div>
+                        {monitorMenuThreadId === t.id && (
+                          <div style={{ padding: '2px 8px 6px' }}>
+                            {MONITOR_LEVELS.map(ml => {
+                              const current = t.monitor_level || 'standard';
+                              const isSelected = current === ml.value;
+                              return (
+                                <div
+                                  key={ml.value}
+                                  onClick={(e) => { e.stopPropagation(); handleSetMonitorLevel(t.id, ml.value); }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    padding: '6px 8px', cursor: 'pointer', borderRadius: 4,
+                                    background: isSelected ? '#f5f5f5' : 'transparent',
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = isSelected ? '#f5f5f5' : 'transparent')}
+                                >
+                                  <span style={{
+                                    fontSize: 11,
+                                    color: ml.value === 'breaking' ? '#ef4444'
+                                         : ml.value === 'priority' ? '#f97316' : '#999',
+                                  }}>
+                                    {isSelected ? '●' : '○'}
+                                  </span>
+                                  <span style={{
+                                    fontSize: 12, color: '#111', fontFamily: FONT,
+                                    fontWeight: isSelected ? 600 : 400,
+                                  }}>
+                                    {ml.icon} {ml.label}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleArchiveThread(t.id);
+                          setMenuOpenThreadId(null);
+                        }}
+                        style={{
+                          display: 'block', width: '100%',
+                          padding: '10px 16px', textAlign: 'left',
+                          background: 'none', border: 'none',
+                          fontSize: 14, color: '#111',
+                          cursor: 'pointer', fontFamily: FONT,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        Archive topic
+                      </button>
                     </div>
                   )}
                 </div>
