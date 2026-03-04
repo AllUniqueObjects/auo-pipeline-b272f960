@@ -1424,9 +1424,12 @@ export default function Feed() {
                       title="Change monitor level"
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        padding: '2px 4px', fontSize: 11, flexShrink: 0,
+                        padding: '2px 4px', fontSize: 11, flexShrink: 0, borderRadius: 4,
                         color: getMonitorIcon(t.monitor_level || 'standard').color,
+                        transition: 'background 0.15s, transform 0.15s',
                       }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.transform = 'scale(1.25)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                       {getMonitorIcon(t.monitor_level || 'standard').icon}
                     </button>
