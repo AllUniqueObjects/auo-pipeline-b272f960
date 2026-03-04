@@ -138,7 +138,7 @@ export default function AuthPage() {
               color: WHITE,
               margin: '0 0 48px 0',
             }}>
-              Signals are directional.<br />
+              Read the signal.<br />
               <span style={{ fontStyle: 'italic', color: RED }}>Own</span> the moment.
             </h1>
 
