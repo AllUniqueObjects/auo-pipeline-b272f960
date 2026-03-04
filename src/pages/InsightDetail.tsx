@@ -484,6 +484,15 @@ export default function InsightDetail() {
   const [linkCopied, setLinkCopied] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 900px)');
 
+  // Notes & chat state
+  const [notes, setNotes] = useState<any[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [sending, setSending] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<{ role: string; content: string }[]>([]);
+  const [pendingAction, setPendingAction] = useState<{ type: string; content: string } | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const notesEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -533,6 +542,135 @@ export default function InsightDetail() {
       }
     })();
   }, [id]);
+
+  // Fetch userId
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
+  }, []);
+
+  // Fetch position_notes
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('position_notes')
+        .select('*')
+        .eq('position_id', id)
+        .order('created_at', { ascending: true });
+      setNotes(data || []);
+    })();
+  }, [id]);
+
+  // Auto-scroll to bottom of notes
+  useEffect(() => {
+    notesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [notes]);
+
+  // ─── Notes & Chat handlers ──────────────────────────────────────────────
+
+  const isQuestion = (text: string) => {
+    return text.includes('?') ||
+      /^(what|how|why|when|who|where|will|can|should|does|is|are|do)/i.test(text.trim());
+  };
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || sending || !id) return;
+    const message = inputValue.trim();
+    setInputValue('');
+    setSending(true);
+
+    if (isQuestion(message)) {
+      // Optimistic user message
+      const tempUserNote = {
+        id: 'temp-' + Date.now(),
+        type: 'note',
+        content: message,
+        created_at: new Date().toISOString(),
+      };
+      setNotes(prev => [...prev, tempUserNote]);
+
+      const newHistory = [
+        ...conversationHistory,
+        { role: 'user', content: message },
+      ];
+
+      try {
+        const res = await fetch(
+          'https://dkk222--auo-scanner-insight-chat.modal.run',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: userId,
+              position_id: id,
+              message,
+              history: conversationHistory,
+            }),
+          }
+        );
+        const data = await res.json();
+
+        const auoNote = {
+          id: 'auo-' + Date.now(),
+          type: 'auo_response',
+          content: data.response,
+          created_at: new Date().toISOString(),
+        };
+        setNotes(prev => [...prev, auoNote]);
+        setConversationHistory([
+          ...newHistory,
+          { role: 'assistant', content: data.response },
+        ]);
+
+        if (data.action && data.action.type !== 'none') {
+          setPendingAction(data.action);
+        }
+      } catch (e) {
+        console.error('[InsightDetail] AUO chat failed:', e);
+        setNotes(prev => [...prev, {
+          id: 'err-' + Date.now(),
+          type: 'auo_response',
+          content: 'Sorry, something went wrong. Try again.',
+          created_at: new Date().toISOString(),
+        }]);
+      }
+    } else {
+      // Save as note
+      const { data } = await (supabase as any)
+        .from('position_notes')
+        .insert({
+          position_id: id,
+          user_id: userId,
+          type: 'note',
+          content: message,
+        })
+        .select()
+        .single();
+
+      if (data) setNotes(prev => [...prev, data]);
+    }
+
+    setSending(false);
+  };
+
+  const handleCreateTopic = async () => {
+    if (!pendingAction || !userId) return;
+    try {
+      await (supabase as any)
+        .from('decision_threads')
+        .insert({
+          user_id: userId,
+          title: pendingAction.content,
+          lens: 'general',
+          status: 'active',
+        });
+    } catch (e) {
+      console.error('[InsightDetail] Create topic failed:', e);
+    }
+    setPendingAction(null);
+  };
 
   // ─── Monitor handlers ────────────────────────────────────────────────────
 
@@ -1231,60 +1369,132 @@ export default function InsightDetail() {
               )}
             </div>
           )}
+
+          {/* NOTES & CONVERSATION */}
+          {notes.length > 0 && (
+            <div style={{ padding: '24px 0', borderTop: '1px solid #f0f0f0' }}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, color: '#999',
+                letterSpacing: '0.6px', textTransform: 'uppercase' as const,
+                marginBottom: 16,
+              }}>
+                Notes & Conversation
+              </div>
+
+              {notes.map(note => (
+                <div key={note.id} style={{
+                  marginBottom: 12,
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                }}>
+                  <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0 }}>
+                    {note.type === 'auo_response' ? '◈' : '📝'}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>
+                      {note.type === 'auo_response' ? 'AUO' : 'You'} ·{' '}
+                      {new Date(note.created_at).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#333', lineHeight: 1.5 }}>
+                      {note.content}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div ref={notesEndRef} />
+            </div>
+          )}
         </div>
 
       </div>
 
-      {/* Urgency picker modal */}
+      {/* Action confirm card */}
+      {pendingAction && pendingAction.type === 'create_topic' && (
+        <div style={{
+          position: 'fixed', bottom: 65, left: 0, right: 0, zIndex: 101,
+          display: 'flex', justifyContent: 'center',
+        }}>
+          <div style={{
+            maxWidth: isDesktop ? 1200 : 640, width: '100%',
+            margin: '0 16px',
+            padding: '12px 16px',
+            background: '#fafafa', border: '1px solid #e5e5e5',
+            borderRadius: 8,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>
+                + Create topic
+              </div>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                "{pendingAction.content}"
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleCreateTopic} style={{
+                padding: '6px 12px', background: '#111', color: '#fff',
+                border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', fontFamily: FONT,
+              }}>
+                Add topic
+              </button>
+              <button onClick={() => setPendingAction(null)} style={{
+                padding: '6px 12px', background: 'none', color: '#999',
+                border: '1px solid #e5e5e5', borderRadius: 6, fontSize: 12,
+                cursor: 'pointer', fontFamily: FONT,
+              }}>
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Fixed bottom ASK AUO chat bar — outside grid, full width */}
+      {/* Sticky bottom input */}
       <div style={{
         position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: 0, left: 0, right: 0,
         zIndex: 100,
-        padding: `${spacing["3"]} ${spacing["4"]}`,
-        background: 'rgba(255,255,255,0.95)',
+        background: 'rgba(255,255,255,0.97)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-        borderTop: `1px solid ${colors.border.light}`,
+        borderTop: '1px solid #f0f0f0',
+        padding: '12px 16px',
       }}>
         <div style={{
           maxWidth: isDesktop ? 1200 : 640,
           margin: '0 auto',
-          display: 'flex',
-          gap: spacing["2"],
-          alignItems: 'center',
+          display: 'flex', gap: 8,
         }}>
           <input
-            placeholder="Ask AUO anything about this insight..."
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
+            placeholder="Write a note, or ask AUO..."
             style={{
-              flex: 1,
-              padding: '10px 14px',
-              borderRadius: radius.md,
-              border: `1px solid ${colors.border.medium}`,
-              fontSize: typography.size.md,
-              background: colors.bg.surface,
-              outline: 'none',
-              color: colors.text.primary.light,
-              fontFamily: typography.fontFamily,
+              flex: 1, padding: '10px 14px',
+              border: '1px solid #e5e5e5', borderRadius: 8,
+              fontSize: 13, fontFamily: FONT,
+              outline: 'none', color: '#111',
             }}
-            disabled
           />
-          <button style={{
-            padding: '10px 16px',
-            borderRadius: radius.md,
-            background: colors.text.primary.light,
-            color: colors.text.primary.dark,
-            border: 'none',
-            fontSize: typography.size.base,
-            fontWeight: typography.weight.semibold,
-            fontFamily: typography.fontFamily,
-            cursor: 'not-allowed',
-            opacity: 0.4,
-          }}>
-            Ask
+          <button
+            onClick={handleSend}
+            disabled={!inputValue.trim() || sending}
+            style={{
+              padding: '10px 16px',
+              background: inputValue.trim() && !sending ? '#111' : '#f5f5f5',
+              color: inputValue.trim() && !sending ? '#fff' : '#ccc',
+              border: 'none', borderRadius: 8,
+              fontSize: 13, fontWeight: 600,
+              fontFamily: FONT,
+              cursor: inputValue.trim() && !sending ? 'pointer' : 'default',
+            }}
+          >
+            {sending ? '...' : 'Send'}
           </button>
         </div>
       </div>
