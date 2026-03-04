@@ -26,6 +26,12 @@ const FALLBACK_SIGNALS: PublicSignal[] = [
   { title: 'Automation advantage widens as tariff pressure peaks across manufacturing', source: '', source_date: '', badge: 'watch' },
 ];
 
+const cleanSignalTitle = (title: string): string => {
+  return title
+    .replace(/\s*[\|–\-—]\s*(Reuters|Bloomberg|AP|AFP|WSJ|FT|CNN|BBC|SCMP|South China Morning Post|Financial Times|Wall Street Journal|Associated Press|supplychaindive\.com|Supply Chain Dive)[^$]*/gi, '')
+    .trim();
+};
+
 export default function AuthPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('signin');
@@ -227,7 +233,7 @@ export default function AuthPage() {
                       lineHeight: 1.5,
                       color: 'rgba(255,255,255,0.36)',
                     }}>
-                      {s.title}
+                      {cleanSignalTitle(s.title)}
                     </span>
                     {s.source && (
                       <span style={{
