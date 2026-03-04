@@ -354,7 +354,7 @@ export default function AdminEval() {
       // ── Thread health ──
       let threadQuery = (supabase as any)
         .from('decision_threads')
-        .select('id, title, level, dominant_direction, direction_confidence');
+        .select('id, title, monitor_level, dominant_direction, direction_confidence');
       if (uid) threadQuery = threadQuery.eq('user_id', uid);
 
       const { data: threadRows } = await threadQuery;
@@ -375,7 +375,7 @@ export default function AdminEval() {
           return {
             id: t.id,
             title: t.title,
-            level: t.level || '—',
+            level: t.monitor_level || '—',
             dominant_direction: t.dominant_direction,
             direction_confidence: t.direction_confidence,
             signalCount: sc ?? 0,

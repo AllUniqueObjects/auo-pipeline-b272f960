@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { colors, typography, transition, shadow, pillStyle } from '../design-tokens';
 import { TopicChatBox } from '../components/TopicChatBox';
 import AppHeader from '../components/AppHeader';
+import { useToast } from '@/hooks/use-toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,6 @@ interface FeedPosition {
   direction_alignment?: string | null;
   is_monitored?: boolean | null;
   monitor_set_at?: string | null;
-  monitor_alert_threshold?: string | null;
   monitor_last_signal_count?: number | null;
   is_pinned?: boolean | null;
   created_at: string;
@@ -400,11 +400,6 @@ function PositionCard({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {pos.monitor_alert_threshold && (
-            <span style={{ marginRight: 2, fontSize: 12, opacity: 0.7 }}>
-              {pos.monitor_alert_threshold === 'breaking' ? '⚡' : ''}
-            </span>
-          )}
           <span style={{
             fontSize: 12,
             fontWeight: 500,
@@ -687,6 +682,7 @@ function SkeletonCard() {
 export default function Feed() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
   const [positions, setPositions] = useState<FeedPosition[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('All');
@@ -754,6 +750,27 @@ export default function Feed() {
   // Track threads with new (unseen) positions
   const [newThreadIds, setNewThreadIds] = useState<Set<string>>(new Set());
   const prevThreadCounts = useRef<Record<string, number>>({});
+  const prevNewThreadIds = useRef<Set<string>>(new Set());
+
+  // Toast when new insights arrive in the background
+  useEffect(() => {
+    const freshIds = [...newThreadIds].filter(id => !prevNewThreadIds.current.has(id));
+    prevNewThreadIds.current = new Set(newThreadIds);
+    if (freshIds.length === 0) return;
+
+    const allThreads = [...dbThreads, ...manualThreads];
+    const names = freshIds
+      .map(id => allThreads.find(t => t.id === id)?.title)
+      .filter(Boolean);
+
+    const desc = names.length === 1
+      ? `New insights in "${names[0]}"`
+      : names.length > 1
+        ? `New insights in ${names.length} topics`
+        : 'New insights available';
+
+    toast({ title: '✦ New insights', description: desc });
+  }, [newThreadIds, dbThreads, manualThreads, toast]);
 
   // Lock to prevent interval/realtime loadFeed from racing with archive ops
   const archiveBusy = useRef(false);
@@ -843,7 +860,7 @@ export default function Feed() {
     }
 
     // Step 2: Fetch all validated positions for those threads
-    const BASE_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count';
+    const BASE_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_last_signal_count';
 
     let { data: positionData, error: posErr } = await (supabase as any)
       .from('positions')
@@ -1055,7 +1072,7 @@ export default function Feed() {
     let cancelled = false;
     (async () => {
       const archivedThread = archivedThreads.find(t => t.id === activeThreadId);
-      const ARCH_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count';
+      const ARCH_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_last_signal_count';
       let { data, error: archErr } = await (supabase as any)
         .from('positions')
         .select(ARCH_COLS + ', is_pinned')
