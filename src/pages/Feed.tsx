@@ -98,16 +98,10 @@ const getUrgency = (tone: string) =>
   URGENCY[tone as keyof typeof URGENCY] || URGENCY.WATCH;
 
 const MONITOR_LEVELS = [
-  { value: 'standard', label: 'Standard', icon: '○' },
-  { value: 'priority', label: 'Priority', icon: '●' },
-  { value: 'breaking', label: 'Breaking', icon: '⚡' },
+  { value: 'standard', label: 'Standard', desc: 'Daily scan cycle' },
+  { value: 'priority', label: 'Priority', desc: 'Scanned more frequently' },
+  { value: 'breaking', label: 'Breaking', desc: 'Checked every 20 min' },
 ];
-
-const getMonitorIcon = (level: string) => {
-  if (level === 'breaking') return { icon: '⚡', color: '#ef4444' };
-  if (level === 'priority') return { icon: '⋮', color: '#f97316' };
-  return { icon: '⋮', color: '#ccc' };
-};
 
 const formatLens = (lens: string): string =>
   (lens || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -1443,17 +1437,18 @@ export default function Feed() {
                         e.stopPropagation();
                         setMonitorMenuThreadId(monitorMenuThreadId === t.id ? null : t.id);
                       }}
-                      title="Change monitor level"
+                      title="Topic settings"
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        padding: '2px 4px', fontSize: 11, flexShrink: 0, borderRadius: 4,
-                        color: getMonitorIcon(t.monitor_level || 'standard').color,
-                        transition: 'background 0.15s, transform 0.15s',
+                        padding: '2px 6px', fontSize: 14, flexShrink: 0, borderRadius: 4,
+                        color: '#999', letterSpacing: '1px',
+                        opacity: (isHovered || monitorMenuThreadId === t.id) ? 1 : 0,
+                        transition: 'opacity 0.15s, background 0.15s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#e8e8e8'; e.currentTarget.style.transform = 'scale(1.4)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#ebebeb'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                     >
-                      {getMonitorIcon(t.monitor_level || 'standard').icon}
+                      ···
                     </button>
                     <span
                       className={hasNew ? 'auo-count-pulse' : ''}
@@ -1474,57 +1469,71 @@ export default function Feed() {
 
                 </div>
 
-                {/* Inline monitor level selector — full sidebar width */}
+                {/* Inline topic settings panel */}
                 {monitorMenuThreadId === t.id && (
                   <div
                     onClick={(e) => e.stopPropagation()}
                     style={{
                       width: '100%',
-                      background: '#fafafa',
-                      borderTop: '1px solid #efefef',
-                      borderBottom: '1px solid #efefef',
+                      background: '#fff',
+                      border: '1px solid #e8e8e8',
+                      borderRadius: 8,
+                      margin: '4px 0',
+                      overflow: 'hidden',
                     }}
                   >
+                    <div style={{
+                      padding: '8px 14px 4px',
+                      fontSize: 10, fontWeight: 600,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase' as const,
+                      color: '#999',
+                    }}>
+                      Monitor level
+                    </div>
                     {MONITOR_LEVELS.map(ml => {
                       const current = t.monitor_level || 'standard';
                       const isSelected = current === ml.value;
                       return (
                         <div
                           key={ml.value}
-                          onClick={() => { handleSetMonitorLevel(t.id, ml.value); setMonitorMenuThreadId(null); }}
+                          onClick={() => handleSetMonitorLevel(t.id, ml.value)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '9px 16px', cursor: 'pointer',
-                            background: isSelected ? '#f0f0f0' : 'transparent',
+                            padding: '8px 14px', cursor: 'pointer',
+                            background: 'transparent',
                           }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#ebebeb')}
-                          onMouseLeave={e => (e.currentTarget.style.background = isSelected ? '#f0f0f0' : 'transparent')}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
                           <span style={{
-                            fontSize: 12,
-                            color: ml.value === 'breaking' ? '#ef4444'
-                                 : ml.value === 'priority' ? '#f97316' : '#999',
+                            width: 16, fontSize: 13, color: '#111', flexShrink: 0,
                           }}>
-                            {isSelected ? '●' : '○'}
+                            {isSelected ? '✓' : ''}
                           </span>
-                          <span style={{
-                            fontSize: 13, color: '#111', fontFamily: FONT,
-                            fontWeight: isSelected ? 600 : 400,
-                          }}>
-                            {ml.icon} {ml.label}
-                          </span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              fontSize: 13, color: '#111', fontFamily: FONT,
+                              fontWeight: isSelected ? 600 : 400,
+                            }}>
+                              {ml.label}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#aaa', marginTop: 1 }}>
+                              {ml.desc}
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
+                    <div style={{ height: 1, background: '#f0f0f0', margin: '2px 12px' }} />
                     <div
                       onClick={() => { handleArchiveThread(t.id); setMonitorMenuThreadId(null); }}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '9px 16px', cursor: 'pointer',
-                        borderTop: '1px solid #efefef',
+                        padding: '9px 14px', cursor: 'pointer',
                         color: '#999', fontSize: 13, fontFamily: FONT,
+                        paddingLeft: 40,
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#ebebeb')}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       Archive topic
