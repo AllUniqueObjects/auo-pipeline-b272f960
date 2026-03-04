@@ -658,8 +658,8 @@ export default function InsightDetail() {
         .eq('position_id', id)
         .order('created_at', { ascending: true });
       const all = data || [];
-      setUserNotes(all.filter((n: any) => n.type === 'note'));
-      setConversation(all.filter((n: any) => n.type === 'auo_response' || n.type === 'conversation'));
+      setUserNotes(all.filter((n: any) => n.type === 'note' && !n.metadata?.is_chat));
+      setConversation(all.filter((n: any) => n.type === 'auo_response' || n.metadata?.is_chat));
     })();
   }, [id]);
 
@@ -705,10 +705,10 @@ export default function InsightDetail() {
     setInputValue('');
     setSending(true);
 
-    // Save user message as 'conversation' type
+    // Save user message as 'note' with is_chat metadata
     const { data: userMsg } = await (supabase as any)
       .from('position_notes')
-      .insert({ position_id: id, user_id: userId, type: 'conversation', content: message })
+      .insert({ position_id: id, user_id: userId, type: 'note', content: message, metadata: { is_chat: true } })
       .select().single();
     if (userMsg) setConversation(prev => [...prev, userMsg]);
 
