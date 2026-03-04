@@ -102,6 +102,12 @@ const MONITOR_LEVELS = [
   { value: 'breaking', label: 'Breaking', icon: '⚡' },
 ];
 
+const getMonitorIcon = (level: string) => {
+  if (level === 'breaking') return { icon: '⚡', color: '#ef4444' };
+  if (level === 'priority') return { icon: '●', color: '#f97316' };
+  return { icon: '◎', color: '#ccc' };
+};
+
 const formatLens = (lens: string): string =>
   (lens || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
@@ -417,7 +423,7 @@ function PositionCard({
               · {pos.signal_basis.signal_count} signal{pos.signal_basis.signal_count !== 1 ? 's' : ''}
               {' · '}
               {pos.signal_basis.most_recent_date
-                ? `latest ${new Date(pos.signal_basis.most_recent_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                ? `latest ${new Date(pos.signal_basis.most_recent_date.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
                 : `updated ${formatRecency(pos.created_at)}`}
             </span>
           )}
@@ -753,10 +759,18 @@ export default function Feed() {
   // Close sidebar menu on outside click
   useEffect(() => {
     if (!menuOpenThreadId) return;
-    const handleClick = () => { setMenuOpenThreadId(null); setMonitorMenuThreadId(null); };
+    const handleClick = () => setMenuOpenThreadId(null);
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, [menuOpenThreadId]);
+
+  // Close monitor selector on outside click
+  useEffect(() => {
+    if (!monitorMenuThreadId) return;
+    const handleClick = () => setMonitorMenuThreadId(null);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [monitorMenuThreadId]);
 
   const loadFeed = useCallback(async (force?: boolean) => {
     if (archiveBusy.current && !force) return;
@@ -1326,8 +1340,8 @@ export default function Feed() {
               const count = positions.filter(p => p.decision_thread_id === t.id).length;
               const hasNew = newThreadIds.has(t.id);
               return (
+                <React.Fragment key={t.id}>
                 <div
-                  key={t.id}
                   onMouseEnter={() => setHoveredPill(`sidebar-${t.id}`)}
                   onMouseLeave={() => setHoveredPill(null)}
                   style={{ position: 'relative' }}
@@ -1366,12 +1380,20 @@ export default function Feed() {
                     }}>
                       {t.title}
                     </span>
-                    {t.monitor_level === 'breaking' && (
-                      <span style={{ flexShrink: 0, fontSize: 11, marginTop: 2, color: '#ef4444' }}>⚡</span>
-                    )}
-                    {t.monitor_level === 'priority' && (
-                      <span style={{ flexShrink: 0, fontSize: 8, marginTop: 3, color: '#f97316' }}>●</span>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMonitorMenuThreadId(monitorMenuThreadId === t.id ? null : t.id);
+                      }}
+                      title="Change monitor level"
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: '2px 4px', fontSize: 11, flexShrink: 0,
+                        color: getMonitorIcon(t.monitor_level || 'standard').color,
+                      }}
+                    >
+                      {getMonitorIcon(t.monitor_level || 'standard').icon}
+                    </button>
                     <span
                       className={hasNew ? 'auo-count-pulse' : ''}
                       style={{
@@ -1421,74 +1443,20 @@ export default function Feed() {
                     </button>
                   )}
 
-                  {/* Dropdown menu */}
+                  {/* ⋯ Dropdown — Archive only */}
                   {isMenuOpen && (
-                    <div
-                      onMouseLeave={() => setMonitorMenuThreadId(null)}
-                      style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '100%',
-                        zIndex: 100,
-                        background: '#fff',
-                        border: '1px solid #e5e5e5',
-                        borderRadius: 8,
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                        padding: '4px 0',
-                        minWidth: 180,
-                      }}
-                    >
-                      <div
-                        onMouseEnter={() => setMonitorMenuThreadId(t.id)}
-                        style={{ position: 'relative' }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '10px 16px',
-                            fontSize: 14, color: '#111', cursor: 'default', fontFamily: FONT,
-                            background: monitorMenuThreadId === t.id ? '#f5f5f5' : 'transparent',
-                          }}
-                        >
-                          <span>Monitor</span>
-                          <span style={{ color: '#999', fontSize: 12 }}>→</span>
-                        </div>
-                        {monitorMenuThreadId === t.id && (
-                          <div style={{ padding: '2px 8px 6px' }}>
-                            {MONITOR_LEVELS.map(ml => {
-                              const current = t.monitor_level || 'standard';
-                              const isSelected = current === ml.value;
-                              return (
-                                <div
-                                  key={ml.value}
-                                  onClick={(e) => { e.stopPropagation(); handleSetMonitorLevel(t.id, ml.value); }}
-                                  style={{
-                                    display: 'flex', alignItems: 'center', gap: 8,
-                                    padding: '6px 8px', cursor: 'pointer', borderRadius: 4,
-                                    background: isSelected ? '#f5f5f5' : 'transparent',
-                                  }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
-                                  onMouseLeave={e => (e.currentTarget.style.background = isSelected ? '#f5f5f5' : 'transparent')}
-                                >
-                                  <span style={{
-                                    fontSize: 11,
-                                    color: ml.value === 'breaking' ? '#ef4444'
-                                         : ml.value === 'priority' ? '#f97316' : '#999',
-                                  }}>
-                                    {isSelected ? '●' : '○'}
-                                  </span>
-                                  <span style={{
-                                    fontSize: 12, color: '#111', fontFamily: FONT,
-                                    fontWeight: isSelected ? 600 : 400,
-                                  }}>
-                                    {ml.icon} {ml.label}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                    <div style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: '100%',
+                      zIndex: 100,
+                      background: '#fff',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: 8,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                      padding: '4px 0',
+                      minWidth: 150,
+                    }}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1510,6 +1478,53 @@ export default function Feed() {
                     </div>
                   )}
                 </div>
+
+                {/* Inline monitor level selector */}
+                {monitorMenuThreadId === t.id && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      margin: '2px 8px 4px 8px',
+                      background: '#fafafa',
+                      border: '1px solid #efefef',
+                      borderRadius: 6,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {MONITOR_LEVELS.map(ml => {
+                      const current = t.monitor_level || 'standard';
+                      const isSelected = current === ml.value;
+                      return (
+                        <div
+                          key={ml.value}
+                          onClick={() => { handleSetMonitorLevel(t.id, ml.value); setMonitorMenuThreadId(null); }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '7px 10px', cursor: 'pointer',
+                            background: isSelected ? '#f0f0f0' : 'transparent',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#ebebeb')}
+                          onMouseLeave={e => (e.currentTarget.style.background = isSelected ? '#f0f0f0' : 'transparent')}
+                        >
+                          <span style={{
+                            fontSize: 11, width: 14, textAlign: 'center' as const,
+                            color: ml.value === 'breaking' ? '#ef4444'
+                                 : ml.value === 'priority' ? '#f97316' : '#999',
+                          }}>
+                            {isSelected ? '●' : '○'}
+                          </span>
+                          <span style={{
+                            fontSize: 12, color: '#111', fontFamily: FONT,
+                            fontWeight: isSelected ? 600 : 400,
+                          }}>
+                            {ml.icon} {ml.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                </React.Fragment>
               );
             })}
 
@@ -1909,26 +1924,6 @@ export default function Feed() {
             />
           );
         })}
-
-        {/* Breaking monitor banner */}
-        {activeThread?.monitor_level === 'breaking' && (
-          <div style={{
-            background: '#fef2f2',
-            borderBottom: '1px solid #fecaca',
-            padding: '10px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 13,
-            fontFamily: FONT,
-            color: '#991b1b',
-          }}>
-            <span>⚡</span>
-            <span style={{ fontWeight: 600 }}>Breaking</span>
-            <span style={{ color: '#b91c1c' }}>·</span>
-            <span>AUO scanning every 20 min</span>
-          </div>
-        )}
 
         {/* Suggested empty state */}
         {activeFilter === '✦ Suggested' && (
