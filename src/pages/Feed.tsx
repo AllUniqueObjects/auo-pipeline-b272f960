@@ -1428,7 +1428,7 @@ export default function Feed() {
                         color: getMonitorIcon(t.monitor_level || 'standard').color,
                         transition: 'background 0.15s, transform 0.15s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.transform = 'scale(1.25)'; }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#e8e8e8'; e.currentTarget.style.transform = 'scale(1.4)'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                       {getMonitorIcon(t.monitor_level || 'standard').icon}
