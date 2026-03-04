@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -12,12 +12,18 @@ const DM_SANS = "'DM Sans', sans-serif";
 const FRAUNCES = "'Fraunces', serif";
 const DM_MONO = "'DM Mono', monospace";
 
-// TODO: fetch from /public-signals endpoint when live
-const SIGNALS = [
-  { tone: 'act', text: 'Iran escalation compresses vendor lock window across footwear categories' },
-  { tone: 'act', text: 'Tariff shock closes wholesale value window before Q2 buyer reviews' },
-  { tone: 'watch', text: 'Vietnam capacity destruction outpaces tariff timeline for Asia-Pacific sourcing' },
-  { tone: 'watch', text: 'Automation advantage widens as tariff pressure peaks across manufacturing' },
+interface PublicSignal {
+  title: string;
+  source: string;
+  source_date: string;
+  badge: 'act_now' | 'watch';
+}
+
+const FALLBACK_SIGNALS: PublicSignal[] = [
+  { title: 'Iran escalation compresses vendor lock window across footwear categories', source: 'reuters.com', source_date: '', badge: 'act_now' },
+  { title: 'Tariff shock closes wholesale value window before Q2 buyer reviews', source: 'bloomberg.com', source_date: '', badge: 'act_now' },
+  { title: 'Vietnam capacity destruction outpaces tariff timeline for Asia-Pacific sourcing', source: 'reuters.com', source_date: '', badge: 'watch' },
+  { title: 'Automation advantage widens as tariff pressure peaks across manufacturing', source: '', source_date: '', badge: 'watch' },
 ];
 
 export default function AuthPage() {
@@ -29,6 +35,28 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signals, setSignals] = useState<PublicSignal[]>(FALLBACK_SIGNALS);
+  const [signalsLive, setSignalsLive] = useState(false);
+
+  useEffect(() => {
+    const fetchSignals = async () => {
+      try {
+        const res = await fetch(
+          'https://dkk222--auo-scanner-public-signals.modal.run',
+          { signal: AbortSignal.timeout(5000) }
+        );
+        if (!res.ok) throw new Error('fetch failed');
+        const data = await res.json();
+        if (data.signals?.length >= 2) {
+          setSignals(data.signals.slice(0, 6));
+          setSignalsLive(true);
+        }
+      } catch {
+        // Fallback already in state — silent fail
+      }
+    };
+    fetchSignals();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +128,10 @@ export default function AuthPage() {
         }
         .auth-input::placeholder { color: rgba(255,255,255,0.18); }
         .auth-input:focus { border-color: rgba(255,255,255,0.3) !important; }
+        @keyframes livepulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
       `}</style>
 
       {/* ─── Left panel ─── */}
@@ -156,6 +188,7 @@ export default function AuthPage() {
                   borderRadius: '50%',
                   background: RED,
                   display: 'inline-block',
+                  animation: signalsLive ? 'livepulse 3s ease-in-out infinite' : 'none',
                 }} />
                 <span style={{
                   fontFamily: DM_MONO,
@@ -168,7 +201,7 @@ export default function AuthPage() {
                 </span>
               </div>
 
-              {SIGNALS.map((s, i) => (
+              {signals.map((s, i) => (
                 <div key={i} style={{
                   display: 'grid',
                   gridTemplateColumns: '60px 1fr',
@@ -182,19 +215,33 @@ export default function AuthPage() {
                     fontSize: 8,
                     letterSpacing: '0.06em',
                     textTransform: 'uppercase' as const,
-                    color: s.tone === 'act' ? RED : 'rgba(255,255,255,0.22)',
+                    color: s.badge === 'act_now' ? RED : 'rgba(255,255,255,0.22)',
                   }}>
-                    {s.tone === 'act' ? 'Act now' : 'Watch'}
+                    {s.badge === 'act_now' ? 'Act now' : 'Watch'}
                   </span>
-                  <span style={{
-                    fontFamily: DM_SANS,
-                    fontWeight: 300,
-                    fontSize: 12,
-                    lineHeight: 1.5,
-                    color: 'rgba(255,255,255,0.36)',
-                  }}>
-                    {s.text}
-                  </span>
+                  <div>
+                    <span style={{
+                      fontFamily: DM_SANS,
+                      fontWeight: 300,
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: 'rgba(255,255,255,0.36)',
+                    }}>
+                      {s.title}
+                    </span>
+                    {s.source && (
+                      <span style={{
+                        display: 'block',
+                        fontFamily: DM_MONO,
+                        fontSize: 9,
+                        color: 'rgba(255,255,255,0.15)',
+                        marginTop: 3,
+                        letterSpacing: '0.04em',
+                      }}>
+                        {s.source}{s.source_date ? ` · ${s.source_date}` : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
