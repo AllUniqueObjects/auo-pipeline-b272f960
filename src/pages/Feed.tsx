@@ -1333,7 +1333,7 @@ export default function Feed() {
                   style={{ position: 'relative' }}
                 >
                   <button
-                    onClick={() => { setActiveThreadId(t.id); setScanningThreadId(null); setActiveFilter('All'); setNewThreadIds(prev => { const next = new Set(prev); next.delete(t.id); return next; }); }}
+                    onClick={() => { if (activeThreadId === t.id) { setActiveThreadId(null); } else { setActiveThreadId(t.id); setNewThreadIds(prev => { const next = new Set(prev); next.delete(t.id); return next; }); } setScanningThreadId(null); setActiveFilter('All'); }}
                     style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                       padding: '8px 10px',
@@ -1561,7 +1561,7 @@ export default function Feed() {
                       style={{ position: 'relative' }}
                     >
                       <button
-                        onClick={() => { setActiveThreadId(t.id); setActiveFilter('All'); }}
+                        onClick={() => { setActiveThreadId(activeThreadId === t.id ? null : t.id); setActiveFilter('All'); }}
                         style={{
                           display: 'flex', alignItems: 'flex-start', gap: 10,
                           padding: '8px 10px',
@@ -1802,7 +1802,7 @@ export default function Feed() {
                 return (
                   <button
                     key={t.id}
-                    onClick={() => { setActiveThreadId(t.id); setTopicsOpen(false); setScanningThreadId(null); }}
+                    onClick={() => { setActiveThreadId(activeThreadId === t.id ? null : t.id); setTopicsOpen(false); setScanningThreadId(null); }}
                     style={{
                       ...pillStyle(activeThreadId === t.id, false),
                       whiteSpace: 'nowrap' as const,
