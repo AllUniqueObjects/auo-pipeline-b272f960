@@ -254,6 +254,22 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         return;
       }
 
+      // Ensure public.users row exists BEFORE scan (backend writes brand_profiles with FK)
+      const { error: earlyUpsertError } = await (supabase as any)
+        .from('users')
+        .upsert({
+          id: user.id,
+          company: company.trim(),
+          role: role.trim(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+
+      if (earlyUpsertError) {
+        console.error('[Onboarding] Early user upsert failed:', earlyUpsertError);
+      } else {
+        console.log('[Onboarding] User row ensured before scan');
+      }
+
       console.log('[Onboarding] Calling scan endpoint for user:', user.id);
 
       const response = await fetch(scanUrl, {
@@ -413,7 +429,34 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         }
       }
 
-      // 3. Trigger scan pipeline per thread (fire-and-forget, all in parallel)
+      // 3. Write tactical_layer (current_work + watch_topics from selected topics)
+      if (selected.length > 0) {
+        const now = new Date().toISOString();
+        const { error: tactErr } = await (supabase as any)
+          .from('tactical_layer')
+          .upsert({
+            user_id: user.id,
+            user_name: userName,
+            current_work: selected.map(t => ({
+              topic: t.title,
+              added_at: now,
+              source: 'onboarding',
+            })),
+            watch_topics: selected.map(t => ({
+              topic: t.title,
+              added_at: now,
+            })),
+            updated_at: now,
+          }, { onConflict: 'user_id' });
+
+        if (tactErr) {
+          console.warn('[Onboarding] tactical_layer write failed:', tactErr);
+        } else {
+          console.log(`[Onboarding] tactical_layer written: ${selected.length} topics`);
+        }
+      }
+
+      // 4. Trigger scan pipeline per thread (fire-and-forget, all in parallel)
       const scanUrl = import.meta.env.VITE_MODAL_SCAN_PRIORITY_URL;
       if (scanUrl && insertedThreads.length > 0) {
         for (const thread of insertedThreads) {
@@ -428,11 +471,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         console.log(`[Onboarding] Triggered pipeline for ${insertedThreads.length} threads`);
       }
 
-      // 4. Set localStorage flag
+      // 5. Set localStorage flag
       localStorage.setItem('onboardingComplete', 'true');
       sessionStorage.setItem('justOnboarded', 'true');
 
-      // 5. Navigate
+      // 6. Navigate
       onComplete?.();
       navigate('/feed?scanning=true', { replace: true });
 
