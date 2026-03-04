@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { colors, typography, transition, shadow } from '../design-tokens';
 
@@ -94,11 +94,17 @@ function AvatarMenu({ userName, isAdmin, hasUnread, onNavigate }: { userName: st
           </button>
           <button
             onClick={() => { setOpen(false); onNavigate('/notifications'); }}
-            style={menuBtnStyle}
+            style={{ ...menuBtnStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
             onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
             Notifications
+            {hasUnread && (
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#ef4444', flexShrink: 0,
+              }} />
+            )}
           </button>
           <div style={{ height: 1, background: colors.border.light, margin: '0 12px' }} />
           <button
@@ -120,9 +126,30 @@ function AvatarMenu({ userName, isAdmin, hasUnread, onNavigate }: { userName: st
 
 export default function AppHeader() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [userName, setUserName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+
+  const checkUnread = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: threads } = await (supabase as any)
+        .from('decision_threads')
+        .select('id')
+        .eq('user_id', user.id);
+      if (!threads?.length) { setHasUnread(false); return; }
+      const threadIds = threads.map((t: any) => t.id);
+      const { count } = await (supabase as any)
+        .from('agent_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_type', 'direction_changed')
+        .eq('read', false)
+        .in('thread_id', threadIds);
+      setHasUnread((count ?? 0) > 0);
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -141,25 +168,11 @@ export default function AppHeader() {
         .catch(() => {});
 
       if (user.email && ADMIN_EMAILS.includes(user.email)) setIsAdmin(true);
-
-      // Check for unread notifications
-      (async () => {
-        const { data: threads } = await (supabase as any)
-          .from('decision_threads')
-          .select('id')
-          .eq('user_id', user.id);
-        if (!threads?.length) return;
-        const threadIds = threads.map((t: any) => t.id);
-        const { count } = await (supabase as any)
-          .from('agent_events')
-          .select('id', { count: 'exact', head: true })
-          .eq('event_type', 'direction_changed')
-          .eq('read', false)
-          .in('thread_id', threadIds);
-        if (count && count > 0) setHasUnread(true);
-      })().catch(() => {});
     });
   }, []);
+
+  // Re-check unread on every route change (clears dot after visiting /notifications)
+  useEffect(() => { checkUnread(); }, [location.pathname, checkUnread]);
 
   return (
     <header style={{

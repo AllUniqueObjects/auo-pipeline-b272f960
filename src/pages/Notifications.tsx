@@ -86,6 +86,21 @@ export default function Notifications() {
 
   useEffect(() => { loadEvents(); }, [loadEvents]);
 
+  // Mark all unread events as read when page loads
+  useEffect(() => {
+    if (loading || events.length === 0) return;
+    const unreadIds = events.filter(e => !e.read).map(e => e.id);
+    if (unreadIds.length === 0) return;
+    (supabase as any)
+      .from('agent_events')
+      .update({ read: true })
+      .in('id', unreadIds)
+      .then(() => {
+        setEvents(prev => prev.map(e => ({ ...e, read: true })));
+      })
+      .catch(() => {});
+  }, [loading, events.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isRead = (evt: DirectionEvent) => evt.read === true || dismissedIds.has(evt.id);
 
   const handleViewInsight = async (evt: DirectionEvent, e: React.MouseEvent) => {
