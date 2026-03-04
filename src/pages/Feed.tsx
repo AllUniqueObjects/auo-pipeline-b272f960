@@ -96,6 +96,12 @@ const URGENCY = {
 const getUrgency = (tone: string) =>
   URGENCY[tone as keyof typeof URGENCY] || URGENCY.WATCH;
 
+const MONITOR_LEVELS = [
+  { value: 'standard', label: 'Standard', icon: '◎', desc: 'Updates with regular scans' },
+  { value: 'priority', label: 'Priority', icon: '●', desc: 'Frequent scans — email on new signals' },
+  { value: 'breaking', label: 'Breaking', icon: '⚡', desc: 'Every 20 min — immediate email alert' },
+];
+
 const formatLens = (lens: string): string =>
   (lens || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
@@ -683,9 +689,9 @@ export default function Feed() {
   const [sortBy, setSortBy] = useState<'urgent' | 'recent'>('urgent');
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [hoveredPill, setHoveredPill] = useState<string | null>(null);
-  const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
-  const [dbThreads, setDbThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
-  const [archivedThreads, setArchivedThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string }[]>([]);
+  const [manualThreads, setManualThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string; monitor_level?: string }[]>([]);
+  const [dbThreads, setDbThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string; monitor_level?: string }[]>([]);
+  const [archivedThreads, setArchivedThreads] = useState<{ id: string; title: string; lens: string; cover_image_url?: string | null; created_at?: string; monitor_level?: string }[]>([]);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [archivedPositions, setArchivedPositions] = useState<FeedPosition[]>([]);
   const [directionEvents, setDirectionEvents] = useState<DirectionEvent[]>([]);
@@ -696,6 +702,7 @@ export default function Feed() {
 
   // Sidebar menu state
   const [menuOpenThreadId, setMenuOpenThreadId] = useState<string | null>(null);
+  const [monitorMenuThreadId, setMonitorMenuThreadId] = useState<string | null>(null);
 
   // Scanning state — local state, not URL-derived
   const [scanningThreadId, setScanningThreadId] = useState<string | null>(null);
@@ -746,7 +753,7 @@ export default function Feed() {
   // Close sidebar menu on outside click
   useEffect(() => {
     if (!menuOpenThreadId) return;
-    const handleClick = () => setMenuOpenThreadId(null);
+    const handleClick = () => { setMenuOpenThreadId(null); setMonitorMenuThreadId(null); };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, [menuOpenThreadId]);
@@ -760,7 +767,7 @@ export default function Feed() {
     // Step 1: Get user's active thread IDs + metadata
     const { data: threadData } = await (supabase as any)
       .from('decision_threads')
-      .select('id, title, lens, cover_image_url, created_at')
+      .select('id, title, lens, cover_image_url, created_at, monitor_level')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .neq('level', 'archived');
@@ -770,7 +777,7 @@ export default function Feed() {
     // Fetch archived threads
     const { data: archivedData } = await (supabase as any)
       .from('decision_threads')
-      .select('id, title, lens, cover_image_url, created_at')
+      .select('id, title, lens, cover_image_url, created_at, monitor_level')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .eq('level', 'archived');
@@ -920,6 +927,22 @@ export default function Feed() {
       archiveBusy.current = false;
     }
   }, [activeThreadId, setSearchParams, loadFeed]);
+
+  const handleSetMonitorLevel = useCallback(async (threadId: string, level: string) => {
+    // Optimistic update
+    const updateLevel = (prev: typeof dbThreads) =>
+      prev.map(t => t.id === threadId ? { ...t, monitor_level: level } : t);
+    setDbThreads(updateLevel);
+    setManualThreads(updateLevel);
+
+    setMenuOpenThreadId(null);
+    setMonitorMenuThreadId(null);
+
+    await (supabase as any)
+      .from('decision_threads')
+      .update({ monitor_level: level })
+      .eq('id', threadId);
+  }, []);
 
   // Realtime subscription for new positions (especially during first-load skeleton state)
   useEffect(() => {
@@ -1343,6 +1366,12 @@ export default function Feed() {
                     }}>
                       {t.title}
                     </span>
+                    {t.monitor_level === 'breaking' && (
+                      <span style={{ flexShrink: 0, fontSize: 11, marginTop: 2, color: '#ef4444' }}>⚡</span>
+                    )}
+                    {t.monitor_level === 'priority' && (
+                      <span style={{ flexShrink: 0, fontSize: 8, marginTop: 3, color: '#f97316' }}>●</span>
+                    )}
                     <span
                       className={hasNew ? 'auo-count-pulse' : ''}
                       style={{
@@ -1404,26 +1433,84 @@ export default function Feed() {
                       borderRadius: 8,
                       boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                       padding: '4px 0',
-                      minWidth: 160,
+                      minWidth: 200,
                     }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleArchiveThread(t.id);
-                          setMenuOpenThreadId(null);
-                        }}
-                        style={{
-                          display: 'block', width: '100%',
-                          padding: '10px 16px', textAlign: 'left',
-                          background: 'none', border: 'none',
-                          fontSize: 14, color: '#111',
-                          cursor: 'pointer', fontFamily: FONT,
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        Archive topic
-                      </button>
+                      {monitorMenuThreadId === t.id ? (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setMonitorMenuThreadId(null); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                              padding: '8px 16px', textAlign: 'left',
+                              background: 'none', border: 'none', borderBottom: '1px solid #f0f0f0',
+                              fontSize: 12, color: '#999', cursor: 'pointer', fontFamily: FONT,
+                            }}
+                          >
+                            ← Back
+                          </button>
+                          {MONITOR_LEVELS.map(ml => {
+                            const current = t.monitor_level || 'standard';
+                            const isSelected = current === ml.value;
+                            return (
+                              <button
+                                key={ml.value}
+                                onClick={(e) => { e.stopPropagation(); handleSetMonitorLevel(t.id, ml.value); }}
+                                style={{
+                                  display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                                  padding: '10px 16px', textAlign: 'left',
+                                  background: isSelected ? '#f8f8f8' : 'none', border: 'none',
+                                  fontSize: 13, color: '#111', cursor: 'pointer', fontFamily: FONT,
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                                onMouseLeave={e => (e.currentTarget.style.background = isSelected ? '#f8f8f8' : 'transparent')}
+                              >
+                                <span style={{ fontSize: 14, flexShrink: 0, width: 18, textAlign: 'center' }}>{ml.icon}</span>
+                                <span style={{ flex: 1 }}>
+                                  <span style={{ fontWeight: isSelected ? 600 : 400 }}>{ml.label}</span>
+                                  <br />
+                                  <span style={{ fontSize: 11, color: '#999' }}>{ml.desc}</span>
+                                </span>
+                                {isSelected && <span style={{ color: '#111', fontSize: 14, flexShrink: 0 }}>✓</span>}
+                              </button>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setMonitorMenuThreadId(t.id); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                              padding: '10px 16px', textAlign: 'left',
+                              background: 'none', border: 'none',
+                              fontSize: 14, color: '#111', cursor: 'pointer', fontFamily: FONT,
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <span>Monitor</span>
+                            <span style={{ color: '#999', fontSize: 12 }}>→</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArchiveThread(t.id);
+                              setMenuOpenThreadId(null);
+                            }}
+                            style={{
+                              display: 'block', width: '100%',
+                              padding: '10px 16px', textAlign: 'left',
+                              background: 'none', border: 'none',
+                              fontSize: 14, color: '#111',
+                              cursor: 'pointer', fontFamily: FONT,
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            Archive topic
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1826,6 +1913,26 @@ export default function Feed() {
             />
           );
         })}
+
+        {/* Breaking monitor banner */}
+        {activeThread?.monitor_level === 'breaking' && (
+          <div style={{
+            background: '#fef2f2',
+            borderBottom: '1px solid #fecaca',
+            padding: '10px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 13,
+            fontFamily: FONT,
+            color: '#991b1b',
+          }}>
+            <span>⚡</span>
+            <span style={{ fontWeight: 600 }}>Breaking</span>
+            <span style={{ color: '#b91c1c' }}>·</span>
+            <span>AUO scanning every 20 min</span>
+          </div>
+        )}
 
         {/* Suggested empty state */}
         {activeFilter === '✦ Suggested' && (
