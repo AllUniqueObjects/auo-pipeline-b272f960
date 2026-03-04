@@ -294,33 +294,39 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       console.error('[Onboarding] Scan error:', err);
       setTopics([]);
     } finally {
-      // Check for brand profile before going to topics
+      // Poll for brand profile (created asynchronously by backend)
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { data: bpRows } = await (supabase as any)
-            .from('brand_profiles')
-            .select('strategic_bets, active_commitments, brand_constraints')
-            .eq('user_id', user.id)
-            .order('updated_at', { ascending: false })
-            .limit(1);
-          const bp = bpRows?.[0] || null;
-          console.log('[Onboarding] Brand profile query result:', bp);
-          if (bp && (bp.strategic_bets?.length || bp.active_commitments?.length || bp.brand_constraints?.length)) {
-            setBrandProfile({
-              strategic_bets: bp.strategic_bets || [],
-              active_commitments: bp.active_commitments || [],
-              brand_constraints: bp.brand_constraints || [],
-            });
-            console.log('[Onboarding] Brand profile found, showing review');
-            setScreen('brand_review');
-            return;
+          const maxAttempts = 10;
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const { data: bpRows } = await (supabase as any)
+              .from('brand_profiles')
+              .select('strategic_bets, active_commitments, brand_constraints')
+              .eq('user_id', user.id)
+              .order('updated_at', { ascending: false })
+              .limit(1);
+            const bp = bpRows?.[0] || null;
+            console.log(`[Onboarding] Brand profile poll ${attempt}/${maxAttempts}:`, bp);
+            if (bp && (bp.strategic_bets?.length || bp.active_commitments?.length || bp.brand_constraints?.length)) {
+              setBrandProfile({
+                strategic_bets: bp.strategic_bets || [],
+                active_commitments: bp.active_commitments || [],
+                brand_constraints: bp.brand_constraints || [],
+              });
+              console.log('[Onboarding] Brand profile found, showing review');
+              setScreen('brand_review');
+              return;
+            }
+            if (attempt < maxAttempts) {
+              await new Promise(r => setTimeout(r, 3000));
+            }
           }
         }
       } catch (e) {
         console.warn('[Onboarding] Brand profile fetch failed:', e);
       }
-      console.log('[Onboarding] Moving to topics screen');
+      console.log('[Onboarding] Moving to topics screen (no brand profile)');
       setScreen('topics');
     }
   };
