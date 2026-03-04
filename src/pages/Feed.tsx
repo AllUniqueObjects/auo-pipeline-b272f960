@@ -495,6 +495,34 @@ function NewTopicModal({ onClose }: { onClose: () => void }) {
         return;
       }
 
+      // Update tactical_layer.current_work (rolling window of 5, deduplicated)
+      try {
+        const { data: existing } = await (supabase as any)
+          .from('tactical_layer')
+          .select('current_work')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        const currentWork = existing?.current_work || [];
+        const now = new Date().toISOString();
+        const updated = [
+          { topic: query, added_at: now, source: 'feed_input' },
+          ...currentWork.filter((w: any) => w.topic !== query),
+        ].slice(0, 5);
+
+        await (supabase as any)
+          .from('tactical_layer')
+          .upsert({
+            user_id: user.id,
+            current_work: updated,
+            updated_at: now,
+          }, { onConflict: 'user_id' });
+
+        console.log('[NewTopic] tactical_layer updated:', updated.length, 'items');
+      } catch (tactErr) {
+        console.warn('[NewTopic] tactical_layer update failed:', tactErr);
+      }
+
       // Trigger scan_priority
       supabase.functions.invoke('scan_priority', { body: { thread_id: thread.id } }).catch(err =>
         console.warn('[NewTopic] scan_priority invoke failed (non-blocking):', err)
@@ -1440,15 +1468,17 @@ export default function Feed() {
                       title="Topic settings"
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        padding: '2px 6px', fontSize: 14, flexShrink: 0, borderRadius: 4,
-                        color: '#999', letterSpacing: '1px',
+                        padding: '2px 6px', flexShrink: 0, borderRadius: 4,
+                        fontSize: (t.monitor_level === 'priority' || t.monitor_level === 'breaking') ? 16 : 14,
+                        color: t.monitor_level === 'breaking' ? '#ef4444' : t.monitor_level === 'priority' ? '#f97316' : '#999',
+                        letterSpacing: (t.monitor_level === 'priority' || t.monitor_level === 'breaking') ? '0px' : '1px',
                         opacity: 1,
-                        transition: 'opacity 0.15s, background 0.15s',
+                        transition: 'opacity 0.15s, background 0.15s, color 0.15s',
                       }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#ebebeb'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                     >
-                      ···
+                      {t.monitor_level === 'breaking' ? '⚡' : t.monitor_level === 'priority' ? '●' : '···'}
                     </button>
                     <span
                       className={hasNew ? 'auo-count-pulse' : ''}
