@@ -691,6 +691,12 @@ export default function InsightDetail() {
     await (supabase as any).from('position_notes').delete().eq('id', noteId).catch(() => {});
   };
 
+  const deleteConversationMsg = async (msgId: string) => {
+    if (!window.confirm('Delete this message permanently?')) return;
+    setConversation(prev => prev.filter(m => m.id !== msgId));
+    await (supabase as any).from('position_notes').delete().eq('id', msgId).catch(() => {});
+  };
+
   // ─── Chat handler ───────────────────────────────────────────────────────
 
   const handleSend = async () => {
@@ -1584,7 +1590,7 @@ export default function InsightDetail() {
         {convOpen && (
           <div>
             {conversation.map(msg => (
-              <div key={msg.id} style={{
+              <div key={msg.id} className="note-row" style={{
                 marginBottom: 12, display: 'flex',
                 gap: 8, alignItems: 'flex-start',
               }}>
@@ -1602,6 +1608,18 @@ export default function InsightDetail() {
                     {msg.content}
                   </div>
                 </div>
+                <button
+                  className="note-delete-btn"
+                  onClick={() => deleteConversationMsg(msg.id)}
+                  style={{
+                    background: 'none', border: 'none',
+                    fontSize: 14, color: '#ccc', cursor: 'pointer',
+                    opacity: 0, transition: 'opacity 0.15s',
+                    padding: '0 4px', flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
               </div>
             ))}
 
