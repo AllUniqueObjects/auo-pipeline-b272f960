@@ -98,15 +98,15 @@ const getUrgency = (tone: string) =>
   URGENCY[tone as keyof typeof URGENCY] || URGENCY.WATCH;
 
 const MONITOR_LEVELS = [
-  { value: 'standard', label: 'Standard', icon: '' },
-  { value: 'priority', label: 'Priority', icon: '' },
+  { value: 'standard', label: 'Standard', icon: '○' },
+  { value: 'priority', label: 'Priority', icon: '●' },
   { value: 'breaking', label: 'Breaking', icon: '⚡' },
 ];
 
 const getMonitorIcon = (level: string) => {
   if (level === 'breaking') return { icon: '⚡', color: '#ef4444' };
-  if (level === 'priority') return { icon: '', color: '#f97316' };
-  return { icon: '', color: '#ccc' };
+  if (level === 'priority') return { icon: '⋮', color: '#f97316' };
+  return { icon: '⋮', color: '#ccc' };
 };
 
 const formatLens = (lens: string): string =>
