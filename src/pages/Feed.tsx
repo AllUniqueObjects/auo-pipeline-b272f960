@@ -1554,8 +1554,8 @@ export default function Feed() {
                   const isHovered = hoveredPill === `sidebar-archived-${t.id}`;
                   const isMenuOpen = menuOpenThreadId === t.id;
                   return (
+                    <React.Fragment key={t.id}>
                     <div
-                      key={t.id}
                       onMouseEnter={() => setHoveredPill(`sidebar-archived-${t.id}`)}
                       onMouseLeave={() => setHoveredPill(null)}
                       style={{ position: 'relative' }}
@@ -1565,7 +1565,6 @@ export default function Feed() {
                         style={{
                           display: 'flex', alignItems: 'flex-start', gap: 10,
                           padding: '8px 10px',
-                          paddingRight: 30,
                           borderRadius: 8,
                           border: 'none',
                           background: isHovered && !isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
@@ -1587,10 +1586,7 @@ export default function Feed() {
                           fontSize: 13, fontWeight: isActive ? 600 : 400,
                           color: isActive ? colors.text.primary.light : colors.text.secondary.light,
                           lineHeight: 1.4,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
+                          wordBreak: 'break-word' as const,
                         }}>
                           {t.title}
                         </span>
@@ -1627,41 +1623,34 @@ export default function Feed() {
                           &#x22EF;
                         </button>
                       )}
-
-                      {isMenuOpen && (
-                        <div style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: '100%',
-                          zIndex: 100,
-                          background: '#fff',
-                          border: '1px solid #e5e5e5',
-                          borderRadius: 8,
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                          padding: '4px 0',
-                          minWidth: 160,
-                        }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUnarchiveThread(t.id);
-                              setMenuOpenThreadId(null);
-                            }}
-                            style={{
-                              display: 'block', width: '100%',
-                              padding: '10px 16px', textAlign: 'left',
-                              background: 'none', border: 'none',
-                              fontSize: 14, color: '#111',
-                              cursor: 'pointer', fontFamily: FONT,
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            Unarchive topic
-                          </button>
-                        </div>
-                      )}
                     </div>
+
+                    {/* Inline unarchive panel — full sidebar width */}
+                    {isMenuOpen && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          width: '100%',
+                          background: '#fafafa',
+                          borderTop: '1px solid #efefef',
+                          borderBottom: '1px solid #efefef',
+                        }}
+                      >
+                        <div
+                          onClick={() => { handleUnarchiveThread(t.id); setMenuOpenThreadId(null); }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '9px 16px', cursor: 'pointer',
+                            color: '#999', fontSize: 13, fontFamily: FONT,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#ebebeb')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          Unarchive topic
+                        </div>
+                      </div>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </>
