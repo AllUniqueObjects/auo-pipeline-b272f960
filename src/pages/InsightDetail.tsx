@@ -95,6 +95,14 @@ interface ParsedBullet {
 
 const FONT = typography.fontFamily;
 
+const stripMd = (text: string) =>
+  text
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/^[-*]\s/gm, '')
+    .trim();
+
 const formatLens = (lens: string) =>
   lens?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
 
@@ -591,12 +599,14 @@ export default function InsightDetail() {
   const [conversation, setConversation] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const [conversationHistory, setConversationHistory] = useState<{ role: string; content: string }[]>([]);
   const [pendingAction, setPendingAction] = useState<{ type: string; content: string; key_question?: string; lens?: string; thread_id?: string } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [addingNote, setAddingNote] = useState(false);
   const [newNoteText, setNewNoteText] = useState('');
   const [convOpen, setConvOpen] = useState(true);
+  const [showAllConv, setShowAllConv] = useState(false);
   const convEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -656,7 +666,7 @@ export default function InsightDetail() {
     });
   }, []);
 
-  // Fetch position_notes — split into userNotes vs conversation
+  // Fetch position_notes — dedup + split into userNotes vs conversation
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -665,9 +675,16 @@ export default function InsightDetail() {
         .select('*')
         .eq('position_id', id)
         .order('created_at', { ascending: true });
-      const all = data || [];
-      setUserNotes(all.filter((n: any) => n.type === 'note' && !n.metadata?.is_chat));
-      setConversation(all.filter((n: any) => n.type === 'auo_response' || n.metadata?.is_chat));
+      // Dedup by content+time to fix existing doubles
+      const seen = new Set<string>();
+      const deduped = (data || []).filter((n: any) => {
+        const key = `${n.type}-${(n.content || '').slice(0, 40)}-${(n.created_at || '').slice(0, 16)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setUserNotes(deduped.filter((n: any) => n.type === 'note' && !n.metadata?.is_chat));
+      setConversation(deduped.filter((n: any) => n.type === 'auo_response' || n.metadata?.is_chat));
     })();
   }, [id]);
 
@@ -708,12 +725,13 @@ export default function InsightDetail() {
   // ─── Chat handler ───────────────────────────────────────────────────────
 
   const handleSend = async () => {
-    if (!inputValue.trim() || sending || !id) return;
+    if (!inputValue.trim() || sendingRef.current || !id) return;
+    sendingRef.current = true;
+    setSending(true);
     const message = inputValue.trim();
     setInputValue('');
-    setSending(true);
 
-    // Save user message as 'note' with is_chat metadata
+    // Save user message as 'note' with is_chat metadata (DB constraint only allows 'note'|'auo_response')
     const { data: userMsg } = await (supabase as any)
       .from('position_notes')
       .insert({ position_id: id, user_id: userId, type: 'note', content: message, metadata: { is_chat: true } })
@@ -768,6 +786,7 @@ export default function InsightDetail() {
       }]);
     }
 
+    sendingRef.current = false;
     setSending(false);
   };
 
@@ -1570,7 +1589,7 @@ export default function InsightDetail() {
         ))}
       </div>
 
-      {/* ─── CONVERSATION — collapsible, chat with AUO ────────────────── */}
+      {/* ─── CONVERSATION — collapsible, bubble UI ─────────────────── */}
       <div style={{
         maxWidth: isDesktop ? 1200 : 680,
         margin: '0 auto',
@@ -1595,74 +1614,144 @@ export default function InsightDetail() {
           )}
         </button>
 
-        {convOpen && (
-          <div>
-            {conversation.map(msg => (
-              <div key={msg.id} className="note-row" style={{
-                marginBottom: 12, display: 'flex',
-                gap: 8, alignItems: 'flex-start',
-              }}>
-                <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1, color: msg.type === 'auo_response' ? '#92400e' : '#999' }}>
-                  {msg.type === 'auo_response' ? '◈' : '●'}
-                </span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: '#bbb', marginBottom: 3 }}>
-                    {msg.type === 'auo_response' ? 'AUO' : 'You'} ·{' '}
-                    {new Date(msg.created_at).toLocaleString('en-US', {
-                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                    })}
-                  </div>
-                  <div style={{ fontSize: 13, color: '#333', lineHeight: 1.5 }}>
-                    {msg.content}
-                  </div>
-                </div>
+        {convOpen && (() => {
+          const visibleConversation = showAllConv ? conversation : conversation.slice(-6);
+          return (
+            <div>
+              {/* Show earlier messages button */}
+              {!showAllConv && conversation.length > 6 && (
                 <button
-                  className="note-delete-btn"
-                  onClick={() => deleteConversationMsg(msg.id)}
+                  onClick={() => setShowAllConv(true)}
                   style={{
-                    background: 'none', border: 'none',
-                    fontSize: 14, color: '#ccc', cursor: 'pointer',
-                    opacity: 0, transition: 'opacity 0.15s',
-                    padding: '0 4px', flexShrink: 0,
+                    fontSize: 11, color: '#999', background: 'none',
+                    border: 'none', cursor: 'pointer', padding: '4px 0 12px',
+                    fontFamily: FONT,
                   }}
                 >
-                  ×
+                  ↑ {conversation.length - 6} earlier messages
                 </button>
-              </div>
-            ))}
+              )}
 
-            {/* Action confirm card */}
-            {pendingAction && pendingAction.type !== 'none' && (
-              <div style={{
-                margin: '8px 0 12px', padding: '12px 14px',
-                background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8,
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#111', marginBottom: 4 }}>
-                  {pendingAction.type === 'create_topic' ? '＋ Create topic' : pendingAction.type === 'scan' ? '⟳ Scan for more' : '📝 Save as note'}
-                </div>
-                {pendingAction.content && (
-                  <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>
-                    "{pendingAction.content}"
+              {visibleConversation.map(msg => {
+                const isUser = msg.type !== 'auo_response';
+
+                if (isUser) {
+                  return (
+                    <div key={msg.id} className="note-row" style={{
+                      display: 'flex', justifyContent: 'flex-end', marginBottom: 10,
+                    }}>
+                      <div style={{
+                        maxWidth: '70%', background: '#f0f0ee',
+                        borderRadius: '12px 12px 2px 12px',
+                        padding: '9px 13px', fontSize: 13,
+                        color: '#111', lineHeight: 1.5,
+                      }}>
+                        {msg.content}
+                      </div>
+                      <button
+                        className="note-delete-btn"
+                        onClick={() => deleteConversationMsg(msg.id)}
+                        style={{
+                          background: 'none', border: 'none',
+                          fontSize: 14, color: '#ccc', cursor: 'pointer',
+                          opacity: 0, transition: 'opacity 0.15s',
+                          padding: '0 4px', flexShrink: 0, marginLeft: 4,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={msg.id} className="note-row" style={{
+                    display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start',
+                  }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: '#111', color: '#fff', fontSize: 9, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, marginTop: 1,
+                    }}>
+                      A
+                    </div>
+                    <div style={{
+                      maxWidth: '70%', fontSize: 13, color: '#333', lineHeight: 1.6,
+                    }}>
+                      {stripMd(msg.content)}
+                    </div>
+                    <button
+                      className="note-delete-btn"
+                      onClick={() => deleteConversationMsg(msg.id)}
+                      style={{
+                        background: 'none', border: 'none',
+                        fontSize: 14, color: '#ccc', cursor: 'pointer',
+                        opacity: 0, transition: 'opacity 0.15s',
+                        padding: '0 4px', flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => handleConfirmAction(pendingAction)} style={{
-                    fontSize: 12, padding: '5px 12px',
-                    background: '#111', color: '#fff',
-                    border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
-                  }}>Confirm</button>
-                  <button onClick={() => setPendingAction(null)} style={{
-                    fontSize: 12, padding: '5px 12px',
-                    background: 'none', color: '#999',
-                    border: '1px solid #e5e5e5', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
-                  }}>Skip</button>
-                </div>
-              </div>
-            )}
+                );
+              })}
 
-            <div ref={convEndRef} />
-          </div>
-        )}
+              {/* Loading dots while AUO responds */}
+              {sending && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: '#111', color: '#fff', fontSize: 9, fontWeight: 600,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: 1,
+                  }}>
+                    A
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, paddingTop: 6 }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{
+                        width: 5, height: 5, borderRadius: '50%', background: '#ccc',
+                        animation: `auo-bounce 1s ${i * 0.15}s ease-in-out infinite`,
+                      }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action confirm card */}
+              {pendingAction && pendingAction.type !== 'none' && (
+                <div style={{
+                  margin: '8px 0 12px', padding: '12px 14px',
+                  background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#111', marginBottom: 4 }}>
+                    {pendingAction.type === 'create_topic' ? '+ Create topic' : pendingAction.type === 'scan' ? 'Scan for more' : 'Save as note'}
+                  </div>
+                  {pendingAction.content && (
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>
+                      "{pendingAction.content}"
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => handleConfirmAction(pendingAction)} style={{
+                      fontSize: 12, padding: '5px 12px',
+                      background: '#111', color: '#fff',
+                      border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
+                    }}>Confirm</button>
+                    <button onClick={() => setPendingAction(null)} style={{
+                      fontSize: 12, padding: '5px 12px',
+                      background: 'none', color: '#999',
+                      border: '1px solid #e5e5e5', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
+                    }}>Skip</button>
+                  </div>
+                </div>
+              )}
+
+              <div ref={convEndRef} />
+            </div>
+          );
+        })()}
       </div>
 
       {/* ─── Sticky bottom input ──────────────────────────────────────── */}
@@ -1714,6 +1803,10 @@ export default function InsightDetail() {
       <style>{`
         .note-row:hover .note-delete-btn { opacity: 1 !important; }
         .note-delete-btn:hover { color: #999 !important; }
+        @keyframes auo-bounce {
+          0%, 100% { opacity: 0.3; transform: translateY(0); }
+          50% { opacity: 1; transform: translateY(-3px); }
+        }
       `}</style>
     </div>
   );
