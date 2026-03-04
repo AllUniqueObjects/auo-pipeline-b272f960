@@ -1380,11 +1380,12 @@ export default function InsightDetail() {
           </div>
 
           {notes.map(note => (
-            <div key={note.id} style={{
+            <div key={note.id} className="note-row" style={{
               marginBottom: 12,
               display: 'flex',
               gap: 10,
               alignItems: 'flex-start',
+              position: 'relative',
             }}>
               <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0 }}>
                 {note.type === 'auo_response' ? '◈' : '📝'}
@@ -1400,6 +1401,30 @@ export default function InsightDetail() {
                   {note.content}
                 </div>
               </div>
+              {!String(note.id).startsWith('err-') && (
+                <button
+                  className="note-delete"
+                  onClick={async () => {
+                    setNotes(prev => prev.filter(n => n.id !== note.id));
+                    if (!String(note.id).startsWith('temp-') && !String(note.id).startsWith('auo-')) {
+                      await (supabase as any)
+                        .from('position_notes')
+                        .delete()
+                        .eq('id', note.id)
+                        .catch(() => {});
+                    }
+                  }}
+                  style={{
+                    position: 'absolute', top: 0, right: 0,
+                    background: 'none', border: 'none',
+                    color: '#ccc', fontSize: 14, cursor: 'pointer',
+                    padding: '2px 6px', borderRadius: 4,
+                    opacity: 0, transition: 'opacity 0.15s, color 0.15s',
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
           <div ref={notesEndRef} />
@@ -1493,6 +1518,11 @@ export default function InsightDetail() {
           </button>
         </div>
       </div>
+
+      <style>{`
+        .note-row:hover .note-delete { opacity: 1 !important; }
+        .note-delete:hover { color: #999 !important; }
+      `}</style>
     </div>
   );
 }
