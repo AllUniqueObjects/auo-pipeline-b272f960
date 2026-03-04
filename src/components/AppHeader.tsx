@@ -6,7 +6,7 @@ import { colors, typography, transition, shadow } from '../design-tokens';
 const FONT = typography.fontFamily;
 const ADMIN_EMAILS = ['dkkim2011@gmail.com'];
 
-function AvatarMenu({ userName, isAdmin, onNavigate }: { userName: string; isAdmin: boolean; onNavigate: (path: string) => void }) {
+function AvatarMenu({ userName, isAdmin, hasUnread, onNavigate }: { userName: string; isAdmin: boolean; hasUnread: boolean; onNavigate: (path: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
@@ -43,9 +43,18 @@ function AvatarMenu({ userName, isAdmin, onNavigate }: { userName: string; isAdm
           background: colors.text.primary.light, color: colors.text.primary.dark,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          position: 'relative',
         }}
       >
         {initial}
+        {hasUnread && (
+          <span style={{
+            position: 'absolute', top: -1, right: -1,
+            width: 9, height: 9, borderRadius: '50%',
+            background: '#ef4444',
+            border: '2px solid #fff',
+          }} />
+        )}
       </div>
       {open && (
         <div style={{
@@ -113,6 +122,7 @@ export default function AppHeader() {
   const navigate = useNavigate();
   const [userName, setUserName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -131,6 +141,23 @@ export default function AppHeader() {
         .catch(() => {});
 
       if (user.email && ADMIN_EMAILS.includes(user.email)) setIsAdmin(true);
+
+      // Check for unread notifications
+      (async () => {
+        const { data: threads } = await (supabase as any)
+          .from('decision_threads')
+          .select('id')
+          .eq('user_id', user.id);
+        if (!threads?.length) return;
+        const threadIds = threads.map((t: any) => t.id);
+        const { count } = await (supabase as any)
+          .from('agent_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('event_type', 'direction_changed')
+          .eq('read', false)
+          .in('thread_id', threadIds);
+        if (count && count > 0) setHasUnread(true);
+      })().catch(() => {});
     });
   }, []);
 
@@ -157,7 +184,7 @@ export default function AppHeader() {
         <span style={{ fontSize: 13, color: colors.text.muted.light }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
         </span>
-        <AvatarMenu userName={userName} isAdmin={isAdmin} onNavigate={navigate} />
+        <AvatarMenu userName={userName} isAdmin={isAdmin} hasUnread={hasUnread} onNavigate={navigate} />
       </div>
     </header>
   );
