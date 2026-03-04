@@ -464,6 +464,100 @@ function BulletContent({ parsed, signals }: { parsed: ParsedBullet; signals: Sig
   );
 }
 
+// ─── NoteItem ─────────────────────────────────────────────────────────────────
+
+function NoteItem({
+  note,
+  onEdit,
+  onDelete,
+}: {
+  note: any;
+  onEdit: (id: string, text: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(note.content);
+
+  const handleSave = () => {
+    if (editText.trim() && editText.trim() !== note.content) {
+      onEdit(note.id, editText.trim());
+    }
+    setEditing(false);
+  };
+
+  return (
+    <div
+      className="note-row"
+      style={{
+        marginBottom: 10,
+        display: 'flex',
+        gap: 8,
+        alignItems: 'flex-start',
+      }}
+    >
+      <span style={{ fontSize: 13, color: '#999', marginTop: 1, flexShrink: 0 }}>●</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 11, color: '#bbb', marginBottom: 3 }}>
+          {new Date(note.created_at).toLocaleString('en-US', {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+          })}
+        </div>
+        {editing ? (
+          <div>
+            <textarea
+              autoFocus
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave(); } }}
+              rows={2}
+              style={{
+                width: '100%', padding: '6px 10px',
+                border: '1px solid #ddd', borderRadius: 6,
+                fontSize: 13, fontFamily: FONT,
+                resize: 'none', outline: 'none',
+                boxSizing: 'border-box' as const,
+              }}
+            />
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <button onClick={handleSave} style={{
+                fontSize: 11, padding: '3px 10px',
+                background: '#111', color: '#fff',
+                border: 'none', borderRadius: 5, cursor: 'pointer', fontFamily: FONT,
+              }}>Save</button>
+              <button onClick={() => { setEditText(note.content); setEditing(false); }} style={{
+                fontSize: 11, padding: '3px 10px',
+                background: 'none', color: '#999',
+                border: '1px solid #e5e5e5', borderRadius: 5, cursor: 'pointer', fontFamily: FONT,
+              }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div
+            onClick={() => setEditing(true)}
+            style={{ fontSize: 13, color: '#333', lineHeight: 1.5, cursor: 'pointer' }}
+          >
+            {note.content}
+          </div>
+        )}
+      </div>
+      {!editing && (
+        <button
+          className="note-delete-btn"
+          onClick={() => onDelete(note.id)}
+          style={{
+            background: 'none', border: 'none',
+            fontSize: 14, color: '#ccc', cursor: 'pointer',
+            opacity: 0, transition: 'opacity 0.15s',
+            padding: '0 4px', flexShrink: 0,
+          }}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── InsightDetail ────────────────────────────────────────────────────────────
 
 export default function InsightDetail() {
@@ -485,13 +579,17 @@ export default function InsightDetail() {
   const isDesktop = useMediaQuery('(min-width: 900px)');
 
   // Notes & chat state
-  const [notes, setNotes] = useState<any[]>([]);
+  const [userNotes, setUserNotes] = useState<any[]>([]);
+  const [conversation, setConversation] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<{ role: string; content: string }[]>([]);
-  const [pendingAction, setPendingAction] = useState<{ type: string; content: string } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ type: string; content: string; key_question?: string; lens?: string; thread_id?: string } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const notesEndRef = useRef<HTMLDivElement>(null);
+  const [addingNote, setAddingNote] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [convOpen, setConvOpen] = useState(true);
+  const convEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -550,7 +648,7 @@ export default function InsightDetail() {
     });
   }, []);
 
-  // Fetch position_notes
+  // Fetch position_notes — split into userNotes vs conversation
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -559,16 +657,41 @@ export default function InsightDetail() {
         .select('*')
         .eq('position_id', id)
         .order('created_at', { ascending: true });
-      setNotes(data || []);
+      const all = data || [];
+      setUserNotes(all.filter((n: any) => n.type === 'note'));
+      setConversation(all.filter((n: any) => n.type === 'auo_response' || n.type === 'conversation'));
     })();
   }, [id]);
 
-  // Auto-scroll to bottom of notes
+  // Auto-scroll conversation
   useEffect(() => {
-    notesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [notes]);
+    convEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [conversation]);
 
-  // ─── Notes & Chat handlers ──────────────────────────────────────────────
+  // ─── Notes handlers ─────────────────────────────────────────────────────
+
+  const saveDirectNote = async () => {
+    if (!newNoteText.trim() || !id) return;
+    const { data } = await (supabase as any)
+      .from('position_notes')
+      .insert({ position_id: id, user_id: userId, type: 'note', content: newNoteText.trim() })
+      .select().single();
+    if (data) setUserNotes(prev => [...prev, data]);
+    setNewNoteText('');
+    setAddingNote(false);
+  };
+
+  const updateNote = async (noteId: string, text: string) => {
+    await (supabase as any).from('position_notes').update({ content: text }).eq('id', noteId).catch(() => {});
+    setUserNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: text } : n));
+  };
+
+  const deleteNote = async (noteId: string) => {
+    setUserNotes(prev => prev.filter(n => n.id !== noteId));
+    await (supabase as any).from('position_notes').delete().eq('id', noteId).catch(() => {});
+  };
+
+  // ─── Chat handler ───────────────────────────────────────────────────────
 
   const handleSend = async () => {
     if (!inputValue.trim() || sending || !id) return;
@@ -576,21 +699,14 @@ export default function InsightDetail() {
     setInputValue('');
     setSending(true);
 
-    // 1. Save user note to DB
-    const { data: savedNote } = await (supabase as any)
+    // Save user message as 'conversation' type
+    const { data: userMsg } = await (supabase as any)
       .from('position_notes')
-      .insert({
-        position_id: id,
-        user_id: userId,
-        type: 'note',
-        content: message,
-      })
-      .select()
-      .single();
+      .insert({ position_id: id, user_id: userId, type: 'conversation', content: message })
+      .select().single();
+    if (userMsg) setConversation(prev => [...prev, userMsg]);
 
-    if (savedNote) setNotes(prev => [...prev, savedNote]);
-
-    // 2. Always call AUO
+    // Call AUO
     try {
       const res = await fetch(
         'https://dkk222--auo-scanner-insight-chat.modal.run',
@@ -607,20 +723,17 @@ export default function InsightDetail() {
       );
       const data = await res.json();
 
-      // Save AUO response to DB
-      const { data: auoNote } = await (supabase as any)
+      const { data: auoMsg } = await (supabase as any)
         .from('position_notes')
         .insert({
           position_id: id,
           user_id: userId,
           type: 'auo_response',
           content: data.response,
-          metadata: { action: data.action },
+          metadata: { intent: data.intent, action: data.action },
         })
-        .select()
-        .single();
-
-      if (auoNote) setNotes(prev => [...prev, auoNote]);
+        .select().single();
+      if (auoMsg) setConversation(prev => [...prev, auoMsg]);
 
       setConversationHistory(prev => [
         ...prev,
@@ -633,7 +746,7 @@ export default function InsightDetail() {
       }
     } catch (e) {
       console.error('[InsightDetail] AUO chat failed:', e);
-      setNotes(prev => [...prev, {
+      setConversation(prev => [...prev, {
         id: 'err-' + Date.now(),
         type: 'auo_response',
         content: 'Sorry, I could not respond right now.',
@@ -644,19 +757,29 @@ export default function InsightDetail() {
     setSending(false);
   };
 
-  const handleCreateTopic = async () => {
-    if (!pendingAction || !userId) return;
-    try {
-      await (supabase as any)
-        .from('decision_threads')
-        .insert({
-          user_id: userId,
-          title: pendingAction.content,
-          lens: 'general',
-          status: 'active',
-        });
-    } catch (e) {
-      console.error('[InsightDetail] Create topic failed:', e);
+  // ─── Action confirm handler ─────────────────────────────────────────────
+
+  const handleConfirmAction = async (action: { type: string; content: string; key_question?: string; lens?: string; thread_id?: string }) => {
+    if (action.type === 'note') {
+      const { data } = await (supabase as any)
+        .from('position_notes')
+        .insert({ position_id: id, user_id: userId, type: 'note', content: action.content, metadata: { source: 'auo_generated' } })
+        .select().single();
+      if (data) setUserNotes(prev => [...prev, data]);
+    } else if (action.type === 'create_topic') {
+      await (supabase as any).from('decision_threads').insert({
+        user_id: userId,
+        title: action.content,
+        key_question: action.key_question || action.content,
+        lens: action.lens || 'market',
+        status: 'active',
+      }).catch((e: any) => console.error('[InsightDetail] Create topic failed:', e));
+    } else if (action.type === 'scan' && action.thread_id) {
+      await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, thread_id: action.thread_id }),
+      }).catch(() => {});
     }
     setPendingAction(null);
   };
@@ -1363,117 +1486,160 @@ export default function InsightDetail() {
 
       </div>
 
-      {/* NOTES & CONVERSATION — full width, below both columns */}
-      {notes.length > 0 && (
+      {/* ─── NOTES — full width, permanent items ──────────────────────── */}
+      <div style={{
+        maxWidth: isDesktop ? 1200 : 680,
+        margin: '0 auto',
+        padding: '24px 24px 0',
+        borderTop: '1px solid #f0f0f0',
+      }}>
         <div style={{
-          maxWidth: isDesktop ? 1200 : 680,
-          margin: '0 auto',
-          padding: '24px 24px 80px',
-          borderTop: '1px solid #f0f0f0',
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', marginBottom: 12,
         }}>
-          <div style={{
+          <span style={{
             fontSize: 11, fontWeight: 700, color: '#999',
             letterSpacing: '0.6px', textTransform: 'uppercase' as const,
-            marginBottom: 16,
           }}>
-            Notes & Conversation
-          </div>
-
-          {notes.map(note => (
-            <div key={note.id} className="note-row" style={{
-              marginBottom: 12,
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-            }}>
-              <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0 }}>
-                {note.type === 'auo_response' ? '◈' : '📝'}
-              </span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>
-                  {note.type === 'auo_response' ? 'AUO' : 'You'} ·{' '}
-                  {new Date(note.created_at).toLocaleString('en-US', {
-                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                  })}
-                </div>
-                <div style={{ fontSize: 13, color: '#333', lineHeight: 1.6 }}>
-                  {note.content}
-                </div>
-              </div>
-              {!String(note.id).startsWith('err-') && (
-                <button
-                  className="note-delete"
-                  onClick={async () => {
-                    setNotes(prev => prev.filter(n => n.id !== note.id));
-                    if (!String(note.id).startsWith('temp-') && !String(note.id).startsWith('auo-')) {
-                      await (supabase as any)
-                        .from('position_notes')
-                        .delete()
-                        .eq('id', note.id)
-                        .catch(() => {});
-                    }
-                  }}
-                  style={{
-                    position: 'absolute', top: 0, right: 0,
-                    background: 'none', border: 'none',
-                    color: '#ccc', fontSize: 14, cursor: 'pointer',
-                    padding: '2px 6px', borderRadius: 4,
-                    opacity: 0, transition: 'opacity 0.15s, color 0.15s',
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
-          <div ref={notesEndRef} />
+            Notes
+          </span>
+          <button
+            onClick={() => setAddingNote(true)}
+            style={{
+              fontSize: 12, color: '#111', background: 'none',
+              border: '1px solid #e5e5e5', borderRadius: 6,
+              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT,
+            }}
+          >
+            + Add note
+          </button>
         </div>
-      )}
 
-      {/* Action confirm card */}
-      {pendingAction && pendingAction.type === 'create_topic' && (
-        <div style={{
-          position: 'fixed', bottom: 65, left: 0, right: 0, zIndex: 101,
-          display: 'flex', justifyContent: 'center',
-        }}>
-          <div style={{
-            maxWidth: isDesktop ? 1200 : 640, width: '100%',
-            margin: '0 16px',
-            padding: '12px 16px',
-            background: '#fafafa', border: '1px solid #e5e5e5',
-            borderRadius: 8,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>
-                + Create topic
-              </div>
-              <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                "{pendingAction.content}"
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleCreateTopic} style={{
-                padding: '6px 12px', background: '#111', color: '#fff',
-                border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', fontFamily: FONT,
-              }}>
-                Add topic
-              </button>
-              <button onClick={() => setPendingAction(null)} style={{
-                padding: '6px 12px', background: 'none', color: '#999',
-                border: '1px solid #e5e5e5', borderRadius: 6, fontSize: 12,
-                cursor: 'pointer', fontFamily: FONT,
-              }}>
-                Skip
-              </button>
+        {addingNote && (
+          <div style={{ marginBottom: 12 }}>
+            <textarea
+              autoFocus
+              value={newNoteText}
+              onChange={e => setNewNoteText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveDirectNote(); } }}
+              placeholder="Write a note..."
+              rows={2}
+              style={{
+                width: '100%', padding: '8px 12px',
+                border: '1px solid #ddd', borderRadius: 6,
+                fontSize: 13, fontFamily: FONT,
+                resize: 'none', outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+              <button onClick={saveDirectNote} style={{
+                fontSize: 12, padding: '5px 12px',
+                background: '#111', color: '#fff',
+                border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
+              }}>Save</button>
+              <button onClick={() => { setAddingNote(false); setNewNoteText(''); }} style={{
+                fontSize: 12, padding: '5px 12px',
+                background: 'none', color: '#999',
+                border: '1px solid #e5e5e5', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
+              }}>Cancel</button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Sticky bottom input */}
+        {userNotes.length === 0 && !addingNote && (
+          <div style={{ fontSize: 13, color: '#ccc', marginBottom: 16 }}>No notes yet.</div>
+        )}
+
+        {userNotes.map(note => (
+          <NoteItem key={note.id} note={note} onEdit={updateNote} onDelete={deleteNote} />
+        ))}
+      </div>
+
+      {/* ─── CONVERSATION — collapsible, chat with AUO ────────────────── */}
+      <div style={{
+        maxWidth: isDesktop ? 1200 : 680,
+        margin: '0 auto',
+        padding: '16px 24px 80px',
+        borderTop: '1px solid #f0f0f0',
+      }}>
+        <button
+          onClick={() => setConvOpen(p => !p)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 11, fontWeight: 700, color: '#999',
+            letterSpacing: '0.6px', textTransform: 'uppercase' as const,
+            marginBottom: convOpen ? 12 : 0,
+            padding: 0, fontFamily: FONT,
+          }}
+        >
+          <span>Ask AUO</span>
+          <span style={{ fontSize: 10 }}>{convOpen ? '▲' : '▼'}</span>
+          {conversation.length > 0 && (
+            <span style={{ fontSize: 10, color: '#bbb', fontWeight: 500 }}>({conversation.length})</span>
+          )}
+        </button>
+
+        {convOpen && (
+          <div>
+            {conversation.map(msg => (
+              <div key={msg.id} style={{
+                marginBottom: 12, display: 'flex',
+                gap: 8, alignItems: 'flex-start',
+              }}>
+                <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1, color: msg.type === 'auo_response' ? '#92400e' : '#999' }}>
+                  {msg.type === 'auo_response' ? '◈' : '●'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: '#bbb', marginBottom: 3 }}>
+                    {msg.type === 'auo_response' ? 'AUO' : 'You'} ·{' '}
+                    {new Date(msg.created_at).toLocaleString('en-US', {
+                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                    })}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#333', lineHeight: 1.5 }}>
+                    {msg.content}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Action confirm card */}
+            {pendingAction && pendingAction.type !== 'none' && (
+              <div style={{
+                margin: '8px 0 12px', padding: '12px 14px',
+                background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#111', marginBottom: 4 }}>
+                  {pendingAction.type === 'create_topic' ? '＋ Create topic' : pendingAction.type === 'scan' ? '⟳ Scan for more' : '📝 Save as note'}
+                </div>
+                {pendingAction.content && (
+                  <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>
+                    "{pendingAction.content}"
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => handleConfirmAction(pendingAction)} style={{
+                    fontSize: 12, padding: '5px 12px',
+                    background: '#111', color: '#fff',
+                    border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
+                  }}>Confirm</button>
+                  <button onClick={() => setPendingAction(null)} style={{
+                    fontSize: 12, padding: '5px 12px',
+                    background: 'none', color: '#999',
+                    border: '1px solid #e5e5e5', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
+                  }}>Skip</button>
+                </div>
+              </div>
+            )}
+
+            <div ref={convEndRef} />
+          </div>
+        )}
+      </div>
+
+      {/* ─── Sticky bottom input ──────────────────────────────────────── */}
       <div style={{
         position: 'fixed',
         bottom: 0, left: 0, right: 0,
@@ -1493,7 +1659,7 @@ export default function InsightDetail() {
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
-            placeholder="Write a note, or ask AUO..."
+            placeholder="Ask AUO about this insight..."
             style={{
               flex: 1, padding: '10px 14px',
               border: '1px solid #e5e5e5', borderRadius: 8,
@@ -1520,8 +1686,8 @@ export default function InsightDetail() {
       </div>
 
       <style>{`
-        .note-row:hover .note-delete { opacity: 1 !important; }
-        .note-delete:hover { color: #999 !important; }
+        .note-row:hover .note-delete-btn { opacity: 1 !important; }
+        .note-delete-btn:hover { color: #999 !important; }
       `}</style>
     </div>
   );
