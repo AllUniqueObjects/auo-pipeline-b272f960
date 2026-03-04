@@ -98,9 +98,9 @@ const getUrgency = (tone: string) =>
   URGENCY[tone as keyof typeof URGENCY] || URGENCY.WATCH;
 
 const MONITOR_LEVELS = [
-  { value: 'standard', label: 'Standard', desc: 'Daily scan cycle' },
-  { value: 'priority', label: 'Priority', desc: 'Scanned more frequently' },
-  { value: 'breaking', label: 'Breaking', desc: 'Checked every 20 min' },
+  { value: 'standard', label: 'Standard', desc: 'Daily scan cycle', icon: '○' },
+  { value: 'priority', label: 'Priority', desc: 'Scanned more frequently', icon: '●' },
+  { value: 'breaking', label: 'Breaking', desc: 'Checked every 20 min', icon: '⚡' },
 ];
 
 const formatLens = (lens: string): string =>
@@ -1516,7 +1516,7 @@ export default function Feed() {
                               fontSize: 13, color: '#111', fontFamily: FONT,
                               fontWeight: isSelected ? 600 : 400,
                             }}>
-                              {ml.label}
+                              {ml.icon} {ml.label}
                             </div>
                             <div style={{ fontSize: 11, color: '#aaa', marginTop: 1 }}>
                               {ml.desc}
