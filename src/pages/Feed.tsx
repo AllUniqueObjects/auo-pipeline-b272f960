@@ -710,6 +710,44 @@ export default function Feed() {
   const [menuOpenThreadId, setMenuOpenThreadId] = useState<string | null>(null);
   const [monitorMenuThreadId, setMonitorMenuThreadId] = useState<string | null>(null);
 
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    parseInt(localStorage.getItem('auo_sidebar_width') || '260')
+  );
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = sidebarWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = e.clientX - dragStartX.current;
+      const newWidth = Math.min(400, Math.max(200, dragStartWidth.current + delta));
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem('auo_sidebar_width', String(sidebarWidth));
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [sidebarWidth]);
+
   // Scanning state — local state, not URL-derived
   const [scanningThreadId, setScanningThreadId] = useState<string | null>(null);
   const isScanning = scanningThreadId !== null;
@@ -1217,10 +1255,12 @@ export default function Feed() {
 
         {/* ─── Left sidebar — topic list ─── */}
         <aside className="feed-sidebar" style={{
-          width: 220,
+          width: sidebarWidth,
+          minWidth: 200,
+          maxWidth: 400,
           flexShrink: 0,
           padding: '24px 20px',
-          borderRight: `1px solid ${colors.border.light}`,
+          borderRight: 'none',
           position: 'sticky',
           top: 56,
           height: 'calc(100vh - 56px)',
@@ -1351,7 +1391,6 @@ export default function Feed() {
                     style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                       padding: '8px 10px',
-                      paddingRight: 30,
                       borderRadius: 8,
                       border: 'none',
                       background: isHovered && !isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
@@ -1373,10 +1412,7 @@ export default function Feed() {
                       fontSize: 13, fontWeight: isActive ? 600 : 400,
                       color: isActive ? colors.text.primary.light : colors.text.secondary.light,
                       lineHeight: 1.4,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
+                      wordBreak: 'break-word' as const,
                     }}>
                       {t.title}
                     </span>
@@ -1411,84 +1447,17 @@ export default function Feed() {
                     </span>
                   </button>
 
-                  {/* ... menu button — shows on hover or when menu is open */}
-                  {(isHovered || isMenuOpen) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpenThreadId(isMenuOpen ? null : t.id);
-                      }}
-                      style={{
-                        position: 'absolute',
-                        right: 4,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: 24,
-                        height: 24,
-                        borderRadius: 4,
-                        border: 'none',
-                        background: 'transparent',
-                        color: '#999',
-                        cursor: 'pointer',
-                        fontSize: 16,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontFamily: FONT,
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      &#x22EF;
-                    </button>
-                  )}
-
-                  {/* ⋯ Dropdown — Archive only */}
-                  {isMenuOpen && (
-                    <div style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: '100%',
-                      zIndex: 100,
-                      background: '#fff',
-                      border: '1px solid #e5e5e5',
-                      borderRadius: 8,
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                      padding: '4px 0',
-                      minWidth: 150,
-                    }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleArchiveThread(t.id);
-                          setMenuOpenThreadId(null);
-                        }}
-                        style={{
-                          display: 'block', width: '100%',
-                          padding: '10px 16px', textAlign: 'left',
-                          background: 'none', border: 'none',
-                          fontSize: 14, color: '#111',
-                          cursor: 'pointer', fontFamily: FONT,
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        Archive topic
-                      </button>
-                    </div>
-                  )}
                 </div>
 
-                {/* Inline monitor level selector */}
+                {/* Inline monitor level selector — full sidebar width */}
                 {monitorMenuThreadId === t.id && (
                   <div
                     onClick={(e) => e.stopPropagation()}
                     style={{
-                      margin: '2px 8px 4px 8px',
+                      width: '100%',
                       background: '#fafafa',
-                      border: '1px solid #efefef',
-                      borderRadius: 6,
-                      overflow: 'hidden',
+                      borderTop: '1px solid #efefef',
+                      borderBottom: '1px solid #efefef',
                     }}
                   >
                     {MONITOR_LEVELS.map(ml => {
@@ -1499,22 +1468,22 @@ export default function Feed() {
                           key={ml.value}
                           onClick={() => { handleSetMonitorLevel(t.id, ml.value); setMonitorMenuThreadId(null); }}
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '7px 10px', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '9px 16px', cursor: 'pointer',
                             background: isSelected ? '#f0f0f0' : 'transparent',
                           }}
                           onMouseEnter={e => (e.currentTarget.style.background = '#ebebeb')}
                           onMouseLeave={e => (e.currentTarget.style.background = isSelected ? '#f0f0f0' : 'transparent')}
                         >
                           <span style={{
-                            fontSize: 11, width: 14, textAlign: 'center' as const,
+                            fontSize: 12,
                             color: ml.value === 'breaking' ? '#ef4444'
                                  : ml.value === 'priority' ? '#f97316' : '#999',
                           }}>
                             {isSelected ? '●' : '○'}
                           </span>
                           <span style={{
-                            fontSize: 12, color: '#111', fontFamily: FONT,
+                            fontSize: 13, color: '#111', fontFamily: FONT,
                             fontWeight: isSelected ? 600 : 400,
                           }}>
                             {ml.icon} {ml.label}
@@ -1522,6 +1491,19 @@ export default function Feed() {
                         </div>
                       );
                     })}
+                    <div
+                      onClick={() => { handleArchiveThread(t.id); setMonitorMenuThreadId(null); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '9px 16px', cursor: 'pointer',
+                        borderTop: '1px solid #efefef',
+                        color: '#999', fontSize: 13, fontFamily: FONT,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#ebebeb')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      Archive topic
+                    </div>
                   </div>
                 )}
                 </React.Fragment>
@@ -1683,6 +1665,21 @@ export default function Feed() {
             )}
           </div>
         </aside>
+
+        {/* Drag handle */}
+        <div
+          className="feed-drag-handle"
+          onMouseDown={handleDragStart}
+          style={{
+            width: 4,
+            flexShrink: 0,
+            cursor: 'col-resize',
+            background: '#f0f0f0',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#ddd')}
+          onMouseLeave={e => (e.currentTarget.style.background = '#f0f0f0')}
+        />
 
         {/* ─── Right content area ─── */}
         <main className="feed-content" style={{ flex: 1, padding: '0 32px 24px', minWidth: 0 }}>
@@ -2019,6 +2016,7 @@ export default function Feed() {
         /* ─── Feed responsive ─── */
         @media (max-width: 768px) {
           .feed-sidebar { display: none !important; }
+          .feed-drag-handle { display: none !important; }
           .feed-grid { grid-template-columns: 1fr !important; }
           .feed-content { padding: 0 12px 16px !important; }
           .feed-header { padding: 0 16px !important; }
