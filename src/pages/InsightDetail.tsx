@@ -570,86 +570,75 @@ export default function InsightDetail() {
 
   // ─── Notes & Chat handlers ──────────────────────────────────────────────
 
-  const isQuestion = (text: string) => {
-    return text.includes('?') ||
-      /^(what|how|why|when|who|where|will|can|should|does|is|are|do)/i.test(text.trim());
-  };
-
   const handleSend = async () => {
     if (!inputValue.trim() || sending || !id) return;
     const message = inputValue.trim();
     setInputValue('');
     setSending(true);
 
-    if (isQuestion(message)) {
-      // Optimistic user message
-      const tempUserNote = {
-        id: 'temp-' + Date.now(),
+    // 1. Save user note to DB
+    const { data: savedNote } = await (supabase as any)
+      .from('position_notes')
+      .insert({
+        position_id: id,
+        user_id: userId,
         type: 'note',
         content: message,
-        created_at: new Date().toISOString(),
-      };
-      setNotes(prev => [...prev, tempUserNote]);
+      })
+      .select()
+      .single();
 
-      const newHistory = [
-        ...conversationHistory,
-        { role: 'user', content: message },
-      ];
+    if (savedNote) setNotes(prev => [...prev, savedNote]);
 
-      try {
-        const res = await fetch(
-          'https://dkk222--auo-scanner-insight-chat.modal.run',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: userId,
-              position_id: id,
-              message,
-              history: conversationHistory,
-            }),
-          }
-        );
-        const data = await res.json();
-
-        const auoNote = {
-          id: 'auo-' + Date.now(),
-          type: 'auo_response',
-          content: data.response,
-          created_at: new Date().toISOString(),
-        };
-        setNotes(prev => [...prev, auoNote]);
-        setConversationHistory([
-          ...newHistory,
-          { role: 'assistant', content: data.response },
-        ]);
-
-        if (data.action && data.action.type !== 'none') {
-          setPendingAction(data.action);
+    // 2. Always call AUO
+    try {
+      const res = await fetch(
+        'https://dkk222--auo-scanner-insight-chat.modal.run',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,
+            position_id: id,
+            message,
+            history: conversationHistory,
+          }),
         }
-      } catch (e) {
-        console.error('[InsightDetail] AUO chat failed:', e);
-        setNotes(prev => [...prev, {
-          id: 'err-' + Date.now(),
-          type: 'auo_response',
-          content: 'Sorry, something went wrong. Try again.',
-          created_at: new Date().toISOString(),
-        }]);
-      }
-    } else {
-      // Save as note
-      const { data } = await (supabase as any)
+      );
+      const data = await res.json();
+
+      // Save AUO response to DB
+      const { data: auoNote } = await (supabase as any)
         .from('position_notes')
         .insert({
           position_id: id,
           user_id: userId,
-          type: 'note',
-          content: message,
+          type: 'auo_response',
+          content: data.response,
+          metadata: { action: data.action },
         })
         .select()
         .single();
 
-      if (data) setNotes(prev => [...prev, data]);
+      if (auoNote) setNotes(prev => [...prev, auoNote]);
+
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: message },
+        { role: 'assistant', content: data.response },
+      ]);
+
+      if (data.action && data.action.type !== 'none') {
+        setPendingAction(data.action);
+      }
+    } catch (e) {
+      console.error('[InsightDetail] AUO chat failed:', e);
+      setNotes(prev => [...prev, {
+        id: 'err-' + Date.now(),
+        type: 'auo_response',
+        content: 'Sorry, I could not respond right now.',
+        created_at: new Date().toISOString(),
+      }]);
     }
 
     setSending(false);
@@ -1370,46 +1359,52 @@ export default function InsightDetail() {
             </div>
           )}
 
-          {/* NOTES & CONVERSATION */}
-          {notes.length > 0 && (
-            <div style={{ padding: '24px 0', borderTop: '1px solid #f0f0f0' }}>
-              <div style={{
-                fontSize: 11, fontWeight: 700, color: '#999',
-                letterSpacing: '0.6px', textTransform: 'uppercase' as const,
-                marginBottom: 16,
-              }}>
-                Notes & Conversation
-              </div>
-
-              {notes.map(note => (
-                <div key={note.id} style={{
-                  marginBottom: 12,
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                }}>
-                  <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0 }}>
-                    {note.type === 'auo_response' ? '◈' : '📝'}
-                  </span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>
-                      {note.type === 'auo_response' ? 'AUO' : 'You'} ·{' '}
-                      {new Date(note.created_at).toLocaleDateString('en-US', {
-                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                      })}
-                    </div>
-                    <div style={{ fontSize: 13, color: '#333', lineHeight: 1.5 }}>
-                      {note.content}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div ref={notesEndRef} />
-            </div>
-          )}
         </div>
 
       </div>
+
+      {/* NOTES & CONVERSATION — full width, below both columns */}
+      {notes.length > 0 && (
+        <div style={{
+          maxWidth: isDesktop ? 1200 : 680,
+          margin: '0 auto',
+          padding: '24px 24px 80px',
+          borderTop: '1px solid #f0f0f0',
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: '#999',
+            letterSpacing: '0.6px', textTransform: 'uppercase' as const,
+            marginBottom: 16,
+          }}>
+            Notes & Conversation
+          </div>
+
+          {notes.map(note => (
+            <div key={note.id} style={{
+              marginBottom: 12,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+            }}>
+              <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0 }}>
+                {note.type === 'auo_response' ? '◈' : '📝'}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>
+                  {note.type === 'auo_response' ? 'AUO' : 'You'} ·{' '}
+                  {new Date(note.created_at).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                  })}
+                </div>
+                <div style={{ fontSize: 13, color: '#333', lineHeight: 1.6 }}>
+                  {note.content}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div ref={notesEndRef} />
+        </div>
+      )}
 
       {/* Action confirm card */}
       {pendingAction && pendingAction.type === 'create_topic' && (
