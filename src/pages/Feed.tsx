@@ -402,8 +402,7 @@ function PositionCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {pos.monitor_alert_threshold && (
             <span style={{ marginRight: 2, fontSize: 12, opacity: 0.7 }}>
-              {pos.monitor_alert_threshold === 'breaking' ? '⚡' :
-               pos.monitor_alert_threshold === 'priority' ? '●' : '◎'}
+              {pos.monitor_alert_threshold === 'breaking' ? '⚡' : ''}
             </span>
           )}
           <span style={{
@@ -1846,17 +1845,18 @@ export default function Feed() {
               background: '#111',
             }} />
 
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#111', marginBottom: 8, fontFamily: FONT }}>
-                Building your first briefing
+            <div style={{
+              textAlign: 'center',
+              fontSize: 13,
+              color: 'rgba(0,0,0,0.4)',
+              lineHeight: 1.7,
+              fontFamily: FONT,
+            }}>
+              <div>AUO is scanning 246 sources for your topics.</div>
+              <div>First insights usually appear in 2–3 minutes.</div>
+              <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(0,0,0,0.25)' }}>
+                You can close this tab and come back.
               </div>
-              <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, fontFamily: FONT }}>
-                AUO is scanning 246 sources for your topics. First insights usually appear in 2–3 minutes. You can close this tab and come back.
-              </div>
-            </div>
-
-            <div style={{ fontSize: 13, color: '#999', fontFamily: FONT }}>
-              You can close this tab. We'll notify you.
             </div>
 
             <div style={{ marginTop: 24, fontSize: 13, color: '#bbb', fontFamily: FONT }}>
@@ -1939,12 +1939,28 @@ export default function Feed() {
         {activeFilter !== '✦ Suggested' && displayPositions.length === 0 && (
           activeFilter === 'All' && activeThreadId === null ? (
             <div>
-              <p style={{
-                fontSize: 15, fontWeight: 500, color: colors.text.secondary.light,
-                marginBottom: 20, textAlign: 'center',
-              }}>
-                {justOnboarded ? 'AUO is scanning 246 sources for your topics. First insights usually appear in 2–3 minutes.' : 'AUO is building your first positions.'}
-              </p>
+              {justOnboarded ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '24px 0 16px',
+                  fontSize: 13,
+                  color: 'rgba(0,0,0,0.4)',
+                  lineHeight: 1.7,
+                }}>
+                  <div>AUO is scanning 246 sources for your topics.</div>
+                  <div>First insights usually appear in 2–3 minutes.</div>
+                  <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(0,0,0,0.25)' }}>
+                    You can close this tab and come back.
+                  </div>
+                </div>
+              ) : (
+                <p style={{
+                  fontSize: 15, fontWeight: 500, color: colors.text.secondary.light,
+                  marginBottom: 20, textAlign: 'center',
+                }}>
+                  AUO is building your first positions.
+                </p>
+              )}
               <div className="feed-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
                 <SkeletonCard />
                 <SkeletonCard />
