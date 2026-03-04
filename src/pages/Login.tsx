@@ -31,7 +31,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-background">
       <div className="mb-10 text-center">
-        <h1 className="text-2xl font-semibold tracking-[0.2em] text-foreground mb-1">AUO</h1>
+        <h1 className="text-[15px] font-normal tracking-[0.36em] text-foreground mb-1">AUO</h1>
         <p className="text-sm text-muted-foreground">Strategic Intelligence Platform</p>
       </div>
 

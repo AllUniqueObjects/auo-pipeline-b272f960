@@ -133,7 +133,7 @@ export default function Workspace() {
             color: '#9ca3af', fontSize: 20, padding: 0, lineHeight: 1,
             display: 'flex', alignItems: 'center',
           }}>←</button>
-          <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#111' }}>AUO</span>
+          <span style={{ fontSize: 15, fontWeight: 400, letterSpacing: '0.36em', color: '#111' }}>AUO</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {thread.status !== 'decided' && (

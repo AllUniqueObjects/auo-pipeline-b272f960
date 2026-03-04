@@ -293,7 +293,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding, initia
 
       {/* Header */}
       <header className="flex-shrink-0 flex items-center gap-3 px-5 py-2.5 border-b border-border">
-        <span className="text-base font-semibold tracking-[0.2em] text-foreground">AUO</span>
+        <span className="text-[15px] font-normal tracking-[0.36em] text-foreground">AUO</span>
 
         {/* Right side controls */}
         <div className="ml-auto flex items-center gap-2">

@@ -454,7 +454,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         borderBottom: `1px solid ${isLightScreen ? '#f0f0f0' : D.borderLight}`,
       }}>
         <span style={{
-          fontSize: 15, fontWeight: 700, letterSpacing: '0.2em', color: logoColor,
+          fontSize: 15, fontWeight: 400, letterSpacing: '0.36em', color: logoColor,
         }}>
           AUO
         </span>

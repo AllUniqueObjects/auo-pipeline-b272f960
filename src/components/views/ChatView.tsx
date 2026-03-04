@@ -347,7 +347,7 @@ export function ChatView({
               <ChevronsLeft className="h-3.5 w-3.5" />
             </button>
           )}
-          <span className="text-sm font-semibold tracking-[0.15em] text-foreground">AUO</span>
+          <span className="text-[15px] font-normal tracking-[0.36em] text-foreground">AUO</span>
         </div>
         <button
           onClick={onOpenSignals}

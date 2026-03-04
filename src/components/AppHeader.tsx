@@ -172,10 +172,11 @@ export default function AppHeader() {
       <span
         onClick={() => navigate('/')}
         style={{
-          fontSize: 24, fontWeight: 900,
-          letterSpacing: typography.letterSpacing.tight,
+          fontSize: 15, fontWeight: 400,
+          letterSpacing: '0.36em',
           color: colors.text.primary.light,
           cursor: 'pointer',
+          textTransform: 'uppercase',
         }}
       >
         AUO
