@@ -5,7 +5,7 @@ import { typography, transition } from '../design-tokens';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type Screen = 'welcome' | 'company' | 'researching' | 'topics';
+type Screen = 'welcome' | 'company' | 'researching' | 'brand_review' | 'topics';
 
 interface Topic {
   title: string;
@@ -66,6 +66,88 @@ const inputStyle: React.CSSProperties = {
   transition: 'border-color 0.15s ease',
 };
 
+// ─── BrandFactRow ───────────────────────────────────────────────────────────
+
+function BrandFactRow({ text, onEdit, onDelete }: {
+  text: string;
+  onEdit: (newVal: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(text);
+
+  // Auto-focus new empty rows into edit mode
+  useEffect(() => {
+    if (text === '') setEditing(true);
+  }, [text]);
+
+  if (editing) {
+    return (
+      <div style={{ padding: '6px 0' }}>
+        <textarea
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onBlur={() => {
+            if (value.trim()) onEdit(value.trim());
+            else onDelete();
+            setEditing(false);
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              if (value.trim()) onEdit(value.trim());
+              else onDelete();
+              setEditing(false);
+            }
+          }}
+          autoFocus
+          rows={2}
+          style={{
+            width: '100%', fontSize: 13,
+            border: '1px solid rgba(0,0,0,0.15)',
+            borderRadius: 3, padding: '6px 8px',
+            resize: 'none', fontFamily: FONT,
+            outline: 'none', boxSizing: 'border-box',
+            lineHeight: 1.5,
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start',
+      gap: 10, padding: '8px 0',
+      borderBottom: '1px solid rgba(0,0,0,0.06)',
+    }}>
+      <span style={{ fontSize: 13, color: '#111', lineHeight: 1.5, flex: 1 }}>
+        {value}
+      </span>
+      <button
+        onClick={() => { setValue(text); setEditing(true); }}
+        style={{
+          fontSize: 11, color: 'rgba(0,0,0,0.25)',
+          background: 'none', border: 'none', cursor: 'pointer',
+          fontFamily: FONT, flexShrink: 0,
+        }}
+      >
+        Edit
+      </button>
+      <button
+        onClick={onDelete}
+        style={{
+          fontSize: 11, color: 'rgba(0,0,0,0.25)',
+          background: 'none', border: 'none', cursor: 'pointer',
+          fontFamily: FONT, flexShrink: 0,
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function Onboarding({ onComplete }: { onComplete: () => void }) {
@@ -89,6 +171,14 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
+
+  // Screen 3.5: Brand review
+  const [brandProfile, setBrandProfile] = useState<{
+    strategic_bets: string[];
+    active_commitments: string[];
+    brand_constraints: string[];
+  } | null>(null);
+  const [brandCorrections, setBrandCorrections] = useState<Record<string, string>>({});
 
   // ── Get user info on mount ──────────────────────────────────────────────
 
@@ -204,7 +294,29 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       console.error('[Onboarding] Scan error:', err);
       setTopics([]);
     } finally {
-      // ALWAYS go to topics screen — never skip
+      // Check for brand profile before going to topics
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: bp } = await (supabase as any)
+            .from('brand_profiles')
+            .select('strategic_bets, active_commitments, brand_constraints')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (bp && (bp.strategic_bets?.length || bp.active_commitments?.length || bp.brand_constraints?.length)) {
+            setBrandProfile({
+              strategic_bets: bp.strategic_bets || [],
+              active_commitments: bp.active_commitments || [],
+              brand_constraints: bp.brand_constraints || [],
+            });
+            console.log('[Onboarding] Brand profile found, showing review');
+            setScreen('brand_review');
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('[Onboarding] Brand profile fetch failed:', e);
+      }
       console.log('[Onboarding] Moving to topics screen');
       setScreen('topics');
     }
@@ -505,11 +617,145 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: '#ccc' }}>
-              Usually takes about 8 minutes
-            </div>
+            <p style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)', marginTop: 24 }}>
+              Usually under 2 minutes
+            </p>
           </div>
         )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            SCREEN 3.5: BRAND CONTEXT REVIEW
+        ════════════════════════════════════════════════════════════════ */}
+        {screen === 'brand_review' && brandProfile && (() => {
+          const sections: { key: 'strategic_bets' | 'active_commitments' | 'brand_constraints'; label: string }[] = [
+            { key: 'strategic_bets', label: 'STRATEGIC PRIORITIES' },
+            { key: 'active_commitments', label: 'ACTIVE COMMITMENTS' },
+            { key: 'brand_constraints', label: 'BRAND CONSTRAINTS' },
+          ];
+
+          const handleBrandEdit = async (sectionKey: string, index: number, newValue: string) => {
+            setBrandProfile(prev => {
+              if (!prev) return prev;
+              const arr = [...(prev[sectionKey as keyof typeof prev] || [])];
+              const original = arr[index];
+              arr[index] = newValue;
+              // Track correction
+              setBrandCorrections(c => ({ ...c, [original]: newValue }));
+              return { ...prev, [sectionKey]: arr };
+            });
+          };
+
+          const handleBrandDelete = async (sectionKey: string, index: number) => {
+            setBrandProfile(prev => {
+              if (!prev) return prev;
+              const arr = [...(prev[sectionKey as keyof typeof prev] || [])];
+              const removed = arr[index];
+              arr.splice(index, 1);
+              setBrandCorrections(c => ({ ...c, [removed]: '__deleted__' }));
+              return { ...prev, [sectionKey]: arr };
+            });
+          };
+
+          const handleBrandAdd = (sectionKey: string) => {
+            setBrandProfile(prev => {
+              if (!prev) return prev;
+              const arr = [...(prev[sectionKey as keyof typeof prev] || []), ''];
+              return { ...prev, [sectionKey]: arr };
+            });
+          };
+
+          const handleBrandConfirm = async () => {
+            // Save corrections to DB
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user && Object.keys(brandCorrections).length > 0) {
+                await (supabase as any).from('brand_profiles').update({
+                  user_corrections: { ...brandCorrections, corrected_at: new Date().toISOString() },
+                }).eq('user_id', user.id).catch(() => {});
+              }
+            } catch {}
+            setScreen('topics');
+          };
+
+          const companyUpper = company.replace(/\b\w/g, c => c.toUpperCase());
+
+          return (
+            <div style={{
+              maxWidth: 560, margin: '0 auto', padding: '60px 40px',
+              width: '100%', overflowY: 'auto', flex: 1,
+            }}>
+              <p style={{
+                fontSize: 11, letterSpacing: '0.14em',
+                color: 'rgba(0,0,0,0.3)', marginBottom: 8,
+                textTransform: 'uppercase' as const,
+              }}>
+                What AUO knows about {companyUpper}
+              </p>
+              <h2 style={{ fontSize: 22, fontWeight: 400, marginBottom: 8, color: '#111' }}>
+                Does this look right?
+              </h2>
+              <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', marginBottom: 40, lineHeight: 1.6 }}>
+                AUO researched {companyUpper} to surface relevant intelligence.
+                Correct anything that's off — this shapes every insight you'll see.
+              </p>
+
+              {sections.map(({ key, label }) => {
+                const items = brandProfile[key] || [];
+                if (items.length === 0 && key !== 'strategic_bets') return null;
+                return (
+                  <div key={key} style={{ marginBottom: 28 }}>
+                    <p style={{
+                      fontSize: 10, letterSpacing: '0.14em',
+                      color: 'rgba(0,0,0,0.3)', marginBottom: 12,
+                      textTransform: 'uppercase' as const,
+                    }}>
+                      {label}
+                    </p>
+                    {items.map((item, i) => (
+                      <BrandFactRow
+                        key={`${key}-${i}`}
+                        text={item}
+                        onEdit={(newVal) => handleBrandEdit(key, i, newVal)}
+                        onDelete={() => handleBrandDelete(key, i)}
+                      />
+                    ))}
+                    <button
+                      onClick={() => handleBrandAdd(key)}
+                      style={{
+                        fontSize: 12, color: 'rgba(0,0,0,0.3)',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: '4px 0', marginTop: 4, fontFamily: FONT,
+                      }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+                );
+              })}
+
+              <button
+                onClick={handleBrandConfirm}
+                style={{
+                  marginTop: 40, width: '100%',
+                  background: '#111', color: 'white',
+                  border: 'none', borderRadius: 4,
+                  padding: '13px 0', fontSize: 13,
+                  letterSpacing: '0.08em', cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Looks right — show me topics →
+              </button>
+
+              <p style={{
+                textAlign: 'center', marginTop: 12,
+                fontSize: 12, color: 'rgba(0,0,0,0.25)',
+              }}>
+                You can update this anytime in settings
+              </p>
+            </div>
+          );
+        })()}
 
         {/* ════════════════════════════════════════════════════════════════
             SCREEN 4: TOPIC SELECTION (briefing style)

@@ -33,6 +33,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signUpSent, setSignUpSent] = useState(false);
   const [signals, setSignals] = useState<PublicSignal[]>([]);
   const [signalsLive, setSignalsLive] = useState(false);
 
@@ -71,7 +72,7 @@ export default function AuthPage() {
         options: { data: { full_name: name, company } },
       });
       if (error) setError(error.message);
-      else navigate('/onboarding');
+      else setSignUpSent(true);
     }
     setLoading(false);
   };
@@ -385,7 +386,7 @@ export default function AuthPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || signUpSent}
                 style={{
                   width: '100%',
                   padding: '12px 0',
@@ -399,17 +400,34 @@ export default function AuthPage() {
                   fontSize: 10.5,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.5 : 1,
+                  cursor: (loading || signUpSent) ? 'not-allowed' : 'pointer',
+                  opacity: (loading || signUpSent) ? 0.5 : 1,
                   transition: 'opacity 0.15s, background 0.15s',
                 }}
-                onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'rgba(255,255,255,0.85)'; }}
+                onMouseEnter={e => { if (!loading && !signUpSent) e.currentTarget.style.background = 'rgba(255,255,255,0.85)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = WHITE; }}
               >
                 {loading
                   ? mode === 'signin' ? 'Signing in...' : 'Creating account...'
+                  : signUpSent ? 'Check your email'
                   : mode === 'signin' ? 'Sign in' : 'Create account'}
               </button>
+
+              {signUpSent && (
+                <div style={{
+                  marginTop: 16,
+                  padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.06)',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.7)',
+                  lineHeight: 1.6,
+                  fontFamily: DM_SANS,
+                }}>
+                  Check your email — we sent a confirmation to{' '}
+                  <span style={{ color: 'white' }}>{email}</span>
+                </div>
+              )}
 
               {/* Footer links */}
               {mode === 'signin' && (

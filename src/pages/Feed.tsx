@@ -97,15 +97,15 @@ const getUrgency = (tone: string) =>
   URGENCY[tone as keyof typeof URGENCY] || URGENCY.WATCH;
 
 const MONITOR_LEVELS = [
-  { value: 'standard', label: 'Standard', icon: '◎' },
-  { value: 'priority', label: 'Priority', icon: '●' },
+  { value: 'standard', label: 'Standard', icon: '' },
+  { value: 'priority', label: 'Priority', icon: '' },
   { value: 'breaking', label: 'Breaking', icon: '⚡' },
 ];
 
 const getMonitorIcon = (level: string) => {
   if (level === 'breaking') return { icon: '⚡', color: '#ef4444' };
-  if (level === 'priority') return { icon: '●', color: '#f97316' };
-  return { icon: '◎', color: '#ccc' };
+  if (level === 'priority') return { icon: '', color: '#f97316' };
+  return { icon: '', color: '#ccc' };
 };
 
 const formatLens = (lens: string): string =>
@@ -1851,7 +1851,7 @@ export default function Feed() {
                 Building your first briefing
               </div>
               <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, fontFamily: FONT }}>
-                Scanning 246 sources across material science, competitor positioning, and your supply chain. Ready in about 8 minutes — we'll email you.
+                AUO is scanning 246 sources for your topics. First insights usually appear in 2–3 minutes. You can close this tab and come back.
               </div>
             </div>
 
@@ -1943,7 +1943,7 @@ export default function Feed() {
                 fontSize: 15, fontWeight: 500, color: colors.text.secondary.light,
                 marginBottom: 20, textAlign: 'center',
               }}>
-                {justOnboarded ? 'Scanning 246 sources...' : 'AUO is building your first positions.'}
+                {justOnboarded ? 'AUO is scanning 246 sources for your topics. First insights usually appear in 2–3 minutes.' : 'AUO is building your first positions.'}
               </p>
               <div className="feed-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
                 <SkeletonCard />

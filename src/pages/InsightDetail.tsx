@@ -995,10 +995,10 @@ export default function InsightDetail() {
                   fontFamily: FONT,
                 }}
               >
-                {monitorLoading ? '...' : !isMonitored ? '◎ Monitor'
+                {monitorLoading ? '...' : !isMonitored ? 'Monitor'
                   : monitorThreshold === 'breaking' ? '⚡ Breaking'
-                  : monitorThreshold === 'high' ? '● Priority'
-                  : '◎ Standard'}
+                  : monitorThreshold === 'high' ? 'Priority'
+                  : 'Standard'}
                 <span style={{ fontSize: 10, marginLeft: 2 }}>▾</span>
               </button>
 
@@ -1022,8 +1022,8 @@ export default function InsightDetail() {
                   </div>
 
                   {([
-                    { id: 'normal' as const, label: 'Standard', description: 'Updates with regular scans', icon: '◎' },
-                    { id: 'high' as const, label: 'Priority', description: 'Frequent scans — email on new signals', icon: '●' },
+                    { id: 'normal' as const, label: 'Standard', description: 'Updates with regular scans', icon: '' },
+                    { id: 'high' as const, label: 'Priority', description: 'Frequent scans — email on new signals', icon: '' },
                     { id: 'breaking' as const, label: 'Breaking', description: 'Every 20 min — immediate email alert', icon: '⚡' },
                   ]).map(option => {
                     const selected = pendingThreshold === option.id;
