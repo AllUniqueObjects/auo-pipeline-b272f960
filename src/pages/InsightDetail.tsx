@@ -68,6 +68,7 @@ interface Signal {
   urgency: string;
   scan_source: string | null;
   first_seen: string | null;
+  source_date: string | null;
   raw_sources: unknown | null;
   created_at: string | null;
 }
@@ -108,6 +109,13 @@ const timeAgo = (dateStr: string) => {
 
 const formatDate = (dateStr: string) =>
   new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const formatDateUTC = (dateStr: string): string => {
+  const d = dateStr.slice(0, 10); // "2026-03-02"
+  const [, m, day] = d.split('-');
+  return `${MONTHS[parseInt(m) - 1]} ${parseInt(day)}`;
+};
 
 const formatRecency = (dateStr: string): string => {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -353,10 +361,10 @@ function SignalTooltip({
           marginBottom: url ? 10 : 0,
         }}>
           {domain && <span>{domain}</span>}
-          {signal.first_seen && (
+          {(signal.source_date || signal.first_seen) && (
             <>
               {domain && <span>·</span>}
-              <span>{formatDate(signal.first_seen)}</span>
+              <span>{signal.source_date ? formatDateUTC(signal.source_date) : formatDate(signal.first_seen!)}</span>
             </>
           )}
         </div>
@@ -628,7 +636,7 @@ export default function InsightDetail() {
         if (signalIds.length > 0) {
           const { data: sigData } = await supabase
             .from('signals')
-            .select('id, title, credibility, summary, role_in_insight, urgency, scan_source, first_seen, raw_sources, created_at')
+            .select('id, title, credibility, summary, role_in_insight, urgency, scan_source, first_seen, source_date, raw_sources, created_at')
             .in('id', signalIds)
             .order('credibility', { ascending: false });
           if (sigData) setSignals(sigData);
@@ -1435,10 +1443,10 @@ export default function InsightDetail() {
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#999' }}>
                           {domain && <span>{domain}</span>}
-                          {signal.first_seen && (
+                          {(signal.source_date || signal.first_seen) && (
                             <>
                               {domain && <span>·</span>}
-                              <span>{formatDate(signal.first_seen)}</span>
+                              <span>{signal.source_date ? formatDateUTC(signal.source_date) : formatDate(signal.first_seen!)}</span>
                             </>
                           )}
                         </div>
