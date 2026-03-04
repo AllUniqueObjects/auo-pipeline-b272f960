@@ -298,11 +298,14 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { data: bp } = await (supabase as any)
+          const { data: bpRows } = await (supabase as any)
             .from('brand_profiles')
             .select('strategic_bets, active_commitments, brand_constraints')
             .eq('user_id', user.id)
-            .maybeSingle();
+            .order('updated_at', { ascending: false })
+            .limit(1);
+          const bp = bpRows?.[0] || null;
+          console.log('[Onboarding] Brand profile query result:', bp);
           if (bp && (bp.strategic_bets?.length || bp.active_commitments?.length || bp.brand_constraints?.length)) {
             setBrandProfile({
               strategic_bets: bp.strategic_bets || [],
