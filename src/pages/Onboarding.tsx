@@ -370,7 +370,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       console.log('[Onboarding] User profile saved');
 
       // 2. NOW insert decision_threads (user row exists) — return IDs
-      let insertedThreads: { id: string }[] = [];
+      let insertedThreads: { id: string; title: string }[] = [];
       if (selected.length > 0) {
         const rows = selected.map(t => ({
           user_id: user.id,
@@ -385,13 +385,31 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         const { data: threadData, error: threadError } = await (supabase as any)
           .from('decision_threads')
           .insert(rows)
-          .select('id');
+          .select('id, title');
 
         if (threadError) {
           console.error('[Onboarding] Thread insert failed:', threadError);
         } else {
           insertedThreads = threadData || [];
           console.log('[Onboarding] Threads inserted successfully:', insertedThreads.length);
+
+          // Link onboarding_topics → decision_threads via title match
+          const topicUpdates = insertedThreads.map((thread: { id: string; title: string }) => ({
+            user_id: user.id,
+            title: thread.title,
+            decision_thread_id: thread.id,
+            selected: true,
+          }));
+          if (topicUpdates.length > 0) {
+            const { error: linkErr } = await (supabase as any)
+              .from('onboarding_topics')
+              .upsert(topicUpdates, { onConflict: 'user_id,title' });
+            if (linkErr) {
+              console.warn('[Onboarding] Topic→thread link failed:', linkErr);
+            } else {
+              console.log(`[Onboarding] Linked ${topicUpdates.length} topics to threads`);
+            }
+          }
         }
       }
 
