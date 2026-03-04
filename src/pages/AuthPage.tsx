@@ -358,8 +358,10 @@ export default function AuthPage() {
                   textTransform: 'uppercase',
                   cursor: loading ? 'not-allowed' : 'pointer',
                   opacity: loading ? 0.5 : 1,
-                  transition: 'opacity 0.15s',
+                  transition: 'opacity 0.15s, background 0.15s, color 0.15s',
                 }}
+                onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = 'rgba(255,255,255,0.85)'; } }}
+                onMouseLeave={e => { e.currentTarget.style.background = WHITE; }}
               >
                 {loading
                   ? mode === 'signin' ? 'Signing in...' : 'Creating account...'
