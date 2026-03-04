@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 export interface RealtimePosition {
   id: string;
   title: string;
-  davids_take?: string | null;
   owner_quote?: string | null;
   sections: unknown;
   signal_refs: unknown;

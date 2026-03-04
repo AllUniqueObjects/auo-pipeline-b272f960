@@ -33,6 +33,7 @@ interface FeedPosition {
   direction_alignment?: string | null;
   is_monitored?: boolean | null;
   monitor_set_at?: string | null;
+  monitor_alert_threshold?: string | null;
   monitor_last_signal_count?: number | null;
   is_pinned?: boolean | null;
   created_at: string;
@@ -400,6 +401,11 @@ function PositionCard({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {pos.monitor_alert_threshold && (
+            <span style={{ marginRight: 2, fontSize: 12, opacity: 0.7 }}>
+              {pos.monitor_alert_threshold === 'breaking' ? '⚡' : ''}
+            </span>
+          )}
           <span style={{
             fontSize: 12,
             fontWeight: 500,
@@ -860,7 +866,7 @@ export default function Feed() {
     }
 
     // Step 2: Fetch all validated positions for those threads
-    const BASE_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_last_signal_count';
+    const BASE_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count';
 
     let { data: positionData, error: posErr } = await (supabase as any)
       .from('positions')
@@ -1072,7 +1078,7 @@ export default function Feed() {
     let cancelled = false;
     (async () => {
       const archivedThread = archivedThreads.find(t => t.id === activeThreadId);
-      const ARCH_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_last_signal_count';
+      const ARCH_COLS = 'id, title, tone, position_essence, why_now, reasoning, cover_image_url, fact_confidence, signal_basis, validated_at, validation_issues, signal_refs, created_at, decision_thread_id, direction_alignment, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count';
       let { data, error: archErr } = await (supabase as any)
         .from('positions')
         .select(ARCH_COLS + ', is_pinned')

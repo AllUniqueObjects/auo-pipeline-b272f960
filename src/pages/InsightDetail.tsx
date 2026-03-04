@@ -47,6 +47,7 @@ interface Position {
   decision_thread_id: string;
   is_monitored?: boolean | null;
   monitor_set_at?: string | null;
+  monitor_alert_threshold?: string | null;
   monitor_last_signal_count?: number | null;
 }
 
@@ -615,7 +616,7 @@ export default function InsightDetail() {
         // Fetch position by ID
         const { data: posData } = await (supabase as any)
           .from('positions')
-          .select('id, title, tone, why_now, reasoning, position_essence, cover_image_url, signal_refs, fact_confidence, signal_basis, sections, validated_at, validation_issues, created_at, decision_thread_id, is_monitored, monitor_set_at, monitor_last_signal_count')
+          .select('id, title, tone, why_now, reasoning, position_essence, cover_image_url, signal_refs, fact_confidence, signal_basis, sections, validated_at, validation_issues, created_at, decision_thread_id, is_monitored, monitor_set_at, monitor_alert_threshold, monitor_last_signal_count')
           .eq('id', id)
           .single();
 
@@ -623,7 +624,7 @@ export default function InsightDetail() {
         if (pos) {
           setPosition(pos);
           setIsMonitored(pos.is_monitored || false);
-          setMonitorThreshold('normal');
+          setMonitorThreshold(pos.monitor_alert_threshold || 'normal');
         }
 
         // Fetch thread info from position's decision_thread_id
@@ -841,6 +842,7 @@ export default function InsightDetail() {
       .update({
         is_monitored: true,
         monitor_set_at: new Date().toISOString(),
+        monitor_alert_threshold: pendingThreshold,
         monitor_last_signal_count: position.signal_refs?.length || 0,
       })
       .eq('id', position.id);
@@ -858,7 +860,7 @@ export default function InsightDetail() {
     setIsMonitored(false);
     await (supabase as any)
       .from('positions')
-      .update({ is_monitored: false, monitor_set_at: null })
+      .update({ is_monitored: false, monitor_set_at: null, monitor_alert_threshold: null })
       .eq('id', position.id);
   };
 
