@@ -17,7 +17,7 @@ const CAT_COLOR: Record<string, string> = {
 };
 
 const MONITOR: Record<string, { label: string; color: string; freq: string }> = {
-  breaking: { label: 'Breaking', color: '#ef4444', freq: 'Every 5 min' },
+  breaking: { label: 'Breaking', color: '#ef4444', freq: 'Every 20 min' },
   priority: { label: 'Priority', color: '#f59e0b', freq: '3x daily' },
   standard: { label: 'Standard', color: '#d1d5db', freq: 'Daily' },
 };
