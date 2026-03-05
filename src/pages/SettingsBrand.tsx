@@ -556,43 +556,96 @@ export default function SettingsBrand() {
           );
         })}
 
-        {/* ── Add more context ─────────────────────────────────────────────── */}
+        {/* ── Chat-style context input ──────────────────────────────────── */}
         <div style={{
           marginTop: 40, paddingTop: 32,
           borderTop: `1px solid ${colors.border?.light || '#f0f0f0'}`,
         }}>
-          <p style={{
-            fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
-            color: colors.text.muted.light, marginBottom: 4,
+          {/* AUO message bubble */}
+          <div style={{
+            background: colors.bg.surface, borderRadius: '4px 16px 16px 16px',
+            padding: '14px 18px', marginBottom: 16, maxWidth: '85%',
           }}>
-            ADD MORE CONTEXT
-          </p>
-          <p style={{ fontSize: 13, color: colors.text.secondary.light, marginBottom: 20 }}>
-            Describe a priority, paste a brief, or upload a document.
-            AUO will extract and categorize it automatically.
-          </p>
+            <p style={{ fontSize: 14, color: colors.text.primary.light, lineHeight: 1.5, margin: 0 }}>
+              Want me to learn more about {raw.brand_name}? Tell me a priority, paste a brief, or drop a document.
+            </p>
+          </div>
 
-          {/* Text input */}
-          <textarea
-            value={contextInput}
-            onChange={e => setContextInput(e.target.value)}
-            placeholder={`Tell AUO something about ${raw.brand_name || 'your brand'} \u2014 a strategic bet, commitment, or constraint...`}
-            rows={4}
-            style={{
-              width: '100%', fontSize: 14, fontFamily: FONT,
-              border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
-              borderRadius: 12, padding: '12px 16px', resize: 'none',
-              outline: 'none', color: colors.text.primary.light,
-              lineHeight: 1.5, transition: transition.fast,
-              boxSizing: 'border-box',
-            }}
+          {/* Quick-action pills */}
+          {!contextInput && !uploadedFile && !preview && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {[
+                'We\'re targeting 50% DTC by 2027',
+                'No outlet distribution',
+                'Sustainability-first sourcing',
+              ].map(pill => (
+                <button
+                  key={pill}
+                  onClick={() => setContextInput(pill)}
+                  style={{
+                    background: 'transparent',
+                    border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
+                    borderRadius: 20, padding: '7px 14px',
+                    fontSize: 13, color: colors.text.secondary.light,
+                    cursor: 'pointer', fontFamily: FONT, transition: transition.fast,
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = colors.text.primary.light;
+                    e.currentTarget.style.color = colors.text.primary.light;
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = colors.border?.medium || '#e0e0e0';
+                    e.currentTarget.style.color = colors.text.secondary.light;
+                  }}
+                >
+                  {pill}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* File attachment chip */}
+          {uploadedFile && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: colors.bg.surface, borderRadius: 10, padding: '8px 14px',
+              marginBottom: 12,
+            }}>
+              <span style={{ fontSize: 13, color: colors.text.primary.light }}>{uploadedFile.name}</span>
+              <button
+                onClick={() => setUploadedFile(null)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 14, color: colors.text.muted.light, fontFamily: FONT,
+                  padding: '0 2px', lineHeight: 1,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                onMouseLeave={e => (e.currentTarget.style.color = colors.text.muted.light)}
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
+          {/* Chat input row */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-end', gap: 10,
+            border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
+            borderRadius: 16, padding: '10px 12px 10px 16px',
+            transition: transition.fast,
+          }}
             onFocus={e => (e.currentTarget.style.borderColor = colors.text.muted.light)}
             onBlur={e => (e.currentTarget.style.borderColor = colors.border?.medium || '#e0e0e0')}
-          />
-
-          {/* File upload */}
-          <div style={{ marginTop: 12 }}>
-            <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          >
+            {/* File upload button */}
+            <label style={{
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              transition: transition.fast,
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
               <input
                 type="file"
                 accept=".pdf,.txt,.docx"
@@ -603,73 +656,113 @@ export default function SettingsBrand() {
                   e.target.value = '';
                 }}
               />
-              <span style={{ fontSize: 13, color: colors.text.muted.light, transition: transition.fast }}>
-                {uploadedFile ? (
-                  <span style={{ color: colors.text.primary.light }}>{uploadedFile.name}</span>
-                ) : (
-                  'Upload a file (PDF, DOCX, TXT)'
-                )}
-              </span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={colors.text.muted.light} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+              </svg>
             </label>
-            {uploadedFile && (
-              <button
-                onClick={() => setUploadedFile(null)}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 14, color: '#ccc', marginLeft: 8, fontFamily: FONT,
-                }}
-              >
-                &times;
-              </button>
-            )}
+
+            <textarea
+              value={contextInput}
+              onChange={e => setContextInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleExtract();
+                }
+              }}
+              placeholder={`"We're betting big on direct-to-consumer..."`}
+              rows={1}
+              style={{
+                flex: 1, fontSize: 14, fontFamily: FONT,
+                border: 'none', outline: 'none', resize: 'none',
+                color: colors.text.primary.light, lineHeight: 1.5,
+                background: 'transparent', minHeight: 24, maxHeight: 120,
+                overflow: 'auto',
+              }}
+              onInput={e => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+              }}
+            />
+
+            {/* Send button */}
+            <button
+              onClick={handleExtract}
+              disabled={extracting || (!contextInput.trim() && !uploadedFile)}
+              style={{
+                width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', cursor: extracting || (!contextInput.trim() && !uploadedFile) ? 'default' : 'pointer',
+                background: (contextInput.trim() || uploadedFile) && !extracting
+                  ? colors.text.primary.light : 'transparent',
+                transition: transition.fast,
+              }}
+            >
+              {extracting ? (
+                <span style={{ fontSize: 12, color: colors.text.muted.light }}>...</span>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke={(contextInput.trim() || uploadedFile) ? colors.text.primary.dark : colors.text.muted.light}
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              )}
+            </button>
           </div>
 
-          {/* Extract button */}
-          <button
-            onClick={handleExtract}
-            disabled={extracting || (!contextInput.trim() && !uploadedFile)}
-            style={{
-              marginTop: 20, display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '10px 20px', background: colors.text.primary.light,
-              color: colors.text.primary.dark, border: 'none', borderRadius: 12,
-              fontSize: 13, fontFamily: FONT, cursor: extracting || (!contextInput.trim() && !uploadedFile) ? 'default' : 'pointer',
-              opacity: extracting || (!contextInput.trim() && !uploadedFile) ? 0.4 : 1,
-              transition: transition.fast,
-            }}
-          >
-            {extracting ? 'Analyzing...' : 'Extract brand context \u2192'}
-          </button>
+          {/* Extracting state */}
+          {extracting && (
+            <div style={{
+              background: colors.bg.surface, borderRadius: '4px 16px 16px 16px',
+              padding: '14px 18px', marginTop: 16, maxWidth: '85%',
+            }}>
+              <p style={{ fontSize: 14, color: colors.text.secondary.light, lineHeight: 1.5, margin: 0 }}>
+                Reading and extracting brand context...
+              </p>
+            </div>
+          )}
 
           {/* Error */}
           {extractError && (
-            <p style={{ marginTop: 12, fontSize: 13, color: '#ef4444' }}>{extractError}</p>
+            <div style={{
+              background: '#fef2f2', borderRadius: '4px 16px 16px 16px',
+              padding: '14px 18px', marginTop: 16, maxWidth: '85%',
+            }}>
+              <p style={{ fontSize: 14, color: '#dc2626', lineHeight: 1.5, margin: 0 }}>
+                {extractError}
+              </p>
+            </div>
           )}
 
           {/* Success */}
           {saveSuccess && (
-            <p style={{ marginTop: 12, fontSize: 13, color: '#22c55e' }}>
-              Added to your brand context
-            </p>
+            <div style={{
+              background: '#f0fdf4', borderRadius: '4px 16px 16px 16px',
+              padding: '14px 18px', marginTop: 16, maxWidth: '85%',
+            }}>
+              <p style={{ fontSize: 14, color: '#16a34a', lineHeight: 1.5, margin: 0 }}>
+                Got it — added to your brand context.
+              </p>
+            </div>
           )}
         </div>
 
-        {/* ── Preview ────────────────────────────────────────────────────── */}
+        {/* ── Preview (AUO response bubble) ────────────────────────────── */}
         {preview && (
           <div style={{
-            marginTop: 24, border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
-            borderRadius: 16, padding: 24,
+            marginTop: 16, background: colors.bg.surface,
+            borderRadius: '4px 16px 16px 16px', padding: 24,
+            maxWidth: '95%',
           }}>
-            {preview.source_summary && (
-              <p style={{ fontSize: 11, color: colors.text.muted.light, marginBottom: 4 }}>
-                {preview.source_summary}
-              </p>
-            )}
-            <p style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary.light, marginBottom: 16 }}>
-              Found {
+            <p style={{ fontSize: 14, color: colors.text.primary.light, marginBottom: 16, lineHeight: 1.5 }}>
+              I found {
                 preview.strategic_bets.length +
                 preview.active_commitments.length +
                 preview.brand_constraints.length
-              } facts &mdash; add these to your brand context?
+              } facts{preview.source_summary ? ` from ${preview.source_summary}` : ''}. Add these?
             </p>
 
             {(SECTIONS.map(({ key }) => ({
@@ -678,7 +771,7 @@ export default function SettingsBrand() {
               key,
             }))).map(({ label, items, key }) =>
               items.length > 0 ? (
-                <div key={key} style={{ marginBottom: 20 }}>
+                <div key={key} style={{ marginBottom: 16 }}>
                   <p style={{
                     fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
                     color: colors.text.muted.light, marginBottom: 8,
@@ -690,8 +783,8 @@ export default function SettingsBrand() {
                       key={i}
                       style={{
                         fontSize: 14, color: colors.text.secondary.light,
-                        padding: '10px 0',
-                        borderBottom: i < items.length - 1 ? `1px solid ${colors.border?.light || '#f0f0f0'}` : 'none',
+                        padding: '8px 0', lineHeight: 1.5,
+                        borderBottom: i < items.length - 1 ? `1px solid rgba(0,0,0,0.05)` : 'none',
                       }}
                     >
                       {fact}
@@ -701,32 +794,31 @@ export default function SettingsBrand() {
               ) : null
             )}
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button
                 onClick={handleConfirmExtraction}
                 disabled={confirmingSave}
                 style={{
                   flex: 1, padding: '10px 0', background: colors.text.primary.light,
-                  color: colors.text.primary.dark, border: 'none', borderRadius: 12,
+                  color: colors.text.primary.dark, border: 'none', borderRadius: 10,
                   fontSize: 13, fontFamily: FONT,
                   cursor: confirmingSave ? 'default' : 'pointer',
                   opacity: confirmingSave ? 0.5 : 1, transition: transition.fast,
                 }}
               >
-                {confirmingSave ? 'Saving...' : 'Add to brand context'}
+                {confirmingSave ? 'Saving...' : 'Add these'}
               </button>
               <button
                 onClick={() => setPreview(null)}
                 style={{
                   padding: '10px 20px', fontSize: 13, fontFamily: FONT,
-                  color: colors.text.secondary.light,
-                  border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
-                  borderRadius: 12, background: 'transparent', cursor: 'pointer',
+                  color: colors.text.muted.light,
+                  border: `1px solid ${colors.border?.light || '#f0f0f0'}`,
+                  borderRadius: 10, background: 'transparent', cursor: 'pointer',
                   transition: transition.fast,
                 }}
               >
-                Discard
+                Skip
               </button>
             </div>
           </div>
