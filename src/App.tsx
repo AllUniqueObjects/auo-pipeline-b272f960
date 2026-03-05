@@ -7,7 +7,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import AuthPage from './pages/AuthPage';
 import Feed from './pages/Feed';
 import Workspace from './pages/Workspace';
-import AlertSources from './pages/AlertSources';
+import TopicsPage from './pages/TopicsPage';
 import AdminCosts from './pages/AdminCosts';
 import AdminEval from './pages/AdminEval';
 import InsightDetail from './pages/InsightDetail';
@@ -103,7 +103,8 @@ function AppWithAuth() {
       />
       <Route path="/insights/:id" element={<InsightDetail />} />
       <Route path="/workspace/:threadId" element={<Workspace />} />
-      <Route path="/alert-sources" element={<AlertSources />} />
+      <Route path="/topics" element={<TopicsPage />} />
+      <Route path="/alert-sources" element={<Navigate to="/topics" replace />} />
       <Route path="/admin/costs" element={<AdminCosts />} />
       <Route path="/admin/eval" element={<AdminEval />} />
       <Route path="/notifications" element={<Notifications />} />

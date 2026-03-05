@@ -299,7 +299,7 @@ export default function Dashboard({ initialLens, justCompletedOnboarding, initia
         <div className="ml-auto flex items-center gap-2">
           {/* Alert Sources */}
           <button
-            onClick={() => window.location.href = '/alert-sources'}
+            onClick={() => window.location.href = '/topics'}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Sources
