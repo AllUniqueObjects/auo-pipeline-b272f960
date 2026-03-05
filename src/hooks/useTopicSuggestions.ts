@@ -17,7 +17,6 @@ export function useTopicSuggestions() {
         .select('*')
         .eq('user_id', user.id)
         .is('dismissed_at', null)
-        .is('accepted_at', null)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -46,13 +45,11 @@ export function useTopicSuggestions() {
       // Optimistic removal
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId))
 
-      const { data, error } = await (supabase as any)
+      const { error } = await (supabase as any)
         .from('topic_suggestions')
-        .update({ accepted_at: new Date().toISOString() })
+        .update({ dismissed_at: new Date().toISOString() })
         .eq('id', suggestionId)
         .eq('user_id', user.id)
-        .select()
-        .single()
 
       if (error) {
         console.error('[Suggestions] Accept failed:', error)
@@ -60,7 +57,7 @@ export function useTopicSuggestions() {
         return null
       }
 
-      return data?.thread_id || null
+      return suggestionId
     } catch (e) {
       console.error('[Suggestions] Accept failed:', e)
       fetchSuggestions()

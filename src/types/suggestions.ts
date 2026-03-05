@@ -9,7 +9,6 @@ export interface TopicSuggestion {
   signal_ids: string[]
   category: string
   dismissed_at: string | null
-  accepted_at: string | null
   created_at: string
   expires_at: string
 }
