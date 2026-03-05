@@ -595,6 +595,7 @@ export default function InsightDetail() {
   const sendingRef = useRef(false);
   const [conversationHistory, setConversationHistory] = useState<{ role: string; content: string }[]>([]);
   const [pendingAction, setPendingAction] = useState<{ type: string; content: string; key_question?: string; lens?: string; thread_id?: string } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [addingNote, setAddingNote] = useState(false);
   const [newNoteText, setNewNoteText] = useState('');
@@ -787,38 +788,53 @@ export default function InsightDetail() {
   // ─── Action confirm handler ─────────────────────────────────────────────
 
   const handleConfirmAction = async (action: { type: string; content?: string; label?: string; query?: string; key_question?: string; lens?: string; thread_id?: string }) => {
-    const title = action.content || action.label || '';
-    if (action.type === 'note') {
-      const { data } = await (supabase as any)
-        .from('position_notes')
-        .insert({ position_id: id, user_id: userId, type: 'note', content: title, metadata: { source: 'auo_generated' } })
-        .select().single();
-      if (data) setUserNotes(prev => [...prev, data]);
-    } else if (action.type === 'create_topic') {
-      try {
-        await (supabase as any).from('decision_threads').insert({
-          user_id: userId,
-          title,
-          key_question: action.key_question || title,
-          lens: action.lens || 'market',
-          status: 'active',
-        }).select().single();
-      } catch (e: any) {
-        console.error('[InsightDetail] Create topic failed:', e);
-      }
-    } else if (action.type === 'scan') {
-      const scanThreadId = action.thread_id || position?.decision_thread_id;
-      if (scanThreadId) {
+    if (actionLoading) return;
+    setActionLoading(true);
+    try {
+      const title = action.content || action.label || '';
+      if (action.type === 'note') {
+        const { data } = await (supabase as any)
+          .from('position_notes')
+          .insert({ position_id: id, user_id: userId, type: 'note', content: title, metadata: { source: 'auo_generated' } })
+          .select().single();
+        if (data) setUserNotes(prev => [...prev, data]);
+      } else if (action.type === 'create_topic') {
         try {
-          await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userId, query: action.query || title, thread_id: scanThreadId }),
-          });
-        } catch { /* non-blocking */ }
+          const { data: newThread } = await (supabase as any).from('decision_threads').insert({
+            user_id: userId,
+            title,
+            key_question: action.key_question || title,
+            lens: action.lens || 'market',
+            status: 'active',
+          }).select('id').single();
+          if (newThread?.id) {
+            try {
+              await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId, query: title, thread_id: newThread.id }),
+              });
+            } catch { /* scan is non-blocking */ }
+          }
+        } catch (e: any) {
+          console.error('[InsightDetail] Create topic failed:', e);
+        }
+      } else if (action.type === 'scan') {
+        const scanThreadId = action.thread_id || position?.decision_thread_id;
+        if (scanThreadId) {
+          try {
+            await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: userId, query: action.query || title, thread_id: scanThreadId }),
+            });
+          } catch { /* non-blocking */ }
+        }
       }
+    } finally {
+      setActionLoading(false);
+      setPendingAction(null);
     }
-    setPendingAction(null);
   };
 
   // ─── Monitor handlers ────────────────────────────────────────────────────
@@ -1703,7 +1719,7 @@ export default function InsightDetail() {
                       {actions.map((a: any, ai: number) => (
                         <button
                           key={ai}
-                          onClick={() => handleConfirmAction(a)}
+                          onClick={() => setPendingAction(a)}
                           style={{
                             fontSize: 11, padding: '4px 10px',
                             background: a.type === 'scan' ? '#f5f5f3' : a.type === 'create_topic' ? '#f0f4ff' : '#fafaf5',
@@ -1761,11 +1777,11 @@ export default function InsightDetail() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => handleConfirmAction(pendingAction)} style={{
+                  <button disabled={actionLoading} onClick={() => handleConfirmAction(pendingAction)} style={{
                     fontSize: 12, padding: '5px 12px',
-                    background: '#111', color: '#fff',
-                    border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
-                  }}>Confirm</button>
+                    background: actionLoading ? '#666' : '#111', color: '#fff',
+                    border: 'none', borderRadius: 6, cursor: actionLoading ? 'default' : 'pointer', fontFamily: FONT,
+                  }}>{actionLoading ? 'Working...' : 'Confirm'}</button>
                   <button onClick={() => setPendingAction(null)} style={{
                     fontSize: 12, padding: '5px 12px',
                     background: 'none', color: '#999',
