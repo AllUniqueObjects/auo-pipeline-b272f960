@@ -65,7 +65,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'positions', filter },
         (payload) => {
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || !payload?.new) return;
           setPosition(payload.new as unknown as RealtimePosition);
           setIsGenerating(false);
           stopPolling();
@@ -75,7 +75,7 @@ export function usePositionRealtime(userId: string | null, conversationId?: stri
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'positions', filter },
         (payload) => {
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || !payload?.new) return;
           setPosition(payload.new as unknown as RealtimePosition);
         }
       )
