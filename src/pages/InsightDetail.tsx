@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { parseSections } from '@/lib/position-utils';
 import { colors, typography, spacing, radius, transition, shadow } from '../design-tokens';
 import AppHeader from '../components/AppHeader';
+import { MarkdownLite } from '@/components/views/ChatView';
 
 // ─── useMediaQuery ───────────────────────────────────────────────────────────
 
@@ -94,14 +95,6 @@ interface ParsedBullet {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FONT = typography.fontFamily;
-
-const stripMd = (text: string) =>
-  text
-    .replace(/#{1,6}\s+/g, '')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/\*(.*?)\*/g, '$1')
-    .replace(/^[-*]\s/gm, '')
-    .trim();
 
 const formatLens = (lens: string) =>
   lens?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
@@ -1677,7 +1670,7 @@ export default function InsightDetail() {
                   <div style={{
                     maxWidth: '70%', fontSize: 13, color: '#333', lineHeight: 1.6,
                   }}>
-                    {stripMd(msg.content)}
+                    <MarkdownLite text={msg.content} />
                   </div>
                   <button
                     className="note-delete-btn"

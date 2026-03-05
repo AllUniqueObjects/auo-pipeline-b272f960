@@ -618,10 +618,12 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
   return (
     <div className="space-y-1.5">
       {lines.map((line, i) => {
-        const rendered = parseLine(line);
         if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
+          const stripped = line.trim().replace(/^[-•]\s+/, '');
+          const rendered = parseLine(stripped);
           return (<div key={i} className="flex gap-2 pl-1"><span className="text-muted-foreground">•</span><span>{rendered}</span></div>);
         }
+        const rendered = parseLine(line);
         if (!line.trim()) return <div key={i} className="h-2" />;
         return <p key={i}>{rendered}</p>;
       })}
