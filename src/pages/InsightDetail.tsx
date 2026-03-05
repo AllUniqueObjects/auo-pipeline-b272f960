@@ -748,17 +748,15 @@ export default function InsightDetail() {
       );
       const data = await res.json();
 
-      const { data: auoMsg } = await (supabase as any)
-        .from('position_notes')
-        .insert({
-          position_id: id,
-          user_id: userId,
-          type: 'auo_response',
-          content: data.response,
-          metadata: { intent: data.intent, action: data.action },
-        })
-        .select().single();
-      if (auoMsg) setConversation(prev => [...prev, auoMsg]);
+      // Backend saves to position_notes — just refresh conversation
+      const auoMsg = {
+        id: 'auo-' + Date.now(),
+        type: 'auo_response',
+        content: data.response,
+        metadata: { intent: data.intent, action: data.action, suggested_actions: data.suggested_actions },
+        created_at: new Date().toISOString(),
+      };
+      setConversation(prev => [...prev, auoMsg]);
 
       setConversationHistory(prev => [
         ...prev,
@@ -766,7 +764,10 @@ export default function InsightDetail() {
         { role: 'assistant', content: data.response },
       ]);
 
-      if (data.action && data.action.type !== 'none') {
+      // Show action chips from suggested_actions, or legacy action
+      if (data.suggested_actions && data.suggested_actions.length > 0) {
+        // suggested_actions are rendered inline — no pending action needed
+      } else if (data.action && data.action.type !== 'none') {
         setPendingAction(data.action);
       }
     } catch (e) {
@@ -1655,35 +1656,60 @@ export default function InsightDetail() {
                 );
               }
 
+              const actions: any[] = msg.metadata?.suggested_actions || [];
               return (
-                <div key={msg.id} className="note-row" style={{
-                  display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start',
-                }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: '#111', color: '#fff', fontSize: 9, fontWeight: 600,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, marginTop: 1,
+                <div key={msg.id}>
+                  <div className="note-row" style={{
+                    display: 'flex', gap: 8, marginBottom: actions.length > 0 ? 4 : 10, alignItems: 'flex-start',
                   }}>
-                    A
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: '#111', color: '#fff', fontSize: 9, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, marginTop: 1,
+                    }}>
+                      A
+                    </div>
+                    <div style={{
+                      maxWidth: '70%', fontSize: 13, color: '#333', lineHeight: 1.6,
+                    }}>
+                      <MarkdownLite text={msg.content} />
+                    </div>
+                    <button
+                      className="note-delete-btn"
+                      onClick={() => deleteConversationMsg(msg.id)}
+                      style={{
+                        background: 'none', border: 'none',
+                        fontSize: 14, color: '#ccc', cursor: 'pointer',
+                        opacity: 0, transition: 'opacity 0.15s',
+                        padding: '0 4px', flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <div style={{
-                    maxWidth: '70%', fontSize: 13, color: '#333', lineHeight: 1.6,
-                  }}>
-                    <MarkdownLite text={msg.content} />
-                  </div>
-                  <button
-                    className="note-delete-btn"
-                    onClick={() => deleteConversationMsg(msg.id)}
-                    style={{
-                      background: 'none', border: 'none',
-                      fontSize: 14, color: '#ccc', cursor: 'pointer',
-                      opacity: 0, transition: 'opacity 0.15s',
-                      padding: '0 4px', flexShrink: 0,
-                    }}
-                  >
-                    ×
-                  </button>
+                  {actions.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 30, marginBottom: 10 }}>
+                      {actions.map((a: any, ai: number) => (
+                        <button
+                          key={ai}
+                          onClick={() => handleConfirmAction(a)}
+                          style={{
+                            fontSize: 11, padding: '4px 10px',
+                            background: a.type === 'scan' ? '#f5f5f3' : a.type === 'create_topic' ? '#f0f4ff' : '#fafaf5',
+                            border: '1px solid #e5e5e5', borderRadius: 12,
+                            cursor: 'pointer', fontFamily: FONT, color: '#333',
+                            display: 'flex', alignItems: 'center', gap: 4,
+                          }}
+                        >
+                          <span style={{ fontSize: 12 }}>
+                            {a.type === 'scan' ? '🔍' : a.type === 'create_topic' ? '＋' : '📝'}
+                          </span>
+                          {a.label || a.content || 'Action'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
