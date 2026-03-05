@@ -5,6 +5,8 @@ import { colors, typography, transition, shadow, pillStyle } from '../design-tok
 import { TopicChatBox } from '../components/TopicChatBox';
 import AppHeader from '../components/AppHeader';
 import { useToast } from '@/hooks/use-toast';
+import { useTopicSuggestions } from '../hooks/useTopicSuggestions';
+import type { TopicSuggestion } from '../types/suggestions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -678,6 +680,208 @@ type FilterTab = typeof BASE_TABS[number] | 'BREAKING' | 'pinned' | 'monitoring'
 // ─── AvatarMenu ───────────────────────────────────────────────────────────
 
 
+// ─── SidebarSuggestionItem ─────────────────────────────────────────────────
+
+const SUGGESTION_SOURCE_ICON: Record<string, string> = {
+  orphan_cluster: '⚡',
+  brand_gap: '◎',
+  deadline: '⏱',
+};
+
+function SidebarSuggestionItem({
+  suggestion,
+  onAccept,
+  onDismiss,
+}: {
+  suggestion: TopicSuggestion
+  onAccept: () => void
+  onDismiss: () => void
+}) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+
+  return (
+    <div
+      style={{ position: 'relative' }}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '5px 8px', borderRadius: 6,
+        background: showTooltip ? '#f9fafb' : 'transparent',
+        transition: 'background 0.1s',
+      }}>
+        <span style={{ fontSize: 10, flexShrink: 0, opacity: 0.5 }}>
+          {SUGGESTION_SOURCE_ICON[suggestion.source] || '✦'}
+        </span>
+        <span style={{
+          flex: 1, fontSize: 12, color: '#374151',
+          overflow: 'hidden', textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap', lineHeight: 1.3,
+        }}>
+          {suggestion.title}
+        </span>
+        {showTooltip && (
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                setAccepting(true);
+                await onAccept();
+              }}
+              disabled={accepting}
+              style={{
+                width: 20, height: 20, borderRadius: 4,
+                background: '#111', border: 'none',
+                color: '#fff', fontSize: 11, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              {accepting ? '…' : '+'}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+              style={{
+                width: 20, height: 20, borderRadius: 4,
+                background: 'none', border: '1px solid #e5e7eb',
+                color: '#9ca3af', fontSize: 11, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showTooltip && (
+        <div style={{
+          position: 'absolute', left: '100%', top: 0, marginLeft: 8,
+          background: '#111', color: '#fff', borderRadius: 8,
+          padding: '10px 12px', width: 220, zIndex: 100,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
+            {suggestion.title}
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
+            {suggestion.reason}
+          </div>
+          {suggestion.detail && (
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 6, lineHeight: 1.5 }}>
+              {suggestion.detail}
+            </div>
+          )}
+          <div style={{
+            marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)',
+            fontSize: 10, color: 'rgba(255,255,255,0.4)',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            <span>{SUGGESTION_SOURCE_ICON[suggestion.source]}</span>
+            <span>
+              {suggestion.source === 'orphan_cluster' && 'Signal cluster detected'}
+              {suggestion.source === 'brand_gap' && 'Strategic coverage gap'}
+              {suggestion.source === 'deadline' && 'Approaching deadline'}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── FeedSuggestionCard ────────────────────────────────────────────────────
+
+const SUGGESTION_CAT_COLOR: Record<string, string> = {
+  SOURCING: '#3b82f6', COMPLIANCE: '#8b5cf6',
+  COMPETITOR: '#f97316', MACRO: '#ef4444',
+};
+
+function FeedSuggestionCard({
+  suggestion,
+  onAccept,
+  onDismiss,
+}: {
+  suggestion: TopicSuggestion
+  onAccept: () => void
+  onDismiss: () => void
+}) {
+  const [accepting, setAccepting] = useState(false);
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+      padding: '16px 20px', borderRadius: 14,
+      border: '1px solid #f3f4f6', background: '#fafafa',
+      gap: 16,
+    }}>
+      <div style={{ display: 'flex', gap: 12, flex: 1, minWidth: 0 }}>
+        <div style={{
+          width: 2, borderRadius: 2, flexShrink: 0, alignSelf: 'stretch',
+          background: SUGGESTION_CAT_COLOR[suggestion.category] || '#e5e7eb',
+        }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5,
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
+              color: SUGGESTION_CAT_COLOR[suggestion.category] || '#9ca3af',
+            }}>
+              {suggestion.category}
+            </span>
+            <span style={{ fontSize: 11, color: '#d1d5db' }}>·</span>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>
+              {suggestion.source === 'orphan_cluster' && '⚡ Signal cluster'}
+              {suggestion.source === 'brand_gap' && '◎ Coverage gap'}
+              {suggestion.source === 'deadline' && '⏱ Deadline'}
+            </span>
+          </div>
+          <div style={{
+            fontSize: 14, fontWeight: 450, color: '#111',
+            letterSpacing: '-0.01em', marginBottom: 5,
+          }}>
+            {suggestion.title}
+          </div>
+          <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5 }}>
+            {suggestion.reason}
+          </div>
+          {suggestion.signal_ids?.length > 0 && (
+            <div style={{ fontSize: 11, color: '#c4c4c4', marginTop: 4 }}>
+              {suggestion.signal_ids.length} signals as evidence
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+        <button
+          onClick={async () => { setAccepting(true); await onAccept(); }}
+          disabled={accepting}
+          style={{
+            padding: '7px 16px', background: '#111', color: '#fff',
+            border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500,
+            cursor: 'pointer', opacity: accepting ? 0.6 : 1,
+          }}
+        >
+          {accepting ? '…' : 'Track'}
+        </button>
+        <button
+          onClick={onDismiss}
+          style={{
+            padding: '7px 10px', background: 'none',
+            border: '1px solid #e5e7eb', borderRadius: 8,
+            fontSize: 12, color: '#9ca3af', cursor: 'pointer',
+          }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── SkeletonCard ──────────────────────────────────────────────────────────
 
 function SkeletonCard() {
@@ -728,6 +932,9 @@ export default function Feed() {
     JSON.parse(sessionStorage.getItem('dismissedDirectionEvents') || '[]')
   ));
   const justOnboarded = sessionStorage.getItem('justOnboarded') === 'true';
+
+  // Topic suggestions
+  const { suggestions, accept: acceptSuggestion, dismiss: dismissSuggestion } = useTopicSuggestions();
 
   // Sidebar menu state
   const [menuOpenThreadId, setMenuOpenThreadId] = useState<string | null>(null);
@@ -1411,8 +1618,60 @@ export default function Feed() {
               </button>
             )}
 
+            {/* ✦ Suggested section */}
+            {suggestions.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <button
+                  onClick={() => { setActiveFilter('✦ Suggested'); setActiveThreadId(null); }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: activeFilter === '✦ Suggested' ? '#111' : 'transparent',
+                    color: activeFilter === '✦ Suggested' ? '#fff' : '#333',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    marginBottom: 2,
+                    fontFamily: FONT,
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, opacity: 0.7 }}>✦</span>
+                    Suggested
+                  </span>
+                  <span style={{
+                    fontSize: 11,
+                    background: activeFilter === '✦ Suggested' ? 'rgba(255,255,255,0.15)' : '#f0f0f0',
+                    color: activeFilter === '✦ Suggested' ? '#fff' : '#999',
+                    padding: '1px 7px',
+                    borderRadius: 10,
+                  }}>
+                    {suggestions.length}
+                  </span>
+                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {suggestions.map(s => (
+                    <SidebarSuggestionItem
+                      key={s.id}
+                      suggestion={s}
+                      onAccept={async () => {
+                        const threadId = await acceptSuggestion(s.id);
+                        if (threadId) loadFeed(true);
+                      }}
+                      onDismiss={() => dismissSuggestion(s.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Divider */}
-            {(positions.some(p => p.is_pinned) || positions.some(p => p.is_monitored)) && (
+            {(positions.some(p => p.is_pinned) || positions.some(p => p.is_monitored) || suggestions.length > 0) && (
               <div style={{ borderTop: '1px solid #f0f0f0', margin: '10px 0' }} />
             )}
 
@@ -1782,6 +2041,16 @@ export default function Feed() {
                       }} />
                     )}
                     {tab}
+                    {tab === '✦ Suggested' && suggestions.length > 0 && (
+                      <span style={{
+                        background: isActive ? 'rgba(255,255,255,0.2)' : '#f3f4f6',
+                        borderRadius: 10, padding: '0 5px', fontSize: 11,
+                        color: isActive ? '#fff' : '#6b7280',
+                        marginLeft: 2,
+                      }}>
+                        {suggestions.length}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -1976,16 +2245,40 @@ export default function Feed() {
           );
         })}
 
-        {/* Suggested empty state */}
+        {/* Suggested section */}
         {activeFilter === '✦ Suggested' && (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 24px',
-            color: colors.text.muted.light,
-            fontSize: 14,
-          }}>
-            AUO will suggest new topics to monitor here.
-          </div>
+          suggestions.length > 0 ? (
+            <div style={{ marginBottom: 32 }}>
+              <p style={{
+                fontSize: 10, letterSpacing: '0.1em', color: '#9ca3af',
+                textTransform: 'uppercase', fontWeight: 600, marginBottom: 16,
+              }}>
+                AUO noticed — topics you're not tracking
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {suggestions.map(s => (
+                  <FeedSuggestionCard
+                    key={s.id}
+                    suggestion={s}
+                    onAccept={async () => {
+                      const threadId = await acceptSuggestion(s.id);
+                      if (threadId) loadFeed(true);
+                    }}
+                    onDismiss={() => dismissSuggestion(s.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center',
+              padding: '60px 24px',
+              color: colors.text.muted.light,
+              fontSize: 14,
+            }}>
+              AUO will suggest new topics to monitor here.
+            </div>
+          )
         )}
 
         {/* Position cards — continuous 2-column grid */}
