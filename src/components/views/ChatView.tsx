@@ -618,13 +618,18 @@ export function MarkdownLite({ text, onOpenSignal }: { text: string; onOpenSigna
   return (
     <div className="space-y-1.5">
       {lines.map((line, i) => {
-        if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
-          const stripped = line.trim().replace(/^[-•]\s+/, '');
+        const trimmed = line.trim();
+        if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+          const stripped = trimmed.replace(/^[-•]\s+/, '');
           const rendered = parseLine(stripped);
           return (<div key={i} className="flex gap-2 pl-1"><span className="text-muted-foreground">•</span><span>{rendered}</span></div>);
         }
+        // Short lines ending with ":" are section headers — render bold
+        if (trimmed.endsWith(':') && trimmed.length < 80 && !trimmed.includes('http')) {
+          return <p key={i}><strong className="font-semibold">{trimmed}</strong></p>;
+        }
         const rendered = parseLine(line);
-        if (!line.trim()) return <div key={i} className="h-2" />;
+        if (!trimmed) return <div key={i} className="h-2" />;
         return <p key={i}>{rendered}</p>;
       })}
     </div>
