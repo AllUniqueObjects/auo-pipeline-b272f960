@@ -758,11 +758,10 @@ export default function SettingsBrand() {
             maxWidth: '95%',
           }}>
             <p style={{ fontSize: 14, color: colors.text.primary.light, marginBottom: 16, lineHeight: 1.5 }}>
-              I found {
-                preview.strategic_bets.length +
-                preview.active_commitments.length +
-                preview.brand_constraints.length
-              } facts{preview.source_summary ? ` from ${preview.source_summary}` : ''}. Add these?
+              {(() => {
+                const n = preview.strategic_bets.length + preview.active_commitments.length + preview.brand_constraints.length;
+                return `I found ${n} ${n === 1 ? 'fact' : 'facts'}`;
+              })()}{preview.source_summary ? ` from ${preview.source_summary}` : ''}. Add {preview.strategic_bets.length + preview.active_commitments.length + preview.brand_constraints.length === 1 ? 'this' : 'these'}?
             </p>
 
             {(SECTIONS.map(({ key }) => ({
@@ -806,7 +805,7 @@ export default function SettingsBrand() {
                   opacity: confirmingSave ? 0.5 : 1, transition: transition.fast,
                 }}
               >
-                {confirmingSave ? 'Saving...' : 'Add these'}
+                {confirmingSave ? 'Saving...' : `Add ${(preview?.strategic_bets.length || 0) + (preview?.active_commitments.length || 0) + (preview?.brand_constraints.length || 0) === 1 ? 'this' : 'these'}`}
               </button>
               <button
                 onClick={() => setPreview(null)}

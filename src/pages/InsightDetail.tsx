@@ -1699,7 +1699,7 @@ export default function InsightDetail() {
                     </button>
                   </div>
                   {actions.length > 0 && (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 30, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 30, marginBottom: 10, position: 'relative', zIndex: 101 }}>
                       {actions.map((a: any, ai: number) => (
                         <button
                           key={ai}
