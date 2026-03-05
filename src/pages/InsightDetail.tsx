@@ -786,27 +786,37 @@ export default function InsightDetail() {
 
   // ─── Action confirm handler ─────────────────────────────────────────────
 
-  const handleConfirmAction = async (action: { type: string; content: string; key_question?: string; lens?: string; thread_id?: string }) => {
+  const handleConfirmAction = async (action: { type: string; content?: string; label?: string; query?: string; key_question?: string; lens?: string; thread_id?: string }) => {
+    const title = action.content || action.label || '';
     if (action.type === 'note') {
       const { data } = await (supabase as any)
         .from('position_notes')
-        .insert({ position_id: id, user_id: userId, type: 'note', content: action.content, metadata: { source: 'auo_generated' } })
+        .insert({ position_id: id, user_id: userId, type: 'note', content: title, metadata: { source: 'auo_generated' } })
         .select().single();
       if (data) setUserNotes(prev => [...prev, data]);
     } else if (action.type === 'create_topic') {
-      await (supabase as any).from('decision_threads').insert({
-        user_id: userId,
-        title: action.content,
-        key_question: action.key_question || action.content,
-        lens: action.lens || 'market',
-        status: 'active',
-      }).catch((e: any) => console.error('[InsightDetail] Create topic failed:', e));
-    } else if (action.type === 'scan' && action.thread_id) {
-      await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, thread_id: action.thread_id }),
-      }).catch(() => {});
+      try {
+        await (supabase as any).from('decision_threads').insert({
+          user_id: userId,
+          title,
+          key_question: action.key_question || title,
+          lens: action.lens || 'market',
+          status: 'active',
+        }).select().single();
+      } catch (e: any) {
+        console.error('[InsightDetail] Create topic failed:', e);
+      }
+    } else if (action.type === 'scan') {
+      const scanThreadId = action.thread_id || position?.decision_thread_id;
+      if (scanThreadId) {
+        try {
+          await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, query: action.query || title, thread_id: scanThreadId }),
+          });
+        } catch { /* non-blocking */ }
+      }
     }
     setPendingAction(null);
   };
