@@ -638,7 +638,7 @@ export default function InsightDetail() {
           .filter(Boolean);
 
         if (signalIds.length > 0) {
-          const { data: sigData } = await supabase
+          const { data: sigData } = await (supabase as any)
             .from('signals')
             .select('id, title, credibility, summary, role_in_insight, urgency, scan_source, first_seen, source_date, raw_sources, created_at')
             .in('id', signalIds)
@@ -790,6 +790,7 @@ export default function InsightDetail() {
   const handleConfirmAction = async (action: { type: string; content?: string; label?: string; query?: string; key_question?: string; lens?: string; thread_id?: string }) => {
     if (actionLoading) return;
     setActionLoading(true);
+    const scanUrl = import.meta.env.VITE_MODAL_SCAN_PRIORITY_URL;
     try {
       const title = action.content || action.label || '';
       if (action.type === 'note') {
@@ -798,6 +799,7 @@ export default function InsightDetail() {
           .insert({ position_id: id, user_id: userId, type: 'note', content: title, metadata: { source: 'auo_generated' } })
           .select().single();
         if (data) setUserNotes(prev => [...prev, data]);
+        setConversation(prev => [...prev, { id: 'action-confirm-' + Date.now(), type: 'auo_response', content: 'Saved.', created_at: new Date().toISOString() }]);
       } else if (action.type === 'create_topic') {
         try {
           const { data: newThread } = await (supabase as any).from('decision_threads').insert({
@@ -809,26 +811,51 @@ export default function InsightDetail() {
           }).select('id').single();
           if (newThread?.id) {
             try {
-              await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
+              await fetch(scanUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: userId, query: title, thread_id: newThread.id }),
               });
             } catch { /* scan is non-blocking */ }
           }
+          setConversation(prev => [...prev, { id: 'action-confirm-' + Date.now(), type: 'auo_response', content: `Created topic "${title}" and started scanning. New insights will appear on your feed shortly.`, created_at: new Date().toISOString() }]);
         } catch (e: any) {
           console.error('[InsightDetail] Create topic failed:', e);
         }
       } else if (action.type === 'scan') {
-        const scanThreadId = action.thread_id || position?.decision_thread_id;
+        let scanThreadId = action.thread_id || position?.decision_thread_id;
         if (scanThreadId) {
           try {
-            await fetch('https://dkk222--auo-scanner-scan-priority-endpoint.modal.run', {
+            await fetch(scanUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ user_id: userId, query: action.query || title, thread_id: scanThreadId }),
             });
           } catch { /* non-blocking */ }
+          setConversation(prev => [...prev, { id: 'action-confirm-' + Date.now(), type: 'auo_response', content: 'Scanning now — new insights will appear on your feed in 2–3 minutes.', created_at: new Date().toISOString() }]);
+        } else {
+          // No existing thread — create one and scan into it
+          try {
+            const { data: newThread } = await (supabase as any).from('decision_threads').insert({
+              user_id: userId,
+              title,
+              key_question: action.key_question || title,
+              lens: action.lens || 'market',
+              status: 'active',
+            }).select('id').single();
+            if (newThread?.id) {
+              try {
+                await fetch(scanUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ user_id: userId, query: action.query || title, thread_id: newThread.id }),
+                });
+              } catch { /* scan is non-blocking */ }
+            }
+            setConversation(prev => [...prev, { id: 'action-confirm-' + Date.now(), type: 'auo_response', content: `No existing topic found, so I created "${title}" and started scanning.`, created_at: new Date().toISOString() }]);
+          } catch (e: any) {
+            console.error('[InsightDetail] Fallback create topic failed:', e);
+          }
         }
       }
     } finally {
