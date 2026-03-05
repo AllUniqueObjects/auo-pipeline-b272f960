@@ -85,6 +85,14 @@ function AvatarMenu({ userName, isAdmin, hasUnread, onNavigate }: { userName: st
             </>
           )}
           <button
+            onClick={() => { setOpen(false); onNavigate('/settings/brand'); }}
+            style={menuBtnStyle}
+            onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Brand Context
+          </button>
+          <button
             onClick={() => { setOpen(false); onNavigate('/alert-sources'); }}
             style={menuBtnStyle}
             onMouseEnter={e => (e.currentTarget.style.background = colors.bg.surface)}
