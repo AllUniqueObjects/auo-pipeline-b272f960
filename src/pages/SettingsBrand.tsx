@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { colors, typography, transition } from '../design-tokens';
@@ -14,6 +14,13 @@ interface RawBrandProfile {
   updated_at: string;
 }
 
+interface ExtractedContext {
+  strategic_bets: string[];
+  active_commitments: string[];
+  brand_constraints: string[];
+  source_summary: string;
+}
+
 type SectionKey = 'strategic_bets' | 'active_commitments' | 'brand_constraints';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
@@ -21,6 +28,12 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'active_commitments', label: 'ACTIVE COMMITMENTS' },
   { key: 'brand_constraints', label: 'BRAND CONSTRAINTS' },
 ];
+
+const PREVIEW_LABELS: Record<SectionKey, string> = {
+  strategic_bets: 'Strategic Priorities',
+  active_commitments: 'Active Commitments',
+  brand_constraints: 'Brand Constraints',
+};
 
 function applyCorrections(
   facts: string[],
@@ -35,6 +48,33 @@ function applyCorrections(
     })
     .filter(Boolean) as string[];
 }
+
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]);
+    };
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
+};
+
+const extractFileText = async (file: File): Promise<{ text?: string; base64?: string; type: string }> => {
+  if (file.type === 'application/pdf') {
+    const base64 = await fileToBase64(file);
+    return { base64, type: 'pdf' };
+  }
+  if (file.name.endsWith('.docx')) {
+    const mammoth = await import('mammoth');
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return { text: result.value, type: 'text' };
+  }
+  const text = await file.text();
+  return { text, type: 'text' };
+};
 
 export default function SettingsBrand() {
   const navigate = useNavigate();
@@ -57,6 +97,39 @@ export default function SettingsBrand() {
   const [userId, setUserId] = useState('');
   const [researching, setResearching] = useState(false);
 
+  // Extract context state
+  const [contextInput, setContextInput] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ExtractedContext | null>(null);
+  const [confirmingSave, setConfirmingSave] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const applyData = useCallback((data: any) => {
+    const corr = data.user_corrections || {};
+    setRaw(data as RawBrandProfile);
+    setSections({
+      strategic_bets: applyCorrections(data.strategic_bets || [], corr),
+      active_commitments: applyCorrections(data.active_commitments || [], corr),
+      brand_constraints: applyCorrections(data.brand_constraints || [], corr),
+    });
+    setNewItems({ strategic_bets: [], active_commitments: [], brand_constraints: [] });
+  }, []);
+
+  const loadBrandProfile = useCallback(async (uid?: string) => {
+    const id = uid || userId;
+    if (!id) return;
+    const { data } = await (supabase as any)
+      .from('brand_profiles')
+      .select('strategic_bets, active_commitments, brand_constraints, user_corrections, brand_name, updated_at')
+      .eq('user_id', id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) applyData(data);
+  }, [userId, applyData]);
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -76,16 +149,10 @@ export default function SettingsBrand() {
         return;
       }
 
-      const corrections = data.user_corrections || {};
-      setRaw(data as RawBrandProfile);
-      setSections({
-        strategic_bets: applyCorrections(data.strategic_bets || [], corrections),
-        active_commitments: applyCorrections(data.active_commitments || [], corrections),
-        brand_constraints: applyCorrections(data.brand_constraints || [], corrections),
-      });
+      applyData(data);
       setLoading(false);
     })();
-  }, [navigate]);
+  }, [navigate, applyData]);
 
   const startEdit = (key: SectionKey, index: number, value: string) => {
     setEditingSection(key);
@@ -123,7 +190,6 @@ export default function SettingsBrand() {
       ...prev,
       [key]: [...prev[key], placeholder],
     }));
-    // Start editing the new item immediately
     setTimeout(() => {
       startEdit(key, sections[key].length, placeholder);
     }, 0);
@@ -137,7 +203,6 @@ export default function SettingsBrand() {
       const rawFacts = raw[key] || [];
       const edited = sections[key];
 
-      // Find deletions
       for (const originalFact of rawFacts) {
         const correctedOriginal = (raw.user_corrections || {})[originalFact];
         const displayFact =
@@ -151,7 +216,6 @@ export default function SettingsBrand() {
         }
       }
 
-      // Find edits
       const displayedFacts = applyCorrections(rawFacts, raw.user_corrections || {});
       displayedFacts.forEach((displayFact, i) => {
         const editedFact = edited[i];
@@ -176,7 +240,6 @@ export default function SettingsBrand() {
 
     const corrections = buildCorrections();
 
-    // Separate truly new items (not from raw arrays)
     const displayedCounts = {
       strategic_bets: applyCorrections(raw.strategic_bets || [], raw.user_corrections || {}).length,
       active_commitments: applyCorrections(raw.active_commitments || [], raw.user_corrections || {}).length,
@@ -219,25 +282,7 @@ export default function SettingsBrand() {
     if (error) {
       console.error('[SettingsBrand] Save failed:', error);
     } else {
-      // Reload fresh data
-      const { data } = await (supabase as any)
-        .from('brand_profiles')
-        .select('strategic_bets, active_commitments, brand_constraints, user_corrections, brand_name, updated_at')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (data) {
-        const corr = data.user_corrections || {};
-        setRaw(data as RawBrandProfile);
-        setSections({
-          strategic_bets: applyCorrections(data.strategic_bets || [], corr),
-          active_commitments: applyCorrections(data.active_commitments || [], corr),
-          brand_constraints: applyCorrections(data.brand_constraints || [], corr),
-        });
-        setNewItems({ strategic_bets: [], active_commitments: [], brand_constraints: [] });
-      }
+      await loadBrandProfile();
     }
 
     setSaving(false);
@@ -269,31 +314,108 @@ export default function SettingsBrand() {
         }),
       });
 
-      // Reload brand profile after scan
-      const { data } = await (supabase as any)
-        .from('brand_profiles')
-        .select('strategic_bets, active_commitments, brand_constraints, user_corrections, brand_name, updated_at')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (data) {
-        const corr = data.user_corrections || {};
-        setRaw(data as RawBrandProfile);
-        setSections({
-          strategic_bets: applyCorrections(data.strategic_bets || [], corr),
-          active_commitments: applyCorrections(data.active_commitments || [], corr),
-          brand_constraints: applyCorrections(data.brand_constraints || [], corr),
-        });
-        setNewItems({ strategic_bets: [], active_commitments: [], brand_constraints: [] });
-      }
+      await loadBrandProfile();
     } catch (err) {
       console.error('[SettingsBrand] Re-research failed:', err);
     } finally {
       setResearching(false);
     }
   };
+
+  // ── Extract brand context ──────────────────────────────────────────────────
+
+  const handleExtract = async () => {
+    if (!contextInput.trim() && !uploadedFile) return;
+
+    setExtracting(true);
+    setExtractError(null);
+    setPreview(null);
+
+    try {
+      const body: Record<string, any> = {
+        user_id: userId,
+        brand_name: raw?.brand_name || '',
+      };
+
+      if (uploadedFile) {
+        const extracted = await extractFileText(uploadedFile);
+        if (extracted.type === 'pdf' && extracted.base64) {
+          body.file_content = extracted.base64;
+          body.file_type = 'pdf';
+        } else {
+          body.text = extracted.text;
+          body.file_type = 'text';
+        }
+        if (contextInput.trim()) {
+          body.text = (body.text || '') + '\n\n' + contextInput.trim();
+        }
+      } else {
+        body.text = contextInput.trim();
+      }
+
+      const extractUrl = import.meta.env.VITE_MODAL_EXTRACT_BRAND_CONTEXT_URL;
+      if (!extractUrl) throw new Error('Extract endpoint not configured');
+
+      const res = await fetch(extractUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      const totalFacts =
+        (data.strategic_bets?.length || 0) +
+        (data.active_commitments?.length || 0) +
+        (data.brand_constraints?.length || 0);
+
+      if (totalFacts === 0) {
+        throw new Error('No brand facts found — try adding more specific content.');
+      }
+
+      setPreview(data);
+    } catch (e: any) {
+      setExtractError(e.message || 'Extraction failed');
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleConfirmExtraction = async () => {
+    if (!preview || !raw) return;
+    setConfirmingSave(true);
+
+    try {
+      const { error } = await (supabase as any)
+        .from('brand_profiles')
+        .update({
+          strategic_bets: [...(raw.strategic_bets || []), ...preview.strategic_bets],
+          active_commitments: [...(raw.active_commitments || []), ...preview.active_commitments],
+          brand_constraints: [...(raw.brand_constraints || []), ...preview.brand_constraints],
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+        .eq('brand_name', raw.brand_name);
+
+      if (error) throw error;
+
+      setPreview(null);
+      setContextInput('');
+      setUploadedFile(null);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      await loadBrandProfile();
+    } catch (e: any) {
+      setExtractError(e.message || 'Save failed');
+    } finally {
+      setConfirmingSave(false);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   const updatedLabel = raw?.updated_at
     ? `Updated ${new Date(raw.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
@@ -434,6 +556,182 @@ export default function SettingsBrand() {
           );
         })}
 
+        {/* ── Add more context ─────────────────────────────────────────────── */}
+        <div style={{
+          marginTop: 40, paddingTop: 32,
+          borderTop: `1px solid ${colors.border?.light || '#f0f0f0'}`,
+        }}>
+          <p style={{
+            fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+            color: colors.text.muted.light, marginBottom: 4,
+          }}>
+            ADD MORE CONTEXT
+          </p>
+          <p style={{ fontSize: 13, color: colors.text.secondary.light, marginBottom: 20 }}>
+            Describe a priority, paste a brief, or upload a document.
+            AUO will extract and categorize it automatically.
+          </p>
+
+          {/* Text input */}
+          <textarea
+            value={contextInput}
+            onChange={e => setContextInput(e.target.value)}
+            placeholder={`Tell AUO something about ${raw.brand_name || 'your brand'} \u2014 a strategic bet, commitment, or constraint...`}
+            rows={4}
+            style={{
+              width: '100%', fontSize: 14, fontFamily: FONT,
+              border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
+              borderRadius: 12, padding: '12px 16px', resize: 'none',
+              outline: 'none', color: colors.text.primary.light,
+              lineHeight: 1.5, transition: transition.fast,
+              boxSizing: 'border-box',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = colors.text.muted.light)}
+            onBlur={e => (e.currentTarget.style.borderColor = colors.border?.medium || '#e0e0e0')}
+          />
+
+          {/* File upload */}
+          <div style={{ marginTop: 12 }}>
+            <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="file"
+                accept=".pdf,.txt,.docx"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) setUploadedFile(file);
+                  e.target.value = '';
+                }}
+              />
+              <span style={{ fontSize: 13, color: colors.text.muted.light, transition: transition.fast }}>
+                {uploadedFile ? (
+                  <span style={{ color: colors.text.primary.light }}>{uploadedFile.name}</span>
+                ) : (
+                  'Upload a file (PDF, DOCX, TXT)'
+                )}
+              </span>
+            </label>
+            {uploadedFile && (
+              <button
+                onClick={() => setUploadedFile(null)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 14, color: '#ccc', marginLeft: 8, fontFamily: FONT,
+                }}
+              >
+                &times;
+              </button>
+            )}
+          </div>
+
+          {/* Extract button */}
+          <button
+            onClick={handleExtract}
+            disabled={extracting || (!contextInput.trim() && !uploadedFile)}
+            style={{
+              marginTop: 20, display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', background: colors.text.primary.light,
+              color: colors.text.primary.dark, border: 'none', borderRadius: 12,
+              fontSize: 13, fontFamily: FONT, cursor: extracting || (!contextInput.trim() && !uploadedFile) ? 'default' : 'pointer',
+              opacity: extracting || (!contextInput.trim() && !uploadedFile) ? 0.4 : 1,
+              transition: transition.fast,
+            }}
+          >
+            {extracting ? 'Analyzing...' : 'Extract brand context \u2192'}
+          </button>
+
+          {/* Error */}
+          {extractError && (
+            <p style={{ marginTop: 12, fontSize: 13, color: '#ef4444' }}>{extractError}</p>
+          )}
+
+          {/* Success */}
+          {saveSuccess && (
+            <p style={{ marginTop: 12, fontSize: 13, color: '#22c55e' }}>
+              Added to your brand context
+            </p>
+          )}
+        </div>
+
+        {/* ── Preview ────────────────────────────────────────────────────── */}
+        {preview && (
+          <div style={{
+            marginTop: 24, border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
+            borderRadius: 16, padding: 24,
+          }}>
+            {preview.source_summary && (
+              <p style={{ fontSize: 11, color: colors.text.muted.light, marginBottom: 4 }}>
+                {preview.source_summary}
+              </p>
+            )}
+            <p style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary.light, marginBottom: 16 }}>
+              Found {
+                preview.strategic_bets.length +
+                preview.active_commitments.length +
+                preview.brand_constraints.length
+              } facts &mdash; add these to your brand context?
+            </p>
+
+            {(SECTIONS.map(({ key }) => ({
+              label: PREVIEW_LABELS[key],
+              items: preview[key] || [],
+              key,
+            }))).map(({ label, items, key }) =>
+              items.length > 0 ? (
+                <div key={key} style={{ marginBottom: 20 }}>
+                  <p style={{
+                    fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                    color: colors.text.muted.light, marginBottom: 8,
+                  }}>
+                    {label}
+                  </p>
+                  {items.map((fact, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        fontSize: 14, color: colors.text.secondary.light,
+                        padding: '10px 0',
+                        borderBottom: i < items.length - 1 ? `1px solid ${colors.border?.light || '#f0f0f0'}` : 'none',
+                      }}
+                    >
+                      {fact}
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={handleConfirmExtraction}
+                disabled={confirmingSave}
+                style={{
+                  flex: 1, padding: '10px 0', background: colors.text.primary.light,
+                  color: colors.text.primary.dark, border: 'none', borderRadius: 12,
+                  fontSize: 13, fontFamily: FONT,
+                  cursor: confirmingSave ? 'default' : 'pointer',
+                  opacity: confirmingSave ? 0.5 : 1, transition: transition.fast,
+                }}
+              >
+                {confirmingSave ? 'Saving...' : 'Add to brand context'}
+              </button>
+              <button
+                onClick={() => setPreview(null)}
+                style={{
+                  padding: '10px 20px', fontSize: 13, fontFamily: FONT,
+                  color: colors.text.secondary.light,
+                  border: `1px solid ${colors.border?.medium || '#e0e0e0'}`,
+                  borderRadius: 12, background: 'transparent', cursor: 'pointer',
+                  transition: transition.fast,
+                }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Re-research */}
         <button
           onClick={handleReResearch}
@@ -441,7 +739,7 @@ export default function SettingsBrand() {
           style={{
             background: 'none', border: 'none', cursor: researching ? 'default' : 'pointer',
             fontSize: 13, color: colors.text.secondary.light, fontFamily: FONT,
-            padding: 0, marginTop: 8, transition: transition.fast,
+            padding: 0, marginTop: 32, transition: transition.fast,
           }}
         >
           {researching ? 'Researching...' : `Re-research ${raw.brand_name} \u2192`}
