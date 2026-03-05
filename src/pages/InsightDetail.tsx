@@ -1762,31 +1762,40 @@ export default function InsightDetail() {
               </div>
             )}
 
-            {/* Action confirm card */}
+            {/* Action confirm — inline chat style */}
             {pendingAction && pendingAction.type !== 'none' && (
-              <div style={{
-                margin: '8px 0 12px', padding: '12px 14px',
-                background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8,
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#111', marginBottom: 4 }}>
-                  {pendingAction.type === 'create_topic' ? '+ Create topic' : pendingAction.type === 'scan' ? 'Scan for more' : 'Save as note'}
-                </div>
-                {pendingAction.content && (
-                  <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>
-                    "{pendingAction.content}"
+              <div style={{ display: 'flex', gap: 8, margin: '8px 0 12px', alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: '#111', color: '#fff', fontSize: 9, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, marginTop: 1,
+                }}>A</div>
+                <div style={{ maxWidth: '80%' }}>
+                  <div style={{ fontSize: 13, color: '#333', lineHeight: 1.5, marginBottom: 10 }}>
+                    {pendingAction.type === 'scan' && (
+                      <>Want me to scan for more on this?{pendingAction.content && <> <span style={{ color: '#999' }}>"{pendingAction.content}"</span></>}</>
+                    )}
+                    {pendingAction.type === 'create_topic' && (
+                      <>I can track this as a topic{pendingAction.content && <> — <strong style={{ fontWeight: 600 }}>"{pendingAction.content}"</strong></>}</>
+                    )}
+                    {pendingAction.type !== 'scan' && pendingAction.type !== 'create_topic' && (
+                      <>Save this as a note?{pendingAction.content && <> <span style={{ color: '#999' }}>"{pendingAction.content}"</span></>}</>
+                    )}
                   </div>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button disabled={actionLoading} onClick={() => handleConfirmAction(pendingAction)} style={{
-                    fontSize: 12, padding: '5px 12px',
-                    background: actionLoading ? '#666' : '#111', color: '#fff',
-                    border: 'none', borderRadius: 6, cursor: actionLoading ? 'default' : 'pointer', fontFamily: FONT,
-                  }}>{actionLoading ? 'Working...' : 'Confirm'}</button>
-                  <button onClick={() => setPendingAction(null)} style={{
-                    fontSize: 12, padding: '5px 12px',
-                    background: 'none', color: '#999',
-                    border: '1px solid #e5e5e5', borderRadius: 6, cursor: 'pointer', fontFamily: FONT,
-                  }}>Skip</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button disabled={actionLoading} onClick={() => handleConfirmAction(pendingAction)} style={{
+                      fontSize: 12, padding: '6px 16px',
+                      background: actionLoading ? '#666' : '#111', color: '#fff',
+                      border: 'none', borderRadius: 20, cursor: actionLoading ? 'default' : 'pointer',
+                      fontFamily: FONT, transition: 'opacity 0.15s',
+                    }}>{actionLoading ? 'On it...' : pendingAction.type === 'scan' ? 'Yes, scan' : pendingAction.type === 'create_topic' ? 'Create topic' : 'Save note'}</button>
+                    <button onClick={() => setPendingAction(null)} style={{
+                      fontSize: 12, padding: '6px 16px',
+                      background: 'none', color: '#999',
+                      border: '1px solid #e5e5e5', borderRadius: 20, cursor: 'pointer', fontFamily: FONT,
+                    }}>Not now</button>
+                  </div>
                 </div>
               </div>
             )}
